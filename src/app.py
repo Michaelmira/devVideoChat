@@ -5,6 +5,7 @@ import os
 from flask import Flask, request, jsonify, url_for, send_from_directory
 from flask_migrate import Migrate
 from flask_swagger import swagger
+from flask_cors import CORS
 from api.utils import APIException, generate_sitemap
 from api.models import db
 from api.routes import api
@@ -37,6 +38,17 @@ db.init_app(app)
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "your-secret-key")  
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = datetime.timedelta(days=1)
 jwt = JWTManager(app)
+
+# CORS Configuration
+CORS(app, resources={r"/api/*": {
+    "origins": [
+        os.getenv('FRONTEND_URL'),
+        os.getenv('BACKEND_URL')
+    ],
+    "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    "allow_headers": ["Content-Type", "Authorization"],
+    "supports_credentials": True
+}})
 
 # add the admin
 setup_admin(app)

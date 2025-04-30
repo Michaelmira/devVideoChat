@@ -13,6 +13,8 @@ import { Footer } from "./component/footer";
 
 import { MentorList } from "./pages/mentorList";
 import { MentorDashboard } from "./pages/MentorDashboard";
+import { MentorProfile } from "./pages/MentorProfile";
+
 
 //create your first component
 const Layout = () => {

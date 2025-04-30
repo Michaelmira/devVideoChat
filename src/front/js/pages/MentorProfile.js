@@ -26,8 +26,8 @@ import "react-phone-input-2/lib/style.css";
 import ProfilePhoto from "../component/ProfilePhoto";
 import PortfolioImage from "../component/PortfolioImage";
 import { ChangePsModal } from "../auth/ChangePsModal";
-import { GoogleAuthMentor } from "../component/GoogleAuthMentor";
-import { StripeConnect } from "../component/StripeConnect";
+// import { GoogleAuthMentor } from "../component/GoogleAuthMentor";
+// import { StripeConnect } from "../component/StripeConnect";
 
 import { InvalidItem } from "../component/InvalidItem";
 
@@ -402,8 +402,8 @@ export const MentorProfile = () => {
 						? (<button onClick={() => setEditMode(true)} className="btn btn-secondary fa-solid fa-pencil ms-4"></button>)
 						: ''
 					} */}
-          <GoogleAuthMentor mentorId={mentorId} />
-          <StripeConnect />
+          {/* <GoogleAuthMentor mentorId={mentorId} /> */}
+          {/* <StripeConnect /> */}
         </h2>
         {!mentor.is_active && (
           <div className="alert alert-warning" role="alert">

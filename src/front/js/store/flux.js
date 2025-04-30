@@ -162,9 +162,8 @@ const getState = ({ getStore, getActions, setStore }) => {
                 const store = getStore();
                 const token = sessionStorage.getItem("token");
 
-                if (!token) {
-                    console.error("No token found in sessionStorage");
-                    return false;
+                if (token) {
+                    console.log("User is authenticated");
                 }
 
                 const response = await fetch(`${process.env.BACKEND_URL}/api/mentorsnosession`, {
