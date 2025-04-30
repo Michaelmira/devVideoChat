@@ -1,0 +1,89 @@
+@keyframes bounce {
+
+    0%,
+    100% {
+        transform: translateY(7px);
+    }
+
+    40% {
+        transform: translateY(-4px);
+    }
+}
+
+.btn-outline-secondary.dropdown-toggle.show .fa-school,
+.btn-outline-secondary.dropdown-toggle.show .fa-person-chalkboard {
+    animation: bounce 1.8s infinite;
+}
+
+/*  ----------------------- */
+
+/* @keyframes bounce {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    30% {
+        transform: translateY(-7px);
+    }
+}
+.btn-outline-secondary.dropdown-toggle.show .fa-school,
+.btn-outline-secondary.dropdown-toggle.show .fa-person-chalkboard
+ {
+    animation: bounce 1.4s infinite;
+} */
+
+
+.navbar-dropdown .dropdown-menu.show {
+    box-shadow: 3px 5px 4px 2px rgba(108, 117, 125, .5);
+}
+
+.navbar-dropdown .dropdown-item {
+    display: flex;
+    align-items: center;
+    /* Align items vertically centered */
+    justify-content: flex-end;
+    /* Align items to the end (right side) */
+    padding: .12rem .72rem;
+}
+
+.navbar-dropdown .dropdown-item i {
+    margin-right: 8px;
+    /* Space between icon and text */
+}
+
+.navbar-dropdown .dropdown-item:active,
+.navbarFont:active {
+    /* background-color: #ffcb4d !important; */
+    background-color: #4A5568;
+    color: white;
+}
+
+
+
+.navbar-dropdown .dropdown-item span {
+    display: inline;
+    /* Ensure text is inline with the icon */
+}
+
+.navbarFont {
+    font-family: -apple-system, 'SF Pro Display', BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-weight: 400;
+    /* font-size: .875; */
+    margin-right: .5rem;
+    color: #4a4a4a;
+}
+
+.navbar .dancing-script-text {
+    font-family: "Dancing Script", cursive;
+    font-optical-sizing: auto;
+    font-weight: 700;
+    font-style: normal;
+    font-size: 35px;
+}
+
+.navbar-link {
+    text-decoration: none;
+    /* Remove underline */
+    color: inherit;
+    /* Use the text color of the parent */
+    /* font-size: 30px; */
+}

@@ -9,7 +9,9 @@ from api.utils import APIException, generate_sitemap
 from api.models import db
 from api.routes import api
 from api.admin import setup_admin
-from api.commands import setup_commands
+from flask_jwt_extended import JWTManager
+import datetime
+
 
 # from models import Person
 
@@ -31,11 +33,13 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 MIGRATE = Migrate(app, db, compare_type=True)
 db.init_app(app)
 
-# add the admin
-setup_admin(app)
+# JWT Configuration
+app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "your-secret-key")  
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = datetime.timedelta(days=1)
+jwt = JWTManager(app)
 
 # add the admin
-setup_commands(app)
+setup_admin(app)
 
 # Add all endpoints form the API with a "api" prefix
 app.register_blueprint(api, url_prefix='/api')
