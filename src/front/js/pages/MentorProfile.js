@@ -70,6 +70,7 @@ export const MentorProfile = () => {
     days: [],
     price: null,
     about_me: "",
+    calendly_url: "",
   });
 
   useEffect(() => {
@@ -542,6 +543,21 @@ export const MentorProfile = () => {
                 />
               ) : (
                 mentor.nick_name
+              )}
+            </dd>
+
+            <dt className="col-sm-4 form-label">Calendly Url:</dt>
+            <dd className="col-sm-8">
+              {editMode ? (
+                <input
+                  type="text"
+                  name="calendly_url"
+                  value={mentor.calendly_url}
+                  onChange={handleChange}
+                  className="form-control"
+                />
+              ) : (
+                mentor.calendly_url
               )}
             </dd>
 

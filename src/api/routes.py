@@ -371,6 +371,7 @@ def mentor_edit_self():
     days = request.json.get("days")
     price = request.json.get("price")
     about_me = request.json.get("about_me")
+    calendly_url = request.json.get("calendly_url")
     
     profile_photo = request.json.get("profile_photo")
     position_x = profile_photo.get("position_x")
@@ -411,6 +412,7 @@ def mentor_edit_self():
     mentor.days=days
     mentor.price=price
     mentor.about_me=about_me
+    mentor.calendly_url=calendly_url
 
     db.session.commit()
     db.session.refresh(mentor)
@@ -709,3 +711,77 @@ def delete_customer(cust_id):
     db.session.delete(customer)
     db.session.commit()
     return jsonify({"msg": "customer successfully deleted"}), 200
+
+
+@api.route('/create-payment-intent', methods=['POST'])
+@jwt_required()
+def create_payment_intent():
+    try:
+        stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+        
+        data = request.get_json()
+        customer_id = data.get('customer_id')
+        customer_name = data.get('customer_name')
+        mentor_id = data.get('mentor_id')
+        mentor_name = data.get('mentor_name')
+        amount = data.get('amount')  # Amount in cents
+        
+        # Validate data
+        if not customer_id or not mentor_id or not amount:
+            return jsonify({"error": "Missing required fields"}), 400
+        
+        # Create the payment intent
+        payment_intent = stripe.PaymentIntent.create(
+            amount=amount,
+            currency="usd",
+            metadata={
+                "customer_id": customer_id,
+                "customer_name": customer_name,
+                "mentor_id": mentor_id,
+                "mentor_name": mentor_name
+            }
+        )
+        
+        return jsonify({
+            'clientSecret': payment_intent.client_secret
+        })
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+@api.route('/webhook', methods=['POST'])
+def webhook():
+    payload = request.get_data(as_text=True)
+    sig_header = request.headers.get('Stripe-Signature')
+    
+    try:
+        stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+        endpoint_secret = os.getenv("STRIPE_WEBHOOK_SECRET")  # You'll need to add this to your .env file
+        
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, endpoint_secret
+        )
+    except ValueError as e:
+        # Invalid payload
+        return jsonify({"error": "Invalid payload"}), 400
+    except stripe.error.SignatureVerificationError as e:
+        # Invalid signature
+        return jsonify({"error": "Invalid signature"}), 400
+    
+    # Handle the event
+    if event['type'] == 'payment_intent.succeeded':
+        payment_intent = event['data']['object']
+        
+        # Extract the metadata we stored
+        customer_id = payment_intent.metadata.get('customer_id')
+        customer_name = payment_intent.metadata.get('customer_name')
+        mentor_id = payment_intent.metadata.get('mentor_id')
+        mentor_name = payment_intent.metadata.get('mentor_name')
+        amount = payment_intent.amount
+        
+        # Log the payment (you could also save to a database if needed)
+        current_app.logger.info(f"Payment succeeded: ${amount/100} from {customer_name} (ID: {customer_id}) to {mentor_name} (ID: {mentor_id})")
+        
+        # Here you could also send email notifications to the mentor and customer
+        
+    return jsonify({"status": "success"}), 200
