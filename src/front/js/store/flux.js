@@ -909,6 +909,37 @@ const getState = ({ getStore, getActions, setStore }) => {
                     return false;
                 }
             },
+
+            trackMentorBooking: async (bookingData) => {
+                try {
+                    const token = sessionStorage.getItem("token");
+                    if (!token) {
+                        console.error("No token found in sessionStorage");
+                        return false;
+                    }
+                    
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/track-booking`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${token}`
+                        },
+                        body: JSON.stringify(bookingData)
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log("Booking tracked successfully:", data);
+                        return true;
+                    } else {
+                        console.error("Failed to track booking with status:", response.status);
+                        return false;
+                    }
+                } catch (error) {
+                    console.error("Error tracking booking:", error);
+                    return false;
+                }
+            }
 			
         }
     };

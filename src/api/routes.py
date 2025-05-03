@@ -785,3 +785,51 @@ def webhook():
         # Here you could also send email notifications to the mentor and customer
         
     return jsonify({"status": "success"}), 200
+
+
+@api.route('/track-booking', methods=['POST'])
+@jwt_required()
+def track_booking():
+    try:
+        user_id = get_jwt_identity()
+        role = get_jwt()['role']
+        data = request.get_json()
+        
+        # Required fields
+        mentor_id = data.get('mentorId')
+        session_date_time = data.get('sessionDateTime')
+        client_email = data.get('clientEmail')
+        amount = data.get('amount')
+        status = data.get('status', 'paid')  # Default to 'paid'
+        
+        # Optional fields
+        mentor_payout = data.get('mentorPayout')
+        platform_fee = data.get('platformFee')
+        
+        # Validate data
+        if not mentor_id or not session_date_time or not amount:
+            return jsonify({"error": "Missing required fields"}), 400
+        
+        # Here you would add the booking to your database
+        # This is just a placeholder - you'll need to create a Booking model
+        # booking = Booking(
+        #     mentor_id=mentor_id,
+        #     customer_id=user_id if role == 'customer' else None,
+        #     session_date_time=session_date_time,
+        #     client_email=client_email,
+        #     amount=amount,
+        #     mentor_payout=mentor_payout,
+        #     platform_fee=platform_fee,
+        #     status=status
+        # )
+        # db.session.add(booking)
+        # db.session.commit()
+        
+        # For now, just log it
+        current_app.logger.info(f"Booking tracked: Mentor ID {mentor_id}, Date/Time: {session_date_time}, Amount: ${amount}, Status: {status}")
+        
+        return jsonify({"success": True, "message": "Booking tracked successfully"}), 201
+        
+    except Exception as e:
+        current_app.logger.error(f"Error tracking booking: {str(e)}")
+        return jsonify({"error": str(e)}), 500

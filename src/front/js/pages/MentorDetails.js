@@ -5,6 +5,7 @@ import { Context } from "../store/appContext";
 import { MapPin, Mail, Phone, Calendar, Clock, DollarSign, Award, BookOpen } from 'lucide-react';
 import { useParams, Link, useNavigate } from "react-router-dom";
 import CalendlyAvailability from "../component/CalendlyAvailability";
+import { StripePaymentComponent } from "../component/StripePaymentComponent"; // Import Stripe component
 
 export const MentorDetails = () => {
     const { store, actions } = useContext(Context);
@@ -12,6 +13,7 @@ export const MentorDetails = () => {
     const navigate = useNavigate();
     const [mentor, setMentor] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [showPaymentModal, setShowPaymentModal] = useState(false); // State for payment modal
 
     useEffect(() => {
         // Get the specific mentor details
@@ -40,8 +42,56 @@ export const MentorDetails = () => {
     }, [theid, actions, store.mentors]);
 
     const handleBookSession = () => {
-        // Navigate to booking page or open booking modal
-        navigate(`/customer-stripe-pay/${theid}`);
+        // Check if user is authenticated
+        if (!store.token || !store.currentUserData) {
+            // Save the current page to sessionStorage so you can redirect back after login
+            sessionStorage.setItem('redirectAfterLogin', window.location.pathname);
+            
+            // Alert the user
+            alert("You need to be logged in to book a session. Redirecting to login page...");
+            
+            // Redirect to login page
+            navigate("/login");
+            return;
+        }
+        
+        // User is authenticated, show payment modal
+        setShowPaymentModal(true);
+    };
+
+    // Handle payment success
+    const handlePaymentSuccess = (paymentIntent) => {
+        console.log("Payment successful:", paymentIntent);
+        setShowPaymentModal(false);
+        
+        // You might want to show a success message or redirect
+        // You could also record the successful payment in your system here
+        
+        // Example: Record booking
+        if (mentor) {
+            actions.trackMentorBooking({
+                mentorId: mentor.id,
+                sessionDateTime: new Date().toISOString(), // You might want to pass actual session date
+                clientEmail: store.user?.email || '',
+                amount: parseFloat(mentor.price || 0),
+                status: 'paid'
+            });
+        }
+        
+        // Show success message
+        alert("Payment successful! Your session has been booked.");
+    };
+
+    // Handle payment error
+    const handlePaymentError = (error) => {
+        console.error("Payment error:", error);
+        // You might want to show an error message but keep the modal open
+        alert(`Payment error: ${error.message || 'Unknown error'}`);
+    };
+
+    // Close payment modal
+    const handleClosePaymentModal = () => {
+        setShowPaymentModal(false);
     };
 
     if (loading) {
@@ -278,6 +328,36 @@ export const MentorDetails = () => {
                             <div className="card-body p-0">
                                 {/* Key fixes: don't wrap in another container that might affect styling */}
                                 <CalendlyAvailability mentor={mentor} />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Payment Modal */}
+            {showPaymentModal && (
+                <div className="modal" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                    <div className="modal-dialog modal-dialog-centered">
+                        <div className="modal-content">
+                            <div className="modal-header">
+                                <h5 className="modal-title">Book a Session with {mentor.first_name}</h5>
+                                <button type="button" className="btn-close" onClick={handleClosePaymentModal}></button>
+                            </div>
+                            <div className="modal-body">
+                                <StripePaymentComponent 
+                                    customerId={store.user?.id.toString()}
+                                    customerName={`${store.user?.first_name || ''} ${store.user?.last_name || ''}`}
+                                    mentorId={mentor.id.toString()}
+                                    mentorName={`${mentor.first_name} ${mentor.last_name}`}
+                                    amount={parseFloat(mentor.price || 0)}
+                                    onPaymentSuccess={handlePaymentSuccess}
+                                    onPaymentError={handlePaymentError}
+                                />
+                            </div>
+                            <div className="modal-footer">
+                                <button type="button" className="btn btn-secondary" onClick={handleClosePaymentModal}>
+                                    Cancel
+                                </button>
                             </div>
                         </div>
                     </div>

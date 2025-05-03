@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useEffect, useContext } from "react";
+import { Context } from "./store/appContext";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import ScrollToTop from "./component/scrollToTop";
 import { BackendURL } from "./component/backendURL";
@@ -25,6 +26,28 @@ const Layout = () => {
     const basename = process.env.BASENAME || "";
 
     if (!process.env.BACKEND_URL || process.env.BACKEND_URL == "") return <BackendURL />;
+
+    const { store, actions } = useContext(Context);
+
+     //useEffect to handle token exp. instances
+     useEffect(() => {
+        if (store.token) {
+            actions.getCurrentUser();
+        }
+
+        const interval = setInterval(() => {
+            if (store.token) {
+                actions.getCurrentUser();
+            } else {
+                // Handle no token case
+                console.log('User not authenticated');
+            }
+            // actions.getCurrentUser()
+        }, 60000);
+
+        // Cleanup function
+        return () => clearInterval(interval);
+    }, [store.token]);
 
     return (
         <div>
