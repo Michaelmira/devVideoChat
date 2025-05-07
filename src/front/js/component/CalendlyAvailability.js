@@ -20,7 +20,7 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
   const [showAuthForm, setShowAuthForm] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [activeAuthTab, setActiveAuthTab] = useState('login');
-  
+
   // Calendar container reference
   const calendlyContainerRef = useRef(null);
 
@@ -83,7 +83,7 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
       setSelectedTimeData(e.data.payload);
       // Hide Calendly and check authentication
       setShowCalendly(false);
-      
+
       // Check if user is authenticated
       if (store.token && store.currentUserData) {
         // User is logged in, show payment form
@@ -134,19 +134,19 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
       const now = new Date();
       // Format the date as ISO string
       const currentDateTime = now.toISOString();
-      
+
       const bookingData = {
         mentorId: currentMentor.id,
-        sessionDateTime: currentDateTime, // Use current time instead of Calendly time
+        paidDateTime: currentDateTime, // Use current time instead of Calendly time
         clientEmail: store.currentUserData?.user_data?.email || selectedTimeData.email || '',
         amount: parseFloat(currentMentor.price || 0),
-        mentorPayout: parseFloat(currentMentor.price || 0) * 0.9, 
+        mentorPayout: parseFloat(currentMentor.price || 0) * 0.9,
         platformFee: parseFloat(currentMentor.price || 0) * 0.1,
         status: 'paid'
       };
-    
+
       console.log("Sending booking data:", bookingData);
-      
+
       actions.trackMentorBooking(bookingData)
         .then(success => {
           if (success) {
@@ -159,11 +159,11 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
           console.error("Error tracking booking:", error);
         });
     }
-  
+
     // Reset the booking flow
     setShowPaymentForm(false);
     setShowCalendly(true);
-    
+
     // Show success message
     alert("Your session has been booked successfully!");
   };
@@ -207,44 +207,44 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
         <div className="card border-0 shadow p-4">
           <div className="card-body">
             <h4 className="text-center mb-4">Authentication Required</h4>
-            
+
             {/* Auth tabs */}
             <ul className="nav nav-tabs mb-4">
               <li className="nav-item">
-                <button 
-                  className={`nav-link ${activeAuthTab === 'login' ? 'active' : ''}`} 
+                <button
+                  className={`nav-link ${activeAuthTab === 'login' ? 'active' : ''}`}
                   onClick={() => handleSwitchTab('login')}
                 >
                   Login
                 </button>
               </li>
               <li className="nav-item">
-                <button 
-                  className={`nav-link ${activeAuthTab === 'signup' ? 'active' : ''}`} 
+                <button
+                  className={`nav-link ${activeAuthTab === 'signup' ? 'active' : ''}`}
                   onClick={() => handleSwitchTab('signup')}
                 >
                   Sign Up
                 </button>
               </li>
             </ul>
-            
+
             {/* Auth form */}
             <div className="auth-form-container">
               {activeAuthTab === 'login' ? (
-                <CustomerLogin 
+                <CustomerLogin
                   onSuccess={handleLoginSuccess}
                   switchToSignUp={() => handleSwitchTab('signup')}
-                  onForgotPs={() => {}}
+                  onForgotPs={() => { }}
                 />
               ) : (
-                <CustomerSignup 
-                  switchToLogin={() => handleSwitchTab('login')} 
+                <CustomerSignup
+                  switchToLogin={() => handleSwitchTab('login')}
                 />
               )}
             </div>
-            
+
             <div className="text-center mt-3">
-              <button 
+              <button
                 className="btn btn-secondary"
                 onClick={handleCancel}
               >
@@ -260,10 +260,10 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
         <div className="card border-0 shadow p-4">
           <div className="card-body">
             <h4 className="text-center mb-4">Complete Your Booking</h4>
-            
+
             <PaymentForm
               mentor={currentMentor}
-              sessionDateTime={selectedTimeData?.date}
+              paidDateTime={selectedTimeData?.date}
               onSuccess={handlePaymentSuccess}
               onCancel={handleCancel}
             />
@@ -271,7 +271,7 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
         </div>
       );
     }
-    
+
     // Fallback
     return <div>Something went wrong. Please try again.</div>;
   };

@@ -797,7 +797,7 @@ def track_booking():
         
         # Required fields
         mentor_id = data.get('mentorId')
-        session_date_time = data.get('sessionDateTime')
+        paid_date_time = data.get('paidDateTime')
         client_email = data.get('clientEmail')
         amount = data.get('amount')
         status = data.get('status', 'paid')  # Default to 'paid'
@@ -807,7 +807,7 @@ def track_booking():
         platform_fee = data.get('platformFee')
         
         # Validate data
-        if not mentor_id or not session_date_time or not amount:
+        if not mentor_id or not paid_date_time or not amount:
             return jsonify({"error": "Missing required fields"}), 400
         
         # Here you would add the booking to your database
@@ -815,7 +815,7 @@ def track_booking():
         # booking = Booking(
         #     mentor_id=mentor_id,
         #     customer_id=user_id if role == 'customer' else None,
-        #     session_date_time=session_date_time,
+        #     paid_date_time=paid_date_time,
         #     client_email=client_email,
         #     amount=amount,
         #     mentor_payout=mentor_payout,
@@ -826,7 +826,7 @@ def track_booking():
         # db.session.commit()
         
         # For now, just log it
-        current_app.logger.info(f"Booking tracked: Mentor ID {mentor_id}, Date/Time: {session_date_time}, Amount: ${amount}, Status: {status}")
+        current_app.logger.info(f"Booking tracked: Mentor ID {mentor_id}, Date/Time: {paid_date_time}, Amount: ${amount}, Status: {status}")
         
         return jsonify({"success": True, "message": "Booking tracked successfully"}), 201
         

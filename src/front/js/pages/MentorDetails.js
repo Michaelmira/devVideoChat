@@ -46,15 +46,15 @@ export const MentorDetails = () => {
         if (!store.token || !store.currentUserData) {
             // Save the current page to sessionStorage so you can redirect back after login
             sessionStorage.setItem('redirectAfterLogin', window.location.pathname);
-            
+
             // Alert the user
             alert("You need to be logged in to book a session. Redirecting to login page...");
-            
+
             // Redirect to login page
             navigate("/login");
             return;
         }
-        
+
         // User is authenticated, show payment modal
         setShowPaymentModal(true);
     };
@@ -63,21 +63,21 @@ export const MentorDetails = () => {
     const handlePaymentSuccess = (paymentIntent) => {
         console.log("Payment successful:", paymentIntent);
         setShowPaymentModal(false);
-        
+
         // You might want to show a success message or redirect
         // You could also record the successful payment in your system here
-        
+
         // Example: Record booking
         if (mentor) {
             actions.trackMentorBooking({
                 mentorId: mentor.id,
-                sessionDateTime: new Date().toISOString(), // You might want to pass actual session date
+                paidDateTime: new Date().toISOString(), // You might want to pass actual session date
                 clientEmail: store.user?.email || '',
                 amount: parseFloat(mentor.price || 0),
                 status: 'paid'
             });
         }
-        
+
         // Show success message
         alert("Payment successful! Your session has been booked.");
     };
@@ -344,7 +344,7 @@ export const MentorDetails = () => {
                                 <button type="button" className="btn-close" onClick={handleClosePaymentModal}></button>
                             </div>
                             <div className="modal-body">
-                                <StripePaymentComponent 
+                                <StripePaymentComponent
                                     customerId={store.user?.id.toString()}
                                     customerName={`${store.user?.first_name || ''} ${store.user?.last_name || ''}`}
                                     mentorId={mentor.id.toString()}

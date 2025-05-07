@@ -15,7 +15,6 @@ import { Footer } from "./component/footer";
 import { MentorList } from "./pages/mentorList";
 import { MentorDashboard } from "./pages/MentorDashboard";
 import { MentorProfile } from "./pages/MentorProfile";
-import { StripePaymentExample } from "./pages/StripePaymentExample";
 import { MentorDetails } from "./pages/MentorDetails";
 
 
@@ -62,7 +61,6 @@ const Layout = () => {
                         <Route element={<MentorList />} path="/mentor-list" />
                         <Route element={<MentorDashboard />} path="/mentor-dashboard" />
                         <Route element={<MentorDetails />} path="/mentor-details/:theid" />
-                        <Route element={<StripePaymentExample />} path="/customer-stripe-pay/" />
                     </Routes>
                     <Footer />
                 </ScrollToTop>
