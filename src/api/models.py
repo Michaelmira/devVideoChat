@@ -72,7 +72,9 @@ class Mentor(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     calendly_url = db.Column(db.String(500), nullable=True)
-    calendly_api_key = db.Column(Text, nullable=True)
+    calendly_access_token = db.Column(Text, nullable=True)
+    calendly_refresh_token = db.Column(Text, nullable=True)
+    calendly_token_expires_at = db.Column(DateTime(timezone=True), nullable=True)
     is_active = db.Column(db.Boolean, default=True)
     last_active = db.Column(DateTime(timezone=True), unique=False)
     password = db.Column(db.String(256), unique=False, nullable=False)
@@ -119,6 +121,7 @@ class Mentor(db.Model):
             # "confirmed_sessions": [session.serialize() for session in self.confirmed_sessions] if self.confirmed_sessions else [],
             "days": [day for day in self.days],
             "calendly_url": self.calendly_url,
+            # OAuth tokens should NOT be serialized by default for security
             "profile_photo": self.profile_photo.serialize() if self.profile_photo else None,
             "portfolio_photos": [portfolio_photo.serialize() for portfolio_photo in self.portfolio_photos],
             "about_me": self.about_me,
