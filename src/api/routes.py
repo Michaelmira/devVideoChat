@@ -35,6 +35,9 @@ from google.oauth2.credentials import Credentials
 import requests # For making HTTP requests to Calendly
 import secrets # For generating secure state tokens for OAuth
 
+from .email_utils import send_booking_confirmation_email
+from datetime import datetime as dt
+
 
 api = Blueprint('api', __name__)
 
@@ -1219,17 +1222,17 @@ def finalize_booking():
 
     # --- Expected data from frontend (BookingDetailsForm.js) --- 
     mentor_id = data.get('mentorId')
-    calendly_selected_event_uri = data.get('calendlyScheduledEventUri') # This is null from your logs
+    calendly_selected_event_uri = data.get('calendlyScheduledEventUri') 
     
-    event_start_time_str = data.get('eventStartTime') # ISO string e.g., "2023-10-27T10:00:00.000Z"
-    event_end_time_str = data.get('eventEndTime') # ISO string
+    event_start_time_str = data.get('eventStartTime') 
+    event_end_time_str = data.get('eventEndTime') 
     
     invitee_name = data.get('inviteeName')
     invitee_email = data.get('inviteeEmail')
     invitee_notes = data.get('notes', '')
     
     stripe_payment_intent_id = data.get('paymentIntentId')
-    amount_paid = data.get('amountPaid') # This should come from payment intent or mentor's price
+    amount_paid = data.get('amountPaid') 
     currency = data.get('currency', 'usd')
 
     # --- UPDATED Basic Validation (removed calendly_selected_event_uri requirement) --- 
@@ -1241,51 +1244,68 @@ def finalize_booking():
     if not mentor:
         return jsonify({"msg": "Selected mentor not found."}), 404
 
+    # Convert string dates to datetime objects early for use in email and booking
+    parsed_event_start_time = dt.fromisoformat(event_start_time_str.replace('Z', '+00:00')) if event_start_time_str else None
+    parsed_event_end_time = dt.fromisoformat(event_end_time_str.replace('Z', '+00:00')) if event_end_time_str else None
+
     # --- Handle case where Calendly URI is null --- 
     if not calendly_selected_event_uri:
         current_app.logger.warning(f"No Calendly event URI provided - creating booking without Calendly integration for mentor {mentor_id}")
         
-        # Calculate fees and amount
         calculated_amount_paid = Decimal(amount_paid) if amount_paid else Decimal(mentor.price or 0)
-        calculated_platform_fee = calculated_amount_paid * Decimal('0.10') # Example 10% platform fee
+        calculated_platform_fee = calculated_amount_paid * Decimal('0.10') 
         calculated_mentor_payout = calculated_amount_paid - calculated_platform_fee
 
-        # Convert string dates to datetime objects
-        parsed_event_start_time = datetime.fromisoformat(event_start_time_str.replace('Z', '+00:00')) if event_start_time_str else None
-        parsed_event_end_time = datetime.fromisoformat(event_end_time_str.replace('Z', '+00:00')) if event_end_time_str else None
-
-        # Create booking record without Calendly integration
         new_booking = Booking(
             mentor_id=mentor_id,
             customer_id=current_customer_id,
             paid_at=datetime.utcnow(),
-            scheduled_at=datetime.utcnow(),
-            
-            # Calendly fields - null because integration failed
+            scheduled_at=datetime.utcnow(), 
             calendly_event_uri=None,
             calendly_invitee_uri=None,
             calendly_event_start_time=parsed_event_start_time,
             calendly_event_end_time=parsed_event_end_time,
-            
             invitee_name=invitee_name,
             invitee_email=invitee_email,
             invitee_notes=invitee_notes,
-            
             stripe_payment_intent_id=stripe_payment_intent_id,
             amount_paid=calculated_amount_paid,
             currency=currency,
             platform_fee=calculated_platform_fee,
             mentor_payout_amount=calculated_mentor_payout,
-            
-            status=BookingStatus.PAID  # This exists and makes sense
+            status=BookingStatus.PAID 
         )
         
         try:
             db.session.add(new_booking)
             db.session.commit()
             
-            # TODO: Send manual confirmation emails
-            current_app.logger.info(f"Booking {new_booking.id} created successfully but needs manual calendar confirmation")
+            # Send manual confirmation email
+            email_subject = "Your Mentorship Booking Confirmation (Action Required)"
+            email_body_html = f"""
+            <h1>Booking Received</h1>
+            <p>Hi {invitee_name},</p>
+            <p>We've received your booking request for a session with {mentor.first_name} {mentor.last_name}.</p>
+            <p><strong>Session Time (Approximate):</strong> {parsed_event_start_time.strftime('%Y-%m-%d %H:%M %Z') if parsed_event_start_time else 'Not specified'}</p>
+            <p>Since this booking couldn't be automatically added to your calendar via Calendly, we will manually confirm the details and send you a calendar invitation within 24 hours.</p>
+            <p>If you have any urgent questions, please contact us.</p>
+            <p>Thank you!</p>
+            """
+            send_booking_confirmation_email(invitee_email, email_subject, email_body_html)
+            # Also notify mentor
+            mentor_email_subject = f"New Manual Booking Alert: {invitee_name} for {parsed_event_start_time.strftime('%Y-%m-%d %H:%M') if parsed_event_start_time else 'N/A'}"
+            mentor_email_body = f"""
+            <p>Hi {mentor.first_name},</p>
+            <p>A new booking needs your manual attention and calendar scheduling:</p>
+            <p><strong>Client:</strong> {invitee_name} ({invitee_email})</p>
+            <p><strong>Requested Time:</strong> {parsed_event_start_time.strftime('%Y-%m-%d %H:%M %Z') if parsed_event_start_time else 'Not specified'}</p>
+            <p><strong>Notes:</strong> {invitee_notes if invitee_notes else 'None'}</p>
+            <p>Please coordinate with the client and add this to your calendar. The Calendly link was not used for this booking.</p>
+            """
+            send_booking_confirmation_email(mentor.email, mentor_email_subject, mentor_email_body)
+
+
+            current_app.logger.info(f"Booking {new_booking.id} created, manual confirmation email sent to {invitee_email} and notification to mentor {mentor.email}")
             
             return jsonify({
                 "success": True, 
@@ -1296,17 +1316,15 @@ def finalize_booking():
 
         except Exception as e:
             db.session.rollback()
-            current_app.logger.error(f"Error creating manual booking: {str(e)}")
-            return jsonify({"msg": "Failed to create booking"}), 500
+            current_app.logger.error(f"Error creating manual booking or sending email: {str(e)}")
+            return jsonify({"msg": "Failed to create booking or send notification"}), 500
 
     # --- Original Calendly integration code (when URI is provided) --- 
-    # Get Mentor's Calendly Access Token 
     access_token, token_error_msg = get_valid_calendly_access_token(mentor_id)
     if token_error_msg or not access_token:
         current_app.logger.error(f"Failed to get Calendly token for mentor {mentor_id} during booking: {token_error_msg}")
         return jsonify({"msg": token_error_msg or "Could not authenticate with Calendly for this mentor."}), 503
 
-    # Extract event UUID from URI
     try:
         event_uuid = calendly_selected_event_uri.split("/")[-1]
     except Exception:
@@ -1318,6 +1336,14 @@ def finalize_booking():
         "email": invitee_email,
         "name": invitee_name,
     }
+    if invitee_notes: # Add notes if provided
+        invitee_payload["questions_and_answers"] = [
+            {
+                "question": "Notes or special requests?", # This question text might need to match your Calendly setup if you have custom questions
+                "answer": invitee_notes
+            }
+        ]
+
 
     headers = {
         'Authorization': f'Bearer {access_token}',
@@ -1325,19 +1351,19 @@ def finalize_booking():
     }
 
     try:
-        current_app.logger.info(f"Attempting to create Calendly invitee for event {event_uuid}")
+        current_app.logger.info(f"Attempting to create Calendly invitee for event {event_uuid} for {invitee_email}")
         calendly_response = requests.post(create_invitee_url, headers=headers, json=invitee_payload)
+        
+        # Log Calendly request and response for debugging
+        current_app.logger.debug(f"Calendly request to {create_invitee_url} with payload: {invitee_payload}")
+        current_app.logger.debug(f"Calendly response: {calendly_response.status_code} - {calendly_response.text}")
+
         calendly_response.raise_for_status()
         calendly_invitee_data = calendly_response.json().get('resource', {})
         
         confirmed_calendly_event_uri = calendly_invitee_data.get('scheduled_event', {}).get('uri')
         confirmed_calendly_invitee_uri = calendly_invitee_data.get('uri')
 
-        # Convert string dates to datetime objects
-        parsed_event_start_time = datetime.fromisoformat(event_start_time_str.replace('Z', '+00:00')) if event_start_time_str else None
-        parsed_event_end_time = datetime.fromisoformat(event_end_time_str.replace('Z', '+00:00')) if event_end_time_str else None
-
-        # Calculate fees
         calculated_amount_paid = Decimal(amount_paid) if amount_paid else Decimal(mentor.price or 0)
         calculated_platform_fee = calculated_amount_paid * Decimal('0.10') 
         calculated_mentor_payout = calculated_amount_paid - calculated_platform_fee
@@ -1346,29 +1372,64 @@ def finalize_booking():
             mentor_id=mentor_id,
             customer_id=current_customer_id,
             paid_at=datetime.utcnow(),
-            scheduled_at=datetime.utcnow(),
-            
+            scheduled_at=datetime.utcnow(), 
             calendly_event_uri=confirmed_calendly_event_uri or calendly_selected_event_uri,
             calendly_invitee_uri=confirmed_calendly_invitee_uri,
             calendly_event_start_time=parsed_event_start_time,
             calendly_event_end_time=parsed_event_end_time,
-            
             invitee_name=invitee_name,
             invitee_email=invitee_email,
             invitee_notes=invitee_notes,
-            
             stripe_payment_intent_id=stripe_payment_intent_id,
             amount_paid=calculated_amount_paid,
             currency=currency,
             platform_fee=calculated_platform_fee,
             mentor_payout_amount=calculated_mentor_payout,
-            
             status=BookingStatus.CONFIRMED
         )
         db.session.add(new_booking)
         db.session.commit()
 
-        current_app.logger.info(f"Booking {new_booking.id} created successfully with Calendly integration")
+        # Send Calendly confirmation email with .ics
+        email_subject = f"Your Mentorship Session with {mentor.first_name} {mentor.last_name} is Confirmed!"
+        email_body_html = f"""
+        <h1>Session Confirmed!</h1>
+        <p>Hi {invitee_name},</p>
+        <p>Your mentorship session with <strong>{mentor.first_name} {mentor.last_name}</strong> has been successfully scheduled via Calendly.</p>
+        <p><strong>Date & Time:</strong> {parsed_event_start_time.strftime('%A, %B %d, %Y at %I:%M %p %Z') if parsed_event_start_time else 'N/A'}</p>
+        <p><strong>Mentor:</strong> {mentor.first_name} {mentor.last_name}</p>
+        <p><strong>Your Email:</strong> {invitee_email}</p>
+        {f"<p><strong>Notes:</strong> {invitee_notes}</p>" if invitee_notes else ""}
+        <p>You should also receive a confirmation directly from Calendly with options to add this to your calendar. We've attached an iCalendar (.ics) file to this email as well for your convenience.</p>
+        <p>We look forward to your session!</p>
+        """
+        
+        meeting_details_ics = None
+        if parsed_event_start_time and parsed_event_end_time:
+            meeting_details_ics = {
+                'uid': f"{new_booking.id}-{stripe_payment_intent_id}",
+                'dtstamp': datetime.utcnow().strftime('%Y%m%dT%H%M%SZ'),
+                'dtstart': parsed_event_start_time.strftime('%Y%m%dT%H%M%SZ'),
+                'dtend': parsed_event_end_time.strftime('%Y%m%dT%H%M%SZ'),
+                'summary': f"Mentorship: {invitee_name} & {mentor.first_name} {mentor.last_name}",
+                'description': f"Mentorship session. Notes: {invitee_notes if invitee_notes else 'None'}. Calendly Event: {confirmed_calendly_event_uri}",
+                'location': mentor.calendly_event_location or 'Online / Video Call' # Assuming mentor might have a default location
+            }
+
+        send_booking_confirmation_email(invitee_email, email_subject, email_body_html, meeting_details=meeting_details_ics)
+        # Notify mentor as well
+        mentor_email_subject_confirmed = f"New Confirmed Booking: {invitee_name} for {parsed_event_start_time.strftime('%Y-%m-%d %H:%M') if parsed_event_start_time else 'N/A'}"
+        mentor_email_body_confirmed = f"""
+        <p>Hi {mentor.first_name},</p>
+        <p>A new session has been successfully booked and confirmed via Calendly:</p>
+        <p><strong>Client:</strong> {invitee_name} ({invitee_email})</p>
+        <p><strong>Time:</strong> {parsed_event_start_time.strftime('%A, %B %d, %Y at %I:%M %p %Z') if parsed_event_start_time else 'Not specified'}</p>
+        <p><strong>Notes:</strong> {invitee_notes if invitee_notes else 'None'}</p>
+        <p>This event should already be on your Calendly-connected calendar.</p>
+        """
+        send_booking_confirmation_email(mentor.email, mentor_email_subject_confirmed, mentor_email_body_confirmed)
+
+        current_app.logger.info(f"Booking {new_booking.id} created successfully with Calendly integration. Confirmation email sent to {invitee_email} and notification to {mentor.email}")
         return jsonify({
             "success": True, 
             "message": "Booking successfully scheduled with Calendly!", 
