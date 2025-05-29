@@ -36,6 +36,25 @@ if not app.secret_key:
 # Session Cookie Settings for cross-site compatibility (e.g., OAuth callbacks)
 app.config["SESSION_COOKIE_SAMESITE"] = "None"
 app.config["SESSION_COOKIE_SECURE"] = True # Requires HTTPS
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_PATH"] = "/"
+
+# Set SESSION_COOKIE_DOMAIN for *.app.github.dev or similar codespace domains
+hostname = os.getenv("BACKEND_URL", "").lower()
+if hostname.endswith(".app.github.dev"):
+    app.config["SESSION_COOKIE_DOMAIN"] = ".app.github.dev"
+    print(f"INFO: Setting SESSION_COOKIE_DOMAIN to .app.github.dev for hostname {hostname}")
+elif hostname.endswith(".gitpod.io"):
+    # Example for another common cloud IDE
+    # Extract the core gitpod.io domain part correctly if needed
+    # For simplicity, often just ensuring cookies are not too specific is key
+    # For now, we can also try the broader domain for gitpod if applicable
+    app.config["SESSION_COOKIE_DOMAIN"] = ".gitpod.io" 
+    print(f"INFO: Setting SESSION_COOKIE_DOMAIN to .gitpod.io for hostname {hostname}")
+else:
+    # If not a known cloud IDE pattern, don't set domain explicitly, 
+    # let browser handle default (cookie valid for hostname that set it)
+    print(f"INFO: Not explicitly setting SESSION_COOKIE_DOMAIN for hostname: {hostname}")
 
 # JWT Configuration
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY")  
