@@ -4,10 +4,14 @@ import { useLocation, Link } from 'react-router-dom'; // Added Link for fallback
 
 export const BookingDetailsPage = () => {
     const location = useLocation();
-    // Log the entire location.state and specifically calendlyEventData for better inspection
+
     console.log("BookingDetailsPage location.state:", location.state);
     if (location.state && location.state.calendlyEventData) {
-        console.log("BookingDetailsPage calendlyEventData object:", JSON.parse(JSON.stringify(location.state.calendlyEventData)));
+        console.log("calendlyEventData raw:", location.state.calendlyEventData);
+        console.log("calendlyEventData.payload:", location.state.calendlyEventData.payload);
+        if (location.state.calendlyEventData.payload) {
+            console.log("calendlyEventData.payload.event:", location.state.calendlyEventData.payload.event);
+        }
     } else {
         console.log("BookingDetailsPage calendlyEventData is missing in location.state");
     }
