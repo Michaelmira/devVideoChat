@@ -856,9 +856,10 @@ def calendly_oauth_initiate():
         current_app.logger.error("Calendly OAuth environment variables not set.")
         return jsonify({"msg": "Calendly integration is not configured correctly on the server."}), 500
 
-    # scopes = "event_types.read scheduled_events.write" # Original scopes
-    scopes = "user_profile.read" # Simplified scope for testing
-    current_app.logger.info(f"Requesting Calendly scopes: {scopes}") # Log the scopes being requested
+    # Temporarily removing explicit scope request for testing
+    # scopes = "user_profile.read"
+    # current_app.logger.info(f"Requesting Calendly scopes: {scopes}") 
+    current_app.logger.info("Attempting Calendly OAuth without an explicit scope parameter.")
 
     state_param = secrets.token_urlsafe(32)
     session['calendly_oauth_state'] = state_param
@@ -869,12 +870,11 @@ def calendly_oauth_initiate():
         'response_type': 'code',
         'client_id': CALENDLY_CLIENT_ID,
         'redirect_uri': CALENDLY_REDIRECT_URI,
-        'scope': scopes,
+        # 'scope': scopes, # Scope parameter removed for this test
         'state': state_param
     }
     authorization_url = f"https://auth.calendly.com/oauth/authorize?{urlencode(params)}"
     
-    # Instead of redirecting, return the URL as JSON
     return jsonify({"calendly_auth_url": authorization_url}), 200
 
 
