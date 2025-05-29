@@ -4,7 +4,14 @@ import { useLocation, Link } from 'react-router-dom'; // Added Link for fallback
 
 export const BookingDetailsPage = () => {
     const location = useLocation();
+    // Log the entire location.state and specifically calendlyEventData for better inspection
     console.log("BookingDetailsPage location.state:", location.state);
+    if (location.state && location.state.calendlyEventData) {
+        console.log("BookingDetailsPage calendlyEventData object:", JSON.parse(JSON.stringify(location.state.calendlyEventData)));
+    } else {
+        console.log("BookingDetailsPage calendlyEventData is missing in location.state");
+    }
+
     // Destructure with fallback for mentorName, and provide default for trackingError
     const { mentorId, calendlyEventData, paymentIntentData, mentorName, trackingError = false } = location.state || {};
 
