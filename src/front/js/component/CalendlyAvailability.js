@@ -79,7 +79,8 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
   // Use the Calendly event listener for intercepting the date/time selection
   useCalendlyEventListener({
     onDateAndTimeSelected: (e) => {
-      console.log("Date and time selected:", e.data);
+      console.log("Calendly onDateAndTimeSelected raw event data (e.data):", JSON.parse(JSON.stringify(e.data)));
+      console.log("Calendly onDateAndTimeSelected PAYLOAD (e.data.payload):", JSON.parse(JSON.stringify(e.data.payload)));
       // Store the selected time data
       setSelectedTimeData(e.data.payload);
       // Hide Calendly and check authentication
