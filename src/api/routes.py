@@ -1282,14 +1282,53 @@ def finalize_booking():
             
             # Send manual confirmation email
             email_subject = "Your Mentorship Booking Confirmation (Action Required)"
+            
+            gcal_link = "#"
+            if parsed_event_start_time and parsed_event_end_time:
+                gcal_start_time = parsed_event_start_time.strftime('%Y%m%dT%H%M%SZ')
+                gcal_end_time = parsed_event_end_time.strftime('%Y%m%dT%H%M%SZ')
+                gcal_event_text = f"Mentorship Session with {mentor.first_name} {mentor.last_name} (Tentative)"
+                gcal_event_details = (f"This is a tentative placeholder for your session with {mentor.first_name} {mentor.last_name}. "
+                                      f"Your mentor will send a final confirmation and official calendar invite. "
+                                      f"Notes provided: {invitee_notes if invitee_notes else 'None'}")
+                gcal_location = mentor.calendly_event_location or 'Online / Video Call'
+                
+                gcal_params = {
+                    'action': 'TEMPLATE',
+                    'text': gcal_event_text,
+                    'dates': f'{gcal_start_time}/{gcal_end_time}',
+                    'details': gcal_event_details,
+                    'location': gcal_location,
+                    'trp': 'false' # Show as busy: true, Available: false
+                }
+                gcal_link = f"https://www.google.com/calendar/render?{urlencode(gcal_params)}"
+
             email_body_html = f"""
-            <h1>Booking Received</h1>
-            <p>Hi {invitee_name},</p>
-            <p>We've received your booking request for a session with {mentor.first_name} {mentor.last_name}.</p>
-            <p><strong>Session Time (Approximate):</strong> {parsed_event_start_time.strftime('%Y-%m-%d %H:%M %Z') if parsed_event_start_time else 'Not specified'}</p>
-            <p>Since this booking couldn't be automatically added to your calendar via Calendly, we will manually confirm the details and send you a calendar invitation within 24 hours.</p>
-            <p>If you have any urgent questions, please contact us.</p>
-            <p>Thank you!</p>
+            <div style='font-family: Arial, sans-serif; color: #333;'>
+                <h1>Booking Received</h1>
+                <p>Hi {invitee_name},</p>
+                <p>We've received your booking request for a session with <strong>{mentor.first_name} {mentor.last_name}</strong>.</p>
+                <p><strong>Session Time (Approximate):</strong> {parsed_event_start_time.strftime('%Y-%m-%d %H:%M %Z') if parsed_event_start_time else 'Not specified'}</p>
+                <p>Since this booking couldn't be automatically added to your calendar via Calendly, we will manually confirm the details and send you a separate calendar invitation once your mentor has scheduled it, typically within 24 hours.</p>
+                
+                {f'''<p>You can add a tentative hold to your Google Calendar using the button below. Please note that this is a placeholder and the final timing will be confirmed by your mentor's official invitation.</p>
+                <div style="text-align: center; margin: 20px 0;">
+                    <a href="{gcal_link}" target="_blank" 
+                       style="background-color: #007bff; 
+                              color: white; 
+                              padding: 12px 25px; 
+                              text-decoration: none; 
+                              border-radius: 5px; 
+                              font-size: 16px; 
+                              display: inline-block;">
+                        Add Tentative Slot to Google Calendar
+                    </a>
+                </div>''' if gcal_link != "#" else ""}
+                
+                <p>If you have any urgent questions, please contact your mentor or our support team.</p>
+                <p>Thank you!</p>
+                <p><em>The devMentor Team</em></p>
+            </div>
             """
             send_booking_confirmation_email(invitee_email, email_subject, email_body_html)
             # Also notify mentor
