@@ -1,6 +1,6 @@
 import React, { useState, useContext, useEffect } from "react";
 import { Context } from "../store/appContext";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import Select from "react-select";
 import CreatableSelect from "react-select/creatable";
 import {
@@ -26,8 +26,8 @@ import "react-phone-input-2/lib/style.css";
 import ProfilePhoto from "../component/ProfilePhoto";
 import PortfolioImage from "../component/PortfolioImage";
 import { ChangePsModal } from "../auth/ChangePsModal";
-// import { GoogleAuthMentor } from "../component/GoogleAuthMentor";
-// import { StripeConnect } from "../component/StripeConnect";
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 import { InvalidItem } from "../component/InvalidItem";
 
@@ -37,6 +37,8 @@ import "../../styles/mentorProfile.css";
 
 export const MentorProfile = () => {
   const { actions } = useContext(Context);
+  const location = useLocation();
+  const navigate = useNavigate();
   const [showChangePsModal, setShowChangePsModal] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [uploadedImages, setUploadedImages] = useState([]);
@@ -71,6 +73,7 @@ export const MentorProfile = () => {
     price: null,
     about_me: "",
     calendly_url: "",
+    is_calendly_connected: false,
   });
 
   useEffect(() => {
@@ -95,26 +98,43 @@ export const MentorProfile = () => {
     fetchMentorData();
   }, []);
 
+  useEffect(() => {
+    const queryParams = new URLSearchParams(location.search);
+    const calendlySuccess = queryParams.get('calendly_success');
+    const calendlyError = queryParams.get('calendly_error');
+
+    if (calendlySuccess === 'true') {
+      toast.success("Calendly connected successfully!");
+      fetchMentorData();
+      navigate(location.pathname, { replace: true });
+    } else if (calendlyError) {
+      let errorMessage = "Failed to connect Calendly.";
+      switch (calendlyError) {
+        case 'state_mismatch':
+          errorMessage = "Calendly connection failed: State mismatch. Please try again.";
+          break;
+        case 'auth_failed_callback':
+          errorMessage = "Calendly connection failed: Could not identify your account after returning from Calendly. Please ensure you are logged in and try again.";
+          break;
+        default:
+          errorMessage = `An unexpected error occurred while connecting Calendly: ${calendlyError}. Please try again or contact support.`;
+          break;
+      }
+      toast.error(errorMessage, { autoClose: 8000 });
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location, navigate, actions]);
+
   const profileImageUrl = mentor.profile_photo?.image_url || userIcon;
   const profileImagePositionX = mentor.profile_photo?.position_x || 0;
   const profileImagePositionY = mentor.profile_photo?.position_y || 0;
   const profileImageScale = mentor.profile_photo?.scale || 1;
-  // const portfolioImageUrls = mentor?.portfolio_photos?.length > 0 ? mentor.portfolio_photos : placeholderImages;
   const portfolioImageUrls = mentor?.portfolio_photos || [];
-
-  // const [loading, setLoading] = useState(true);
-  // if (loading) {
-  // 	return <div>Loading...</div>;
-  // }
-  // if (!mentor) {
-  // 	return <div>Mentor not found</div>;
-  // }
 
   const handleCancelChanges = async () => {
     setInvalidItems([]);
     setPhoneError("");
     setPreviewImg(null);
-    // setMentor(originalMentor);
     setEditMode(false);
     setUploadedPortfolioImages([]);
     setUploadedImages([]);
@@ -123,12 +143,6 @@ export const MentorProfile = () => {
     setImageSizeError(false);
     setPortfolioImgSizeError(false);
 
-    // const data = await actions.getCurrentMentor();
-    // if (data) {
-    // 	setMentor(data);
-    // 	setOriginalMentor(data);
-    // 	setCharacterCount(data.about_me?.length || 0);
-    // }
     fetchMentorData();
   };
 
@@ -309,13 +323,6 @@ export const MentorProfile = () => {
     e.preventDefault();
     setIsSaving(true);
 
-    // if (mentor.price === "None") {
-    // 	setMentor((prevMentorInfo) => ({
-    // 		...prevMentorInfo,
-    // 		price: null,
-    // 	}));
-    // 	return;
-    // }
     try {
       setInvalidItems([]);
       let isPriceValid = ValidatePrice(
@@ -345,14 +352,12 @@ export const MentorProfile = () => {
         isStateValid &&
         isAboutMeValid
       ) {
-        // Handle profile photo
         if (isMarkedForDeletion) {
           await actions.deleteProfilePhoto();
         } else if (uploadedImages.length > 0) {
           await handleNewImage();
         }
 
-        // Handle portfolio images
         await handlePortfolioImages();
         if (markedForDeletion.length > 0) {
           await handleDeletePortfolioImages(markedForDeletion);
@@ -392,19 +397,44 @@ export const MentorProfile = () => {
     }
   };
 
-  // console.log("mentor price", mentor.price)
+  const handleConnectCalendly = async () => {
+    try {
+      const token = sessionStorage.getItem("token");
+      if (!token) {
+        toast.error("Authentication error. Please log in again.");
+        return;
+      }
+
+      const response = await fetch(`${process.env.BACKEND_URL}/api/calendly/oauth/initiate`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.calendly_auth_url) {
+        window.location.href = data.calendly_auth_url;
+      } else {
+        toast.error(data.msg || "Could not initiate Calendly connection. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error connecting to Calendly:", error);
+      toast.error("An unexpected error occurred while trying to connect Calendly.");
+    }
+  };
+
+  const handleDisconnectCalendly = async () => {
+    toast.info("Disconnect Calendly functionality to be implemented.");
+  };
 
   return (
     <div className="container card border-secondary shadow border-2 pt-0 mentor-profile">
       <div id="header" className="card-header bg-light-subtle">
         <h2 className="my-2 header-text d-flex align-items-center justify-content-center">
           Mentor Profile
-          {/* {editMode == false
-						? (<button onClick={() => setEditMode(true)} className="btn btn-secondary fa-solid fa-pencil ms-4"></button>)
-						: ''
-					} */}
-          {/* <GoogleAuthMentor mentorId={mentorId} /> */}
-          {/* <StripeConnect /> */}
         </h2>
         {!mentor.is_active && (
           <div className="alert alert-warning" role="alert">
@@ -415,7 +445,6 @@ export const MentorProfile = () => {
       </div>
 
       <div className={`row px-4 ${editMode ? "pt-5" : "pt-3"}`}>
-        {/* {editMode ? "border-container" : ""} */}
         <div className="d-flex justify-content-end">
           {editMode == false ? (
             <button
@@ -426,7 +455,6 @@ export const MentorProfile = () => {
             ""
           )}
         </div>
-        {/* <div className="col-5 mb-4"> */}
         <div className="col-12 col-md-5 mb-4 profile-section">
           <div className="d-flex justify-content-center">
             <ProfilePhoto
@@ -462,7 +490,6 @@ export const MentorProfile = () => {
             setPortfolioImgSizeError={setPortfolioImgSizeError}
           />
         </div>
-        {/* <div className="col-7 pe-5"> */}
         <div className="col-12 col-md-7 info-column">
           <dl className="row">
             <dt className="col-sm-4 form-label">Email:</dt>
@@ -582,25 +609,6 @@ export const MentorProfile = () => {
                   {phoneError && <InvalidItem error={phoneError} />}
                 </>
               ) : (
-                // <PhoneInput
-                // 	disabled
-                // 	country={'us'}
-                // 	value={mentor.phone}
-                // 	onChange={handlePhoneChange}
-                // 	inputClass="form-control disabled border-0"
-                // 	inputStyle={{
-                // 		height: '25px',
-                // 		fontSize: '16px',
-                // 		padding: '0px',
-                // 		margin: '0px',
-                // 		lineHeight: 'auto',
-                // 		width: '100%'
-                // 	}}
-                // 	buttonStyle={{
-                // 		display: 'none'
-                // 	}}
-                // />
-
                 <PhoneInput
                   readOnly
                   enableSearch={false}
@@ -737,7 +745,6 @@ export const MentorProfile = () => {
                     (skill) => !mentor.skills?.includes(skill.label)
                   )}
                   closeMenuOnSelect={false}
-                  // styles={customStyles}
                 />
               ) : (
                 mentor.skills?.join(", ")
@@ -782,7 +789,6 @@ export const MentorProfile = () => {
                     />
                     <span className="input-group-text">/hr</span>
                   </div>
-                  {/* TODO: Make sure the invalideItems errors go away/reset if you hit 'cancel changes' button */}
                   {invalidItems.includes("price") && (
                     <InvalidItem error="Invalid price value (ex. 20.00)" />
                   )}
@@ -807,9 +813,8 @@ export const MentorProfile = () => {
                   ></textarea>
                   <span className="d-flex flex-row">
                     <p
-                      className={`mb-0 ${
-                        CharacterCount > 2500 ? "text-danger" : ""
-                      }`}
+                      className={`mb-0 ${CharacterCount > 2500 ? "text-danger" : ""
+                        }`}
                     >
                       {CharacterCount}
                     </p>
@@ -834,12 +839,6 @@ export const MentorProfile = () => {
               >
                 Cancel
               </button>
-              {/* <button
-                className="btn btn-success small-button"
-                onClick={handleSubmit}
-              >
-                Save Changes
-              </button> */}
               <button
                 className="btn btn-success small-button d-flex align-items-center justify-content-center gap-2"
                 onClick={handleSubmit}
@@ -887,6 +886,33 @@ export const MentorProfile = () => {
           onHide={() => setShowChangePsModal(false)}
         />
       )}
+
+      <div className="card mb-4">
+        <div className="card-header">
+          <h4 className="mb-0">Integrations</h4>
+        </div>
+        <div className="card-body">
+          <h5>Calendly Integration</h5>
+          {mentor.is_calendly_connected ? (
+            <div>
+              <p className="text-success"><i className="fas fa-check-circle"></i> Connected to Calendly.</p>
+              <p>Your account is linked, enabling direct booking capabilities.</p>
+              <p className="text-muted"><small>Disconnect functionality coming soon.</small></p>
+            </div>
+          ) : (
+            <div>
+              <p className="text-warning"><i className="fas fa-exclamation-triangle"></i> Not connected to Calendly.</p>
+              <p>Connect your Calendly account to allow clients to book sessions directly. This will enable automated scheduling into your Calendly calendar.</p>
+              <button onClick={handleConnectCalendly} className="btn btn-primary">
+                <i className="fas fa-link"></i> Connect to Calendly
+              </button>
+            </div>
+          )}
+          <hr className="my-3" />
+        </div>
+      </div>
+
+      <ToastContainer position="top-right" autoClose={5000} newestOnTop={true} />
     </div>
   );
 };

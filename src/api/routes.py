@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, timedelta, date
 import stripe
 
-from flask import Flask, request, jsonify, url_for, Blueprint, current_app, redirect
+from flask import Flask, request, jsonify, url_for, Blueprint, current_app, redirect, session
 from flask_cors import CORS
 import jwt
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, get_jwt
@@ -33,6 +33,7 @@ from urllib.parse import urlencode
 import json
 from google.oauth2.credentials import Credentials
 import requests # For making HTTP requests to Calendly
+import secrets # For generating secure state tokens for OAuth
 
 
 api = Blueprint('api', __name__)
@@ -841,7 +842,7 @@ def track_booking():
 # CALENDLY_REDIRECT_URI = os.getenv("CALENDLY_REDIRECT_URI") # e.g., http://localhost:3001/api/calendly/oauth/callback or your production URI
 
 @api.route('/calendly/oauth/initiate', methods=['GET'])
-@mentor_required # Assuming you have a decorator to ensure mentor is logged in
+@mentor_required 
 def calendly_oauth_initiate():
     mentor_id = get_jwt_identity()
     mentor = Mentor.query.get(mentor_id)
@@ -853,64 +854,57 @@ def calendly_oauth_initiate():
 
     if not CALENDLY_CLIENT_ID or not CALENDLY_REDIRECT_URI:
         current_app.logger.error("Calendly OAuth environment variables not set.")
-        return jsonify({"msg": "Calendly integration is not configured correctly."}), 500
+        return jsonify({"msg": "Calendly integration is not configured correctly on the server."}), 500
 
-    # Scopes: define what permissions your app needs.
-    # For scheduling, you might need: 'default' or more specific ones like 'calendly_events.write'
-    # Refer to Calendly API documentation for available scopes.
-    # For simplicity, using 'default' often covers common use cases.
-    # A more granular scope would be: "user_profile.read scheduling_links.read scheduled_events.read scheduled_events.write"
-    # For creating events: event_types.read, scheduled_events.write, scheduling_links.read
-    scopes = "event_types.read scheduled_events.write" # Example scopes for reading event types and creating events
-
-    # Optional: use a state parameter for CSRF protection
-    # state_param = secrets.token_urlsafe(16)
-    # session['calendly_oauth_state'] = state_param # Store in session to verify in callback
+    scopes = "event_types.read scheduled_events.write"
+    state_param = secrets.token_urlsafe(32)
+    session['calendly_oauth_state'] = state_param
+    session['calendly_oauth_mentor_id'] = mentor_id 
+    current_app.logger.info(f"Generated OAuth state for mentor {mentor_id}: {state_param}")
 
     params = {
         'response_type': 'code',
         'client_id': CALENDLY_CLIENT_ID,
         'redirect_uri': CALENDLY_REDIRECT_URI,
         'scope': scopes,
-        # 'state': state_param # Include if using state
+        'state': state_param
     }
     authorization_url = f"https://auth.calendly.com/oauth/authorize?{urlencode(params)}"
     
-    # Redirect the mentor to Calendly's authorization page
-    return redirect(authorization_url, code=302)
+    # Instead of redirecting, return the URL as JSON
+    return jsonify({"calendly_auth_url": authorization_url}), 200
 
 
 @api.route('/calendly/oauth/callback', methods=['GET'])
-# No jwt_required here initially as Calendly redirects without a JWT token.
-# We'll need to associate the callback with the mentor, perhaps via the 'state' parameter or by having mentor log back in if state is lost.
-# For simplicity, we'll assume the mentor is still identifiable or we re-authenticate if needed.
-# A robust solution involves using the 'state' parameter to link back to the mentor's session.
 def calendly_oauth_callback():
     authorization_code = request.args.get('code')
-    # received_state = request.args.get('state') # Get state if used
+    received_state = request.args.get('state')
+    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
-    # # Verify state parameter to prevent CSRF (if used)
-    # stored_state = session.pop('calendly_oauth_state', None)
-    # if not stored_state or stored_state != received_state:
-    #     current_app.logger.warning("Calendly OAuth state mismatch or missing.")
-    #     # Redirect to an error page on the frontend
-    #     return redirect(f"{os.getenv('FRONTEND_URL')}/mentor-dashboard?calendly_error=state_mismatch", code=302)
+    # Verify state parameter to prevent CSRF
+    stored_state = session.pop('calendly_oauth_state', None)
+    retrieved_mentor_id_from_session = session.pop('calendly_oauth_mentor_id', None)
 
+    current_app.logger.info(f"Callback received state: {received_state}, stored state: {stored_state}, retrieved mentor_id: {retrieved_mentor_id_from_session}")
+
+    if not stored_state or not received_state or stored_state != received_state or not retrieved_mentor_id_from_session:
+        current_app.logger.warning("Calendly OAuth state mismatch, missing, or mentor_id not found in session.")
+        return redirect(f"{FRONTEND_URL}/mentor-profile?calendly_error=state_mismatch", code=302)
+
+    # State is valid, use retrieved_mentor_id_from_session as the mentor_id
+    mentor_id = retrieved_mentor_id_from_session
 
     if not authorization_code:
         current_app.logger.error("Calendly OAuth callback missing authorization code.")
-        # Redirect to an error page on the frontend
-        return redirect(f"{os.getenv('FRONTEND_URL')}/mentor-dashboard?calendly_error=missing_code", code=302)
+        return redirect(f"{FRONTEND_URL}/mentor-profile?calendly_error=missing_code", code=302)
 
     CALENDLY_CLIENT_ID = os.getenv("CALENDLY_CLIENT_ID")
     CALENDLY_CLIENT_SECRET = os.getenv("CALENDLY_CLIENT_SECRET")
     CALENDLY_REDIRECT_URI = os.getenv("CALENDLY_REDIRECT_URI")
-    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000") # Default for local dev
 
     if not CALENDLY_CLIENT_ID or not CALENDLY_CLIENT_SECRET or not CALENDLY_REDIRECT_URI:
         current_app.logger.error("Calendly OAuth environment variables for token exchange not set.")
-        # Redirect to an error page on the frontend
-        return redirect(f"{FRONTEND_URL}/mentor-dashboard?calendly_error=config_error", code=302)
+        return redirect(f"{FRONTEND_URL}/mentor-profile?calendly_error=config_error", code=302)
 
     token_url = "https://auth.calendly.com/oauth/token"
     payload = {
@@ -923,72 +917,275 @@ def calendly_oauth_callback():
 
     try:
         response = requests.post(token_url, data=payload)
-        response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
+        response.raise_for_status()
         token_data = response.json()
 
         access_token = token_data.get('access_token')
         refresh_token = token_data.get('refresh_token')
-        expires_in = token_data.get('expires_in') # Typically in seconds
+        expires_in = token_data.get('expires_in')
 
-        # Here, we need to identify the mentor.
-        # This is where the 'state' parameter would be crucial to link back to the user session.
-        # For this example, let's assume the mentor needs to be logged in,
-        # and we can get their ID. This might require a slightly different flow or ensuring
-        # the JWT token is somehow available or the mentor re-authenticates briefly.
-        # A common pattern is to store the mentor_id in the session before redirecting to Calendly,
-        # and retrieve it here. If using JWT in cookies, it might persist.
-        # For now, we'll have to make this part more robust in a real app.
-        # Let's assume we can get mentor_id. This is a placeholder for robust user identification.
-        
-        # >>> This part needs to be made robust: How to get mentor_id securely? <<<
-        # One way: Use the state to pass a temporary token that can be used to retrieve mentor_id.
-        # Another: After callback, show a page "Linking Calendly..." then require mentor to click a button that sends JWT.
-        # For now, if you have a way to get mentor_id (e.g., if JWT is in secure cookie and mentor_required decorator could work after all), use it.
-        # As a fallback, we might need to adjust the `@mentor_required` or how we identify the mentor.
-        # For this simplified example, let's assume the mentor's JWT *is* somehow available,
-        # perhaps through a secure, HttpOnly cookie that is sent with this callback request.
-        # Or, the state parameter was used to store a temporary key to retrieve the mentor_id.
-
-        # Attempt to get mentor identity. This might fail if JWT is not present.
-        try:
-            mentor_id = get_jwt_identity() # This would only work if JWT is sent with the callback
-            # role = get_jwt().get('role')
-            # if role != 'mentor':
-            #     raise Exception("User is not a mentor")
-        except Exception as e: # Catches if get_jwt_identity() fails (e.g. no token)
-            current_app.logger.error(f"Could not identify mentor in Calendly callback: {e}. Mentor might need to re-login or state was lost.")
-            return redirect(f"{FRONTEND_URL}/mentor-dashboard?calendly_error=auth_failed_callback", code=302)
-
-
-        mentor = Mentor.query.get(mentor_id)
+        mentor = Mentor.query.get(mentor_id) # Use mentor_id retrieved via state
         if not mentor:
-            current_app.logger.error(f"Mentor with ID {mentor_id} not found during Calendly callback.")
-            return redirect(f"{FRONTEND_URL}/mentor-dashboard?calendly_error=user_not_found", code=302)
+            current_app.logger.error(f"Mentor with ID {mentor_id} (from session state) not found during Calendly callback.")
+            return redirect(f"{FRONTEND_URL}/mentor-profile?calendly_error=user_not_found", code=302)
 
         mentor.calendly_access_token = access_token
         mentor.calendly_refresh_token = refresh_token
         if expires_in:
             mentor.calendly_token_expires_at = datetime.utcnow() + timedelta(seconds=int(expires_in))
         
-        # It's also good practice to store the organization URI and user URI from Calendly if needed
-        # mentor.calendly_user_uri = token_data.get('owner') 
-        # mentor.calendly_organization_uri = token_data.get('organization')
-
         db.session.commit()
         current_app.logger.info(f"Successfully connected Calendly for mentor {mentor_id}")
-        # Redirect to a success page on the frontend
-        return redirect(f"{FRONTEND_URL}/mentor-dashboard?calendly_success=true", code=302)
+        return redirect(f"{FRONTEND_URL}/mentor-profile?calendly_success=true", code=302)
 
     except requests.exceptions.RequestException as e:
         current_app.logger.error(f"Calendly token exchange request failed: {e}")
         if e.response is not None:
             current_app.logger.error(f"Calendly error response: {e.response.text}")
-        return redirect(f"{FRONTEND_URL}/mentor-dashboard?calendly_error=token_exchange_failed", code=302)
+        return redirect(f"{FRONTEND_URL}/mentor-profile?calendly_error=token_exchange_failed", code=302)
     except Exception as e:
         current_app.logger.error(f"Error processing Calendly callback: {str(e)}")
-        return redirect(f"{FRONTEND_URL}/mentor-dashboard?calendly_error=internal_error", code=302)
+        return redirect(f"{FRONTEND_URL}/mentor-profile?calendly_error=internal_error", code=302)
 
-# ... (rest of your routes.py, including the new /finalize-booking endpoint to be added later)
-# Remember to add:
-# from api.models import Booking, BookingStatus (if not already there)
-# And your @mentor_required decorator needs to be defined.
+# Helper function to get a valid Calendly access token for a mentor
+def get_valid_calendly_access_token(mentor_id):
+    mentor = Mentor.query.get(mentor_id)
+    if not mentor:
+        current_app.logger.error(f"[Calendly Token Helper] Mentor not found: {mentor_id}")
+        return None, "Mentor not found"
+
+    if not mentor.calendly_refresh_token: # If there's no refresh token, they haven't connected
+        current_app.logger.warning(f"[Calendly Token Helper] Mentor {mentor_id} has not connected Calendly (no refresh token).")
+        return None, "Mentor has not connected their Calendly account."
+
+    # Check if current access token is valid (exists and not expired, or has a buffer)
+    if mentor.calendly_access_token and mentor.calendly_token_expires_at:
+        # Add a small buffer (e.g., 5 minutes) to proactively refresh
+        if datetime.utcnow() < (mentor.calendly_token_expires_at - timedelta(minutes=5)):
+            current_app.logger.info(f"[Calendly Token Helper] Using existing valid access token for mentor {mentor_id}.")
+            return mentor.calendly_access_token, None # Return token, no error message
+
+    # Access token is missing, expired, or nearing expiry; try to refresh it
+    current_app.logger.info(f"[Calendly Token Helper] Attempting to refresh Calendly access token for mentor {mentor_id}.")
+    CALENDLY_CLIENT_ID = os.getenv("CALENDLY_CLIENT_ID")
+    CALENDLY_CLIENT_SECRET = os.getenv("CALENDLY_CLIENT_SECRET")
+
+    if not CALENDLY_CLIENT_ID or not CALENDLY_CLIENT_SECRET:
+        current_app.logger.error("[Calendly Token Helper] Calendly client ID or secret not configured for token refresh.")
+        return None, "Calendly integration (refresh) is not configured correctly on the server."
+
+    token_url = "https://auth.calendly.com/oauth/token"
+    payload = {
+        'grant_type': 'refresh_token',
+        'refresh_token': mentor.calendly_refresh_token,
+        'client_id': CALENDLY_CLIENT_ID,
+        'client_secret': CALENDLY_CLIENT_SECRET
+    }
+
+    try:
+        response = requests.post(token_url, data=payload)
+        response.raise_for_status()  # Raise an HTTPError for bad responses (4xx or 5xx)
+        new_token_data = response.json()
+
+        new_access_token = new_token_data.get('access_token')
+        new_refresh_token = new_token_data.get('refresh_token') # Calendly might issue a new refresh token
+        new_expires_in = new_token_data.get('expires_in')
+
+        if not new_access_token:
+            current_app.logger.error(f"[Calendly Token Helper] Token refresh response missing new access token for mentor {mentor_id}.")
+            return None, "Failed to refresh Calendly token (missing new token in response)."
+
+        mentor.calendly_access_token = new_access_token
+        if new_refresh_token: # Update refresh token if a new one was provided
+            mentor.calendly_refresh_token = new_refresh_token
+        if new_expires_in:
+            mentor.calendly_token_expires_at = datetime.utcnow() + timedelta(seconds=int(new_expires_in))
+        
+        db.session.commit()
+        current_app.logger.info(f"[Calendly Token Helper] Successfully refreshed Calendly access token for mentor {mentor_id}.")
+        return new_access_token, None
+    
+    except requests.exceptions.HTTPError as e:
+        current_app.logger.error(f"[Calendly Token Helper] HTTP error during token refresh for mentor {mentor_id}: {e}")
+        if e.response is not None:
+            current_app.logger.error(f"[Calendly Token Helper] Calendly refresh error response: {e.response.status_code} - {e.response.text}")
+            if e.response.status_code == 400 or e.response.status_code == 401: # Bad request or Unauthorized (e.g. refresh token revoked)
+                # Clear out the tokens as they are likely invalid
+                mentor.calendly_access_token = None
+                mentor.calendly_refresh_token = None
+                mentor.calendly_token_expires_at = None
+                db.session.commit()
+                current_app.logger.warning(f"[Calendly Token Helper] Cleared invalid Calendly tokens for mentor {mentor_id} due to refresh failure.")
+                return None, "Calendly connection error. Please try reconnecting your Calendly account from your profile."
+        return None, "Failed to refresh Calendly token due to a server error with Calendly."
+    except Exception as e:
+        current_app.logger.error(f"[Calendly Token Helper] Unexpected error during token refresh for mentor {mentor_id}: {str(e)}")
+        return None, "An unexpected error occurred while trying to refresh Calendly token."
+
+
+@api.route('/finalize-booking', methods=['POST'])
+@jwt_required() # Customer must be logged in to finalize a booking
+def finalize_booking():
+    data = request.get_json()
+    current_customer_id = get_jwt_identity()
+    customer = Customer.query.get(current_customer_id)
+
+    if not customer:
+        return jsonify({"msg": "Customer not found"}), 404
+
+    # --- Expected data from frontend (BookingDetailsForm.js) --- 
+    mentor_id = data.get('mentorId')
+    # calendly_event_type_uri = data.get('calendlyEventTypeUri') # URI of the mentor's event type to book against
+    # OR, if using a pre-selected slot from onDateAndTimeSelected:
+    calendly_selected_event_uri = data.get('calendlyScheduledEventUri') # This is what onDateAndTimeSelected `event.uri` gives, might be an ad-hoc event slot or a specific event type's slot.
+    
+    event_start_time_str = data.get('eventStartTime') # ISO string e.g., "2023-10-27T10:00:00.000Z"
+    event_end_time_str = data.get('eventEndTime') # ISO string
+    
+    invitee_name = data.get('inviteeName')
+    invitee_email = data.get('inviteeEmail')
+    invitee_notes = data.get('notes', '')
+    
+    stripe_payment_intent_id = data.get('paymentIntentId')
+    amount_paid = data.get('amountPaid') # This should come from payment intent or mentor's price
+    currency = data.get('currency', 'usd')
+    # platform_fee = data.get('platformFee')
+    # mentor_payout_amount = data.get('mentorPayoutAmount')
+    # These fees should ideally be calculated server-side based on amount_paid
+
+    # --- Basic Validation --- 
+    if not all([mentor_id, calendly_selected_event_uri, event_start_time_str, invitee_name, invitee_email, stripe_payment_intent_id]):
+        return jsonify({"msg": "Missing required booking information."}), 400
+
+    mentor = Mentor.query.get(mentor_id)
+    if not mentor:
+        return jsonify({"msg": "Selected mentor not found."}), 404
+
+    # --- Get Mentor's Calendly Access Token --- 
+    access_token, token_error_msg = get_valid_calendly_access_token(mentor_id)
+    if token_error_msg or not access_token:
+        current_app.logger.error(f"Failed to get Calendly token for mentor {mentor_id} during booking: {token_error_msg}")
+        # Potentially create the booking with a PENDING_CONFIRMATION status if payment was made
+        return jsonify({"msg": token_error_msg or "Could not authenticate with Calendly for this mentor."}), 503 # Service Unavailable or custom code
+
+    # --- Prepare data for Calendly API --- 
+    # Calendly API to create a scheduled event (booking an invitee to an event)
+    # This usually requires the URI of the *event slot* the user picked or the *event type* URI.
+    # The `onDateAndTimeSelected` from react-calendly gives `event.uri` (the specific time slot selected).
+    # We are using `calendly_selected_event_uri` which should be this `event.uri`.
+
+    # If the event_start_time_str is from Calendly, it's usually already in UTC (ISO 8601).
+    # We need to ensure it's in the format Calendly API expects for scheduling if it differs from selected slot info.
+    # However, for creating an invitee for an *existing* scheduled event URI (the slot picked),
+    # the times are often implicit in that event URI.
+
+    # Calendly's "Create Invitee" endpoint: POST /scheduled_events/{event_uuid}/invitees
+    # Or, if `calendly_selected_event_uri` is an event *type* link, use POST /scheduling_links to book.
+    # Let's assume `calendly_selected_event_uri` is the event slot URI from onDateAndTimeSelected.
+    # The UUID is the last part of this URI.
+    try:
+        event_uuid = calendly_selected_event_uri.split("/")[-1]
+    except Exception:
+        return jsonify({"msg": "Invalid Calendly event URI format."}), 400
+
+    create_invitee_url = f"https://api.calendly.com/scheduled_events/{event_uuid}/invitees"
+
+    # Construct questions and answers for prefill notes (if Calendly event type has custom questions)
+    # For simplicity, we'll pass notes as part of tracking information if available.
+    # If the Calendly event type has a specific question for notes, map invitee_notes to it.
+    # Example: questions_and_answers: [{"question_uuid": "xxxx", "answer": invitee_notes}]
+    # This needs the question_uuid from the event type definition.
+    # For a simpler approach, often just name and email are sufficient for the API, 
+    # and notes are stored in your DB.
+
+    invitee_payload = {
+        "email": invitee_email,
+        "name": invitee_name,
+        # "first_name": invitee_name.split(' ')[0] if ' ' in invitee_name else invitee_name,
+        # "last_name": invitee_name.split(' ')[-1] if ' ' in invitee_name and len(invitee_name.split(' ')) > 1 else None,
+        # "questions_and_answers": [], # Add if you have custom question UUIDs
+        # "utm_source": "devmentor_platform", # Optional tracking
+        # "routing_form_submission_uri": data.get('calendlyRoutingFormSubmissionUri') # If using routing forms
+    }
+    # Add notes as a custom answer if your event type is configured for it.
+    # This part is highly dependent on how the mentor configured their Calendly event type.
+    # For now, we are not sending notes directly into Calendly questions unless we know the question_uuid.
+
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+        'Content-Type': 'application/json'
+    }
+
+    try:
+        current_app.logger.info(f"Attempting to create Calendly invitee for event {event_uuid} with payload: {invitee_payload}")
+        calendly_response = requests.post(create_invitee_url, headers=headers, json=invitee_payload)
+        calendly_response.raise_for_status() # Raise an exception for HTTP errors
+        calendly_invitee_data = calendly_response.json().get('resource', {})
+        
+        confirmed_calendly_event_uri = calendly_invitee_data.get('scheduled_event', {}).get('uri') # Should match original if booking existing slot
+        confirmed_calendly_invitee_uri = calendly_invitee_data.get('uri')
+
+        current_app.logger.info(f"Successfully created Calendly invitee: {confirmed_calendly_invitee_uri} for event: {confirmed_calendly_event_uri}")
+
+        # --- Create Booking Record in DB --- 
+        # Convert string dates from frontend/Calendly to datetime objects
+        # Ensure they are timezone-aware if stored as DateTime(timezone=True)
+        parsed_event_start_time = datetime.fromisoformat(event_start_time_str.replace('Z', '+00:00')) if event_start_time_str else None
+        parsed_event_end_time = datetime.fromisoformat(event_end_time_str.replace('Z', '+00:00')) if event_end_time_str else None
+
+        # Calculate fees (example)
+        # This is simplified; ensure your fee logic is accurate.
+        calculated_amount_paid = Decimal(amount_paid) if amount_paid else Decimal(mentor.price or 0)
+        calculated_platform_fee = calculated_amount_paid * Decimal('0.10') # Example 10% platform fee
+        calculated_mentor_payout = calculated_amount_paid - calculated_platform_fee
+
+        new_booking = Booking(
+            mentor_id=mentor_id,
+            customer_id=current_customer_id,
+            paid_at=datetime.utcnow(), # Assuming payment was just confirmed
+            scheduled_at=datetime.utcnow(), # Calendly event confirmed now
+            
+            calendly_event_uri=confirmed_calendly_event_uri or calendly_selected_event_uri, # Fallback to selected if confirmation doesn't provide it
+            calendly_invitee_uri=confirmed_calendly_invitee_uri,
+            calendly_event_start_time=parsed_event_start_time,
+            calendly_event_end_time=parsed_event_end_time,
+            
+            invitee_name=invitee_name,
+            invitee_email=invitee_email,
+            invitee_notes=invitee_notes,
+            
+            stripe_payment_intent_id=stripe_payment_intent_id,
+            amount_paid=calculated_amount_paid,
+            currency=currency,
+            platform_fee=calculated_platform_fee,
+            mentor_payout_amount=calculated_mentor_payout,
+            
+            status=BookingStatus.CONFIRMED
+        )
+        db.session.add(new_booking)
+        db.session.commit()
+
+        # TODO: Send confirmation emails to customer and mentor (with booking details and Calendly info)
+        # send_email(customer.email, "Your booking is confirmed!", f"Details: {new_booking.serialize()}")
+        # send_email(mentor.email, "You have a new booking!", f"Details: {new_booking.serialize()}")
+
+        current_app.logger.info(f"Booking {new_booking.id} created successfully and confirmed with Calendly.")
+        return jsonify({"success": True, "message": "Booking successfully scheduled with Calendly!", "bookingDetails": new_booking.serialize()}), 201
+
+    except requests.exceptions.HTTPError as e:
+        current_app.logger.error(f"Calendly API error during invitee creation for mentor {mentor_id}: {e}")
+        error_details = "Unknown Calendly API error."
+        if e.response is not None:
+            error_details = e.response.json() # Calendly usually returns JSON errors
+            current_app.logger.error(f"Calendly error response: {e.response.status_code} - {e.response.text}")
+        # Potentially create booking with PENDING_CONFIRMATION status and alert admin
+        return jsonify({"msg": "Failed to schedule with Calendly due to an API error.", "details": error_details}), 502 # Bad Gateway
+    except Exception as e:
+        db.session.rollback() # Rollback DB changes if Calendly or other steps fail post-DB interaction attempt
+        current_app.logger.error(f"Unexpected error finalizing booking for mentor {mentor_id}: {str(e)}")
+        return jsonify({"msg": "An unexpected server error occurred while finalizing your booking."}), 500
+
+# Make sure to import Decimal if using it for precise fee calculations
+from decimal import Decimal
+
+# ... (rest of your routes.py)

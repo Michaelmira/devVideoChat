@@ -117,13 +117,14 @@ class Mentor(db.Model):
             "what_state": self.what_state,
             "country": self.country,
             "years_exp": self.years_exp,
-            "skills": [skill for skill in self.skills],
+            "skills": [skill for skill in self.skills] if self.skills is not None else [],
             # "confirmed_sessions": [session.serialize() for session in self.confirmed_sessions] if self.confirmed_sessions else [],
-            "days": [day for day in self.days],
+            "days": [day for day in self.days] if self.days is not None else [],
             "calendly_url": self.calendly_url,
+            "is_calendly_connected": True if self.calendly_access_token else False,
             # OAuth tokens should NOT be serialized by default for security
             "profile_photo": self.profile_photo.serialize() if self.profile_photo else None,
-            "portfolio_photos": [portfolio_photo.serialize() for portfolio_photo in self.portfolio_photos],
+            "portfolio_photos": [portfolio_photo.serialize() for portfolio_photo in self.portfolio_photos] if self.portfolio_photos is not None else [],
             "about_me": self.about_me,
             "price": str(self.price)
         }
