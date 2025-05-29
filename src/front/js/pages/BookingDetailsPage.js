@@ -7,7 +7,10 @@ export const BookingDetailsPage = () => {
     // Destructure with fallback for mentorName, and provide default for trackingError
     const { mentorId, calendlyEventData, paymentIntentData, mentorName, trackingError = false } = location.state || {};
 
-    if (!mentorId || !calendlyEventData) {
+    // Check if calendlyEventData and its nested properties exist before accessing them
+    const eventStartTime = calendlyEventData && calendlyEventData.payload && calendlyEventData.payload.event && calendlyEventData.payload.event.start_time;
+
+    if (!mentorId || !calendlyEventData || !eventStartTime) { // Also check for eventStartTime
         return (
             <div className="container mt-5 text-center">
                 <div className="alert alert-danger">
@@ -35,7 +38,7 @@ export const BookingDetailsPage = () => {
                                     Note: Your payment was successful, but there was an issue confirming the booking on our server. Please complete the details below, and we will attempt to finalize it. Contact support if you don't receive a confirmation.
                                 </div>
                             )}
-                            <p className="mb-3">Please provide a few more details to finalize your session scheduled for <strong className='text-success'>{new Date(calendlyEventData.event.start_time).toLocaleString()}</strong>.</p>
+                            <p className="mb-3">Please provide a few more details to finalize your session scheduled for <strong className='text-success'>{new Date(eventStartTime).toLocaleString()}</strong>.</p>
                             <BookingDetailsForm
                                 mentorId={mentorId}
                                 calendlyEventData={calendlyEventData}
