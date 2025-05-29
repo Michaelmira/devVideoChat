@@ -882,24 +882,27 @@ def calendly_oauth_initiate():
 def calendly_oauth_callback():
     authorization_code = request.args.get('code')
     received_state = request.args.get('state')
-    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    
+    # Use localhost for frontend redirect for now, assuming that's where you view it
+    # This will be overridden by FRONTEND_URL env var if set
+    FRONTEND_PROFILE_URL = os.getenv("FRONTEND_URL", "http://localhost:3000") + "/mentor-profile"
 
-    # Verify state parameter to prevent CSRF
+    current_app.logger.info(f"Callback session contents: {dict(session)}") # Log all session data
+
     stored_state = session.pop('calendly_oauth_state', None)
     retrieved_mentor_id_from_session = session.pop('calendly_oauth_mentor_id', None)
 
-    current_app.logger.info(f"Callback received state: {received_state}, stored state: {stored_state}, retrieved mentor_id: {retrieved_mentor_id_from_session}")
+    current_app.logger.info(f"Callback received_state: {received_state}, stored_state: {stored_state}, retrieved_mentor_id: {retrieved_mentor_id_from_session}")
 
     if not stored_state or not received_state or stored_state != received_state or not retrieved_mentor_id_from_session:
         current_app.logger.warning("Calendly OAuth state mismatch, missing, or mentor_id not found in session.")
-        return redirect(f"{FRONTEND_URL}/mentor-profile?calendly_error=state_mismatch", code=302)
+        return redirect(f"{FRONTEND_PROFILE_URL}?calendly_error=state_mismatch", code=302)
 
-    # State is valid, use retrieved_mentor_id_from_session as the mentor_id
     mentor_id = retrieved_mentor_id_from_session
 
     if not authorization_code:
         current_app.logger.error("Calendly OAuth callback missing authorization code.")
-        return redirect(f"{FRONTEND_URL}/mentor-profile?calendly_error=missing_code", code=302)
+        return redirect(f"{FRONTEND_PROFILE_URL}?calendly_error=missing_code", code=302)
 
     CALENDLY_CLIENT_ID = os.getenv("CALENDLY_CLIENT_ID")
     CALENDLY_CLIENT_SECRET = os.getenv("CALENDLY_CLIENT_SECRET")
@@ -907,7 +910,7 @@ def calendly_oauth_callback():
 
     if not CALENDLY_CLIENT_ID or not CALENDLY_CLIENT_SECRET or not CALENDLY_REDIRECT_URI:
         current_app.logger.error("Calendly OAuth environment variables for token exchange not set.")
-        return redirect(f"{FRONTEND_URL}/mentor-profile?calendly_error=config_error", code=302)
+        return redirect(f"{FRONTEND_PROFILE_URL}?calendly_error=config_error", code=302)
 
     token_url = "https://auth.calendly.com/oauth/token"
     payload = {
@@ -927,10 +930,10 @@ def calendly_oauth_callback():
         refresh_token = token_data.get('refresh_token')
         expires_in = token_data.get('expires_in')
 
-        mentor = Mentor.query.get(mentor_id) # Use mentor_id retrieved via state
+        mentor = Mentor.query.get(mentor_id)
         if not mentor:
             current_app.logger.error(f"Mentor with ID {mentor_id} (from session state) not found during Calendly callback.")
-            return redirect(f"{FRONTEND_URL}/mentor-profile?calendly_error=user_not_found", code=302)
+            return redirect(f"{FRONTEND_PROFILE_URL}?calendly_error=user_not_found", code=302)
 
         mentor.calendly_access_token = access_token
         mentor.calendly_refresh_token = refresh_token
@@ -939,16 +942,16 @@ def calendly_oauth_callback():
         
         db.session.commit()
         current_app.logger.info(f"Successfully connected Calendly for mentor {mentor_id}")
-        return redirect(f"{FRONTEND_URL}/mentor-profile?calendly_success=true", code=302)
+        return redirect(f"{FRONTEND_PROFILE_URL}?calendly_success=true", code=302)
 
     except requests.exceptions.RequestException as e:
         current_app.logger.error(f"Calendly token exchange request failed: {e}")
         if e.response is not None:
             current_app.logger.error(f"Calendly error response: {e.response.text}")
-        return redirect(f"{FRONTEND_URL}/mentor-profile?calendly_error=token_exchange_failed", code=302)
+        return redirect(f"{FRONTEND_PROFILE_URL}?calendly_error=token_exchange_failed", code=302)
     except Exception as e:
         current_app.logger.error(f"Error processing Calendly callback: {str(e)}")
-        return redirect(f"{FRONTEND_URL}/mentor-profile?calendly_error=internal_error", code=302)
+        return redirect(f"{FRONTEND_PROFILE_URL}?calendly_error=internal_error", code=302)
 
 # Helper function to get a valid Calendly access token for a mentor
 def get_valid_calendly_access_token(mentor_id):
