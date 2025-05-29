@@ -154,6 +154,7 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
             console.log("Booking successfully tracked by backend");
             // Navigate to the booking details form page
             // Pass necessary data via route state
+            console.log("CalendlyAvailability: selectedTimeData BEFORE navigate:", selectedTimeData);
             navigate('/booking-details', {
               state: {
                 mentorId: currentMentor.id,
@@ -167,6 +168,7 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
             // Still navigate, but maybe with a warning or different state?
             // For now, proceeding to booking details form, but this needs robust error handling.
             alert("Payment was successful, but there was an issue tracking the booking on our server. Please contact support if your booking doesn't appear.")
+            console.log("CalendlyAvailability: selectedTimeData BEFORE navigate (on tracking failure):", selectedTimeData);
             navigate('/booking-details', {
               state: {
                 mentorId: currentMentor.id,
