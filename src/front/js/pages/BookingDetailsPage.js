@@ -7,22 +7,18 @@ export const BookingDetailsPage = () => {
 
     console.log("BookingDetailsPage location.state:", location.state);
     if (location.state && location.state.calendlyEventData) {
-        console.log("calendlyEventData raw:", location.state.calendlyEventData);
-        console.log("calendlyEventData.payload:", location.state.calendlyEventData.payload);
-        if (location.state.calendlyEventData.payload) {
-            console.log("calendlyEventData.payload.event:", location.state.calendlyEventData.payload.event);
-        }
+        console.log("BookingDetailsPage calendlyEventData object:", location.state.calendlyEventData);
     } else {
-        console.log("BookingDetailsPage calendlyEventData is missing in location.state");
+        console.log("BookingDetailsPage calendlyEventData is missing or empty in location.state");
     }
 
     // Destructure with fallback for mentorName, and provide default for trackingError
     const { mentorId, calendlyEventData, paymentIntentData, mentorName, trackingError = false } = location.state || {};
 
-    // Check if calendlyEventData and its nested properties exist before accessing them
-    const eventStartTime = calendlyEventData && calendlyEventData.payload && calendlyEventData.payload.event && calendlyEventData.payload.event.start_time;
+    // Check if calendlyEventData and its nested event property and start_time exist
+    const eventStartTime = calendlyEventData && calendlyEventData.event && calendlyEventData.event.start_time;
 
-    if (!mentorId || !calendlyEventData || !eventStartTime) { // Also check for eventStartTime
+    if (!mentorId || !calendlyEventData || !calendlyEventData.event || !eventStartTime) {
         return (
             <div className="container mt-5 text-center">
                 <div className="alert alert-danger">

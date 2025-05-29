@@ -52,13 +52,13 @@ const BookingDetailsForm = (props) => {
             return;
         }
 
-        // Adjust access to calendlyEventData based on its actual structure {event: 'type', payload: {event: {details...}}}
-        if (!calendlyEventData || !calendlyEventData.payload || !calendlyEventData.payload.event) {
-            setError("Calendly event data is missing or malformed. Please try again.");
+        // Adjust access to calendlyEventData based on its actual structure (it is the payload object from Calendly)
+        if (!calendlyEventData || !calendlyEventData.event) {
+            setError("Calendly event data is missing crucial details. Please try again.");
             setIsLoading(false);
             return;
         }
-        const actualCalendlyEvent = calendlyEventData.payload.event;
+        const actualCalendlyEvent = calendlyEventData.event; // calendlyEventData is the payload, actual event is under its .event key
 
         const payload = {
             mentorId: mentorId,
