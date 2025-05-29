@@ -28,6 +28,12 @@ if not app.secret_key:
     app.secret_key = "fallback-dev-secret-key-please-set-FLASK_SESSION_SECRET_KEY-in-env"
     print("WARNING: FLASK_SESSION_SECRET_KEY not set in .env. Using a default, insecure key. Please set it for proper session management.")
 
+# Session Cookie Settings for cross-site compatibility (e.g., OAuth callbacks)
+app.config["SESSION_COOKIE_SAMESITE"] = "None"
+app.config["SESSION_COOKIE_SECURE"] = True # Requires HTTPS, which codespaces provide
+# app.config["SESSION_COOKIE_DOMAIN"] = ".app.github.dev" # Example if needed, start without it
+# app.config["SERVER_NAME"] = os.getenv("BACKEND_URL_WITHOUT_HTTPS_SCHEME") # e.g., verbose-meme-xxx-3001.app.github.dev - might be needed if cookie domain issues persist
+
 # database condiguration
 db_url = os.getenv("DATABASE_URL")
 if db_url is not None:
