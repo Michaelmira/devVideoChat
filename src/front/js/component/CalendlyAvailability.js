@@ -79,28 +79,25 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
   // Use the Calendly event listener for intercepting the date/time selection
   useCalendlyEventListener({
     onDateAndTimeSelected: (e) => {
-      console.log("Calendly onDateAndTimeSelected raw event data (e.data):", JSON.parse(JSON.stringify(e.data)));
-      console.log("Calendly onDateAndTimeSelected raw e.data.payload object (inspect this in console!):", e.data.payload);
+      console.log("--- INSPECT CALENDLY EVENT DATA START ---");
+      console.log("e.data (raw from Calendly):", e.data);
+      console.log("e.data.payload (raw from Calendly, INSPECT THIS OBJECT IN CONSOLE):", e.data.payload);
+      console.log("--- INSPECT CALENDLY EVENT DATA END ---");
 
-      if (e.data && e.data.payload && e.data.payload.event) {
+      if (e.data && e.data.payload && e.data.payload.event && e.data.payload.event.uri) {
         const calendlyEventDetails = e.data.payload.event;
-        // Create a NEW, PLAIN object with only the data we need
         const plainEventData = {
           uri: calendlyEventDetails.uri,
           start_time: calendlyEventDetails.start_time,
           end_time: calendlyEventDetails.end_time,
-          // Add any other specific primitive fields you might need from calendlyEventDetails
-          // For example, if there's an invitee email provided by Calendly here (though less common for this event):
-          // invitee_email: calendlyEventDetails.invitee_email 
         };
         console.log("Storing PLAIN event data in selectedTimeData:", plainEventData);
-        setSelectedTimeData(plainEventData); // Store the plain object
+        setSelectedTimeData(plainEventData);
       } else {
-        console.error("Calendly e.data.payload.event is missing or has an unexpected structure!", e.data.payload);
-        setSelectedTimeData(null); // Or handle error appropriately
+        console.error("Calendly e.data.payload.event is missing, empty, or has an unexpected structure! Payload was:", e.data.payload);
+        setSelectedTimeData(null);
       }
 
-      // Hide Calendly and check authentication
       setShowCalendly(false);
 
       // Check if user is authenticated
