@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: 4a2e7f6aef53
+Revision ID: a5f4d8968a23
 Revises: 
-Create Date: 2025-05-07 19:15:31.401569
+Create Date: 2025-05-29 04:41:48.873182
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '4a2e7f6aef53'
+revision = 'a5f4d8968a23'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -37,6 +37,9 @@ def upgrade():
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('email', sa.String(length=120), nullable=False),
     sa.Column('calendly_url', sa.String(length=500), nullable=True),
+    sa.Column('calendly_access_token', sa.Text(), nullable=True),
+    sa.Column('calendly_refresh_token', sa.Text(), nullable=True),
+    sa.Column('calendly_token_expires_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('is_active', sa.Boolean(), nullable=True),
     sa.Column('last_active', sa.DateTime(timezone=True), nullable=True),
     sa.Column('password', sa.String(length=256), nullable=False),
@@ -60,6 +63,32 @@ def upgrade():
     )
     op.create_index(op.f('ix_mentor_email'), 'mentor', ['email'], unique=True)
     op.create_index(op.f('ix_mentor_phone'), 'mentor', ['phone'], unique=False)
+    op.create_table('booking',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('mentor_id', sa.Integer(), nullable=False),
+    sa.Column('customer_id', sa.Integer(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('paid_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('scheduled_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('calendly_event_uri', sa.Text(), nullable=True),
+    sa.Column('calendly_invitee_uri', sa.Text(), nullable=True),
+    sa.Column('calendly_event_start_time', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('calendly_event_end_time', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('invitee_name', sa.String(length=200), nullable=True),
+    sa.Column('invitee_email', sa.String(length=120), nullable=True),
+    sa.Column('invitee_notes', sa.Text(), nullable=True),
+    sa.Column('stripe_payment_intent_id', sa.String(length=255), nullable=True),
+    sa.Column('amount_paid', sa.Numeric(precision=10, scale=2), nullable=True),
+    sa.Column('currency', sa.String(length=10), nullable=True),
+    sa.Column('platform_fee', sa.Numeric(precision=10, scale=2), nullable=True),
+    sa.Column('mentor_payout_amount', sa.Numeric(precision=10, scale=2), nullable=True),
+    sa.Column('status', sa.Enum('PENDING_PAYMENT', 'PAID', 'CONFIRMED', 'CANCELLED_BY_CUSTOMER', 'CANCELLED_BY_MENTOR', 'COMPLETED', 'REFUNDED', name='bookingstatus'), nullable=False),
+    sa.ForeignKeyConstraint(['customer_id'], ['customer.id'], ),
+    sa.ForeignKeyConstraint(['mentor_id'], ['mentor.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_booking_stripe_payment_intent_id'), 'booking', ['stripe_payment_intent_id'], unique=False)
     op.create_table('customer_image',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('public_id', sa.String(length=500), nullable=False),
@@ -103,6 +132,8 @@ def downgrade():
     op.drop_table('portfolio_photo')
     op.drop_table('mentor_image')
     op.drop_table('customer_image')
+    op.drop_index(op.f('ix_booking_stripe_payment_intent_id'), table_name='booking')
+    op.drop_table('booking')
     op.drop_index(op.f('ix_mentor_phone'), table_name='mentor')
     op.drop_index(op.f('ix_mentor_email'), table_name='mentor')
     op.drop_table('mentor')

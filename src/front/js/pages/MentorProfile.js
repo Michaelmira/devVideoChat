@@ -35,6 +35,9 @@ import userIcon from "../../img/user-3296.png";
 
 import "../../styles/mentorProfile.css";
 
+import { CalendlyConnectionHandler } from "../component/CalendlyConnectionHandler";
+import { AuthDebugComponent } from "../component/AuthDebugComponet";
+
 export const MentorProfile = () => {
   const { actions } = useContext(Context);
   const location = useLocation();
@@ -75,6 +78,15 @@ export const MentorProfile = () => {
     calendly_url: "",
     is_calendly_connected: false,
   });
+  const [mentorData, setMentorData] = useState(null);
+  const [calendlyStatus, setCalendlyStatus] = useState({
+    connected: false,
+    loading: true,
+    userName: null,
+    userEmail: null,
+    error: null
+  });
+
 
   useEffect(() => {
     if (mentorId) {
@@ -397,41 +409,67 @@ export const MentorProfile = () => {
     }
   };
 
-  const handleConnectCalendly = async () => {
-    try {
-      const token = sessionStorage.getItem("token");
-      if (!token) {
-        toast.error("Authentication error. Please log in again.");
-        return;
+  // In your MentorProfile.js useEffect where you handle Calendly
+  useEffect(() => {
+    const checkCalendlyConnection = async () => {
+      // Handle OAuth callback first
+      const callbackResult = CalendlyConnectionHandler.handleOAuthCallback();
+
+      if (callbackResult === 'success') {
+        // Show success message
+        toast.success("Calendly connected successfully!");
+
+        // Wait a moment then refresh connection status
+        setTimeout(async () => {
+          const result = await CalendlyConnectionHandler.testCalendlyConnection();
+          setCalendlyStatus({
+            connected: result.connected,
+            loading: false,
+            userName: result.userName || null,
+            userEmail: result.userEmail || null,
+            error: result.error || null
+          });
+        }, 1000);
+      } else if (callbackResult && callbackResult.error) {
+        // Show error message
+        toast.error(callbackResult.error);
       }
 
-      const response = await fetch(`${process.env.BACKEND_URL}/api/calendly/oauth/initiate`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+      // Always check current connection status
+      const result = await CalendlyConnectionHandler.testCalendlyConnection();
+      setCalendlyStatus({
+        connected: result.connected,
+        loading: false,
+        userName: result.userName || null,
+        userEmail: result.userEmail || null,
+        error: result.error || null
       });
+    };
 
-      const data = await response.json();
+    checkCalendlyConnection();
+  }, []);
 
-      if (response.ok && data.calendly_auth_url) {
-        window.location.href = data.calendly_auth_url;
-      } else {
-        toast.error(data.msg || "Could not initiate Calendly connection. Please try again.");
-      }
-    } catch (error) {
-      console.error("Error connecting to Calendly:", error);
-      toast.error("An unexpected error occurred while trying to connect Calendly.");
-    }
+  const handleConnectCalendly = async () => {
+    setCalendlyStatus(prev => ({ ...prev, loading: true }));
+    await CalendlyConnectionHandler.handleConnectCalendly();
   };
 
   const handleDisconnectCalendly = async () => {
-    toast.info("Disconnect Calendly functionality to be implemented.");
+    const success = await CalendlyConnectionHandler.handleDisconnectCalendly();
+    if (success) {
+      setCalendlyStatus({
+        connected: false,
+        loading: false,
+        userName: null,
+        userEmail: null,
+        error: null
+      });
+    }
   };
 
   return (
     <div className="container card border-secondary shadow border-2 pt-0 mentor-profile">
+      <AuthDebugComponent /> {/* Add this temporarily */}
       <div id="header" className="card-header bg-light-subtle">
         <h2 className="my-2 header-text d-flex align-items-center justify-content-center">
           Mentor Profile
@@ -889,26 +927,93 @@ export const MentorProfile = () => {
 
       <div className="card mb-4">
         <div className="card-header">
-          <h4 className="mb-0">Integrations</h4>
+          <h5 className="mb-0">📅 Calendly Integration</h5>
         </div>
         <div className="card-body">
-          <h5>Calendly Integration</h5>
-          {mentor.is_calendly_connected ? (
-            <div>
-              <p className="text-success"><i className="fas fa-check-circle"></i> Connected to Calendly.</p>
-              <p>Your account is linked, enabling direct booking capabilities.</p>
-              <p className="text-muted"><small>Disconnect functionality coming soon.</small></p>
+          {calendlyStatus.loading ? (
+            <div className="d-flex align-items-center">
+              <div className="spinner-border spinner-border-sm me-2" role="status">
+                <span className="visually-hidden">Loading...</span>
+              </div>
+              <span>Checking Calendly connection...</span>
+            </div>
+          ) : calendlyStatus.connected ? (
+            <div className="calendly-connected">
+              <div className="alert alert-success d-flex align-items-center" role="alert">
+                <i className="bi bi-check-circle-fill me-2"></i>
+                <strong>Calendly Connected Successfully!</strong>
+              </div>
+
+              <div className="connection-details mb-3">
+                {calendlyStatus.userName && (
+                  <p className="mb-1">
+                    <strong>Connected as:</strong> {calendlyStatus.userName}
+                  </p>
+                )}
+                {calendlyStatus.userEmail && (
+                  <p className="mb-1">
+                    <strong>Email:</strong> {calendlyStatus.userEmail}
+                  </p>
+                )}
+              </div>
+
+              <div className="d-flex gap-2">
+                <button
+                  onClick={handleDisconnectCalendly}
+                  className="btn btn-outline-danger btn-sm"
+                >
+                  <i className="bi bi-unlink me-1"></i>
+                  Disconnect Calendly
+                </button>
+
+                <button
+                  onClick={async () => {
+                    setCalendlyStatus(prev => ({ ...prev, loading: true }));
+                    const result = await CalendlyConnectionHandler.testCalendlyConnection();
+                    setCalendlyStatus({
+                      connected: result.connected,
+                      loading: false,
+                      userName: result.userName || null,
+                      userEmail: result.userEmail || null,
+                      error: result.error || null
+                    });
+                  }}
+                  className="btn btn-outline-secondary btn-sm"
+                >
+                  <i className="bi bi-arrow-clockwise me-1"></i>
+                  Test Connection
+                </button>
+              </div>
             </div>
           ) : (
-            <div>
-              <p className="text-warning"><i className="fas fa-exclamation-triangle"></i> Not connected to Calendly.</p>
-              <p>Connect your Calendly account to allow clients to book sessions directly. This will enable automated scheduling into your Calendly calendar.</p>
-              <button onClick={handleConnectCalendly} className="btn btn-primary">
-                <i className="fas fa-link"></i> Connect to Calendly
+            <div className="calendly-disconnected">
+              <div className="alert alert-info d-flex align-items-center" role="alert">
+                <i className="bi bi-info-circle-fill me-2"></i>
+                <div>
+                  <strong>Connect your Calendly account</strong>
+                  <div className="small">Enable appointment scheduling for your mentees by connecting your Calendly account.</div>
+                </div>
+              </div>
+
+              {calendlyStatus.error && (
+                <div className="alert alert-warning d-flex align-items-center" role="alert">
+                  <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                  <div>
+                    <strong>Connection Issue:</strong> {calendlyStatus.error}
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={handleConnectCalendly}
+                className="btn btn-primary"
+                disabled={calendlyStatus.loading}
+              >
+                <i className="bi bi-calendar-plus me-1"></i>
+                {calendlyStatus.loading ? 'Connecting...' : 'Connect Calendly'}
               </button>
             </div>
           )}
-          <hr className="my-3" />
         </div>
       </div>
 
