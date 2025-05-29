@@ -4,6 +4,7 @@ import { useLocation, Link } from 'react-router-dom'; // Added Link for fallback
 
 export const BookingDetailsPage = () => {
     const location = useLocation();
+    console.log("BookingDetailsPage location.state:", location.state);
     // Destructure with fallback for mentorName, and provide default for trackingError
     const { mentorId, calendlyEventData, paymentIntentData, mentorName, trackingError = false } = location.state || {};
 
