@@ -15,10 +15,10 @@ export const BookingDetailsPage = () => {
     // Destructure with fallback for mentorName, and provide default for trackingError
     const { mentorId, calendlyEventData, paymentIntentData, mentorName, trackingError = false } = location.state || {};
 
-    // Check if calendlyEventData and its nested event property and start_time exist
-    const eventStartTime = calendlyEventData && calendlyEventData.event && calendlyEventData.event.start_time;
+    // calendlyEventData is now expected to be the plain object: { uri: ..., start_time: ..., end_time: ... }
+    const eventStartTime = calendlyEventData && calendlyEventData.start_time;
 
-    if (!mentorId || !calendlyEventData || !calendlyEventData.event || !eventStartTime) {
+    if (!mentorId || !calendlyEventData || !eventStartTime) {
         return (
             <div className="container mt-5 text-center">
                 <div className="alert alert-danger">

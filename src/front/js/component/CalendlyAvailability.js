@@ -80,9 +80,26 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
   useCalendlyEventListener({
     onDateAndTimeSelected: (e) => {
       console.log("Calendly onDateAndTimeSelected raw event data (e.data):", JSON.parse(JSON.stringify(e.data)));
-      console.log("Calendly onDateAndTimeSelected PAYLOAD (e.data.payload):", JSON.parse(JSON.stringify(e.data.payload)));
-      // Store the selected time data
-      setSelectedTimeData(e.data.payload);
+      console.log("Calendly onDateAndTimeSelected raw e.data.payload object (inspect this in console!):", e.data.payload);
+
+      if (e.data && e.data.payload && e.data.payload.event) {
+        const calendlyEventDetails = e.data.payload.event;
+        // Create a NEW, PLAIN object with only the data we need
+        const plainEventData = {
+          uri: calendlyEventDetails.uri,
+          start_time: calendlyEventDetails.start_time,
+          end_time: calendlyEventDetails.end_time,
+          // Add any other specific primitive fields you might need from calendlyEventDetails
+          // For example, if there's an invitee email provided by Calendly here (though less common for this event):
+          // invitee_email: calendlyEventDetails.invitee_email 
+        };
+        console.log("Storing PLAIN event data in selectedTimeData:", plainEventData);
+        setSelectedTimeData(plainEventData); // Store the plain object
+      } else {
+        console.error("Calendly e.data.payload.event is missing or has an unexpected structure!", e.data.payload);
+        setSelectedTimeData(null); // Or handle error appropriately
+      }
+
       // Hide Calendly and check authentication
       setShowCalendly(false);
 

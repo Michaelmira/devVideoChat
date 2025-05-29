@@ -52,19 +52,19 @@ const BookingDetailsForm = (props) => {
             return;
         }
 
-        // Adjust access to calendlyEventData based on its actual structure (it is the payload object from Calendly)
-        if (!calendlyEventData || !calendlyEventData.event) {
+        // calendlyEventData is now expected to be the plain object: { uri: ..., start_time: ..., end_time: ... }
+        if (!calendlyEventData || !calendlyEventData.uri || !calendlyEventData.start_time) { // Check for essential fields
             setError("Calendly event data is missing crucial details. Please try again.");
             setIsLoading(false);
             return;
         }
-        const actualCalendlyEvent = calendlyEventData.event; // calendlyEventData is the payload, actual event is under its .event key
+        // const actualCalendlyEvent = calendlyEventData.event; // No longer needed, calendlyEventData is the plain event details
 
         const payload = {
             mentorId: mentorId,
-            calendlyScheduledEventUri: actualCalendlyEvent.uri,
-            eventStartTime: actualCalendlyEvent.start_time,
-            eventEndTime: actualCalendlyEvent.end_time,
+            calendlyScheduledEventUri: calendlyEventData.uri,         // Direct access
+            eventStartTime: calendlyEventData.start_time,   // Direct access
+            eventEndTime: calendlyEventData.end_time,     // Direct access
             inviteeName: name,
             inviteeEmail: email,
             notes: notes,
