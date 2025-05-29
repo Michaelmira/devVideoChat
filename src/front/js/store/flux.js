@@ -15,11 +15,11 @@ const getState = ({ getStore, getActions, setStore }) => {
             messages: [],
             token: sessionStorage.getItem("token") || null,
             calendlyURL: null, // To store the mentor's Calendly URL
-			userInfo: {
-				email: "",
-				firstName: "",
-				lastName: ""
-			}
+            userInfo: {
+                email: "",
+                firstName: "",
+                lastName: ""
+            }
         },
 
         actions: {
@@ -86,7 +86,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                     isMentorLoggedIn: !!token // set to true if token exists
                 });
 
-                return isLoggedIn; 
+                return isLoggedIn;
             },
 
             signUpMentor: async (mentor) => {
@@ -338,18 +338,18 @@ const getState = ({ getStore, getActions, setStore }) => {
 
             deleteProfilePhoto: async () => {
                 try {
-                  const resp = await fetch(process.env.BACKEND_URL + "/api/mentor/delete-photo", {
-                    method: 'DELETE',
-                    headers: { 
-                      Authorization: "Bearer " + sessionStorage.getItem("token") 
-                    }
-                  });
-                  return resp.ok;
+                    const resp = await fetch(process.env.BACKEND_URL + "/api/mentor/delete-photo", {
+                        method: 'DELETE',
+                        headers: {
+                            Authorization: "Bearer " + sessionStorage.getItem("token")
+                        }
+                    });
+                    return resp.ok;
                 } catch (error) {
-                  console.error('Error deleting profile photo:', error);
-                  return false;
+                    console.error('Error deleting profile photo:', error);
+                    return false;
                 }
-              },
+            },
 
             logOut: () => {
                 // if (getStore().isMentorLoggedIn) {
@@ -770,7 +770,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                 }
             },
 
-            addSessionPaidAndAmount: async (sessionId, updatedSession,token ) => {
+            addSessionPaidAndAmount: async (sessionId, updatedSession, token) => {
                 const response = await fetch(
                     process.env.BACKEND_URL + `/api/session/${sessionId}/payment-track`,
                     {
@@ -817,12 +817,12 @@ const getState = ({ getStore, getActions, setStore }) => {
                     })
                 });
                 const responseBody = await response.json();
-                    console.log("Session creation response:", responseBody);
+                console.log("Session creation response:", responseBody);
 
-                    // Return the actual response data instead of just true
-                    return responseBody;
+                // Return the actual response data instead of just true
+                return responseBody;
             },
-            
+
             completeSessionCustomer: async (sessionId, is_flagged, completed_customer_notes, completed_customer_status, star_rating) => {
                 const token = sessionStorage.getItem("token");
                 if (!token) {
@@ -845,10 +845,10 @@ const getState = ({ getStore, getActions, setStore }) => {
                     })
                 });
                 const responseBody = await response.json();
-                    console.log("Session creation response:", responseBody);
+                console.log("Session creation response:", responseBody);
 
-                    // Return the actual response data instead of just true
-                    return responseBody;
+                // Return the actual response data instead of just true
+                return responseBody;
             },
 
             sendMessageMentor: async (sessionId, text) => {
@@ -917,7 +917,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                         console.error("No token found in sessionStorage");
                         return false;
                     }
-                    
+
                     const response = await fetch(`${process.env.BACKEND_URL}/api/track-booking`, {
                         method: "POST",
                         headers: {
@@ -926,7 +926,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                         },
                         body: JSON.stringify(bookingData)
                     });
-                    
+
                     if (response.ok) {
                         const data = await response.json();
                         console.log("Booking tracked successfully:", data);
@@ -939,8 +939,47 @@ const getState = ({ getStore, getActions, setStore }) => {
                     console.error("Error tracking booking:", error);
                     return false;
                 }
+            },
+            finalizeBooking: async (bookingData) => {
+                try {
+                    const token = sessionStorage.getItem("token");
+                    if (!token) {
+                        console.error("No token found in sessionStorage");
+                        return { success: false, message: "Please log in to finalize your booking" };
+                    }
+
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/finalize-booking`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${token}`
+                        },
+                        body: JSON.stringify(bookingData)
+                    });
+
+                    if (response.status === 401) {
+                        // Token expired or invalid - follow your existing pattern
+                        getActions().logOut();
+                        alert("Your login token has expired. Please log in again to continue.");
+                        return { success: false, message: "Session expired. Please log in again." };
+                    }
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        console.log("Booking finalized successfully:", data);
+                        return { success: true, ...data };
+                    } else {
+                        console.error("Failed to finalize booking:", data);
+                        return { success: false, message: data.msg || data.message || "Failed to finalize booking" };
+                    }
+
+                } catch (error) {
+                    console.error("Error in finalizeBooking:", error);
+                    return { success: false, message: "Network error occurred while finalizing booking" };
+                }
             }
-			
+
         }
     };
 };

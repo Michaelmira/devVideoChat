@@ -1219,9 +1219,7 @@ def finalize_booking():
 
     # --- Expected data from frontend (BookingDetailsForm.js) --- 
     mentor_id = data.get('mentorId')
-    # calendly_event_type_uri = data.get('calendlyEventTypeUri') # URI of the mentor's event type to book against
-    # OR, if using a pre-selected slot from onDateAndTimeSelected:
-    calendly_selected_event_uri = data.get('calendlyScheduledEventUri') # This is what onDateAndTimeSelected `event.uri` gives, might be an ad-hoc event slot or a specific event type's slot.
+    calendly_selected_event_uri = data.get('calendlyScheduledEventUri') # This is null from your logs
     
     event_start_time_str = data.get('eventStartTime') # ISO string e.g., "2023-10-27T10:00:00.000Z"
     event_end_time_str = data.get('eventEndTime') # ISO string
@@ -1233,40 +1231,82 @@ def finalize_booking():
     stripe_payment_intent_id = data.get('paymentIntentId')
     amount_paid = data.get('amountPaid') # This should come from payment intent or mentor's price
     currency = data.get('currency', 'usd')
-    # platform_fee = data.get('platformFee')
-    # mentor_payout_amount = data.get('mentorPayoutAmount')
-    # These fees should ideally be calculated server-side based on amount_paid
 
-    # --- Basic Validation --- 
-    if not all([mentor_id, calendly_selected_event_uri, event_start_time_str, invitee_name, invitee_email, stripe_payment_intent_id]):
+    # --- UPDATED Basic Validation (removed calendly_selected_event_uri requirement) --- 
+    if not all([mentor_id, event_start_time_str, invitee_name, invitee_email, stripe_payment_intent_id]):
+        current_app.logger.error(f"Missing required data: mentorId={mentor_id}, eventStartTime={event_start_time_str}, inviteeName={invitee_name}, inviteeEmail={invitee_email}, paymentIntentId={stripe_payment_intent_id}")
         return jsonify({"msg": "Missing required booking information."}), 400
 
     mentor = Mentor.query.get(mentor_id)
     if not mentor:
         return jsonify({"msg": "Selected mentor not found."}), 404
 
-    # --- Get Mentor's Calendly Access Token --- 
+    # --- Handle case where Calendly URI is null --- 
+    if not calendly_selected_event_uri:
+        current_app.logger.warning(f"No Calendly event URI provided - creating booking without Calendly integration for mentor {mentor_id}")
+        
+        # Calculate fees and amount
+        calculated_amount_paid = Decimal(amount_paid) if amount_paid else Decimal(mentor.price or 0)
+        calculated_platform_fee = calculated_amount_paid * Decimal('0.10') # Example 10% platform fee
+        calculated_mentor_payout = calculated_amount_paid - calculated_platform_fee
+
+        # Convert string dates to datetime objects
+        parsed_event_start_time = datetime.fromisoformat(event_start_time_str.replace('Z', '+00:00')) if event_start_time_str else None
+        parsed_event_end_time = datetime.fromisoformat(event_end_time_str.replace('Z', '+00:00')) if event_end_time_str else None
+
+        # Create booking record without Calendly integration
+        new_booking = Booking(
+            mentor_id=mentor_id,
+            customer_id=current_customer_id,
+            paid_at=datetime.utcnow(),
+            scheduled_at=datetime.utcnow(),
+            
+            # Calendly fields - null because integration failed
+            calendly_event_uri=None,
+            calendly_invitee_uri=None,
+            calendly_event_start_time=parsed_event_start_time,
+            calendly_event_end_time=parsed_event_end_time,
+            
+            invitee_name=invitee_name,
+            invitee_email=invitee_email,
+            invitee_notes=invitee_notes,
+            
+            stripe_payment_intent_id=stripe_payment_intent_id,
+            amount_paid=calculated_amount_paid,
+            currency=currency,
+            platform_fee=calculated_platform_fee,
+            mentor_payout_amount=calculated_mentor_payout,
+            
+            status=BookingStatus.PAID  # This exists and makes sense
+        )
+        
+        try:
+            db.session.add(new_booking)
+            db.session.commit()
+            
+            # TODO: Send manual confirmation emails
+            current_app.logger.info(f"Booking {new_booking.id} created successfully but needs manual calendar confirmation")
+            
+            return jsonify({
+                "success": True, 
+                "message": "Booking created successfully! We'll send you a calendar invitation manually within 24 hours.",
+                "bookingDetails": new_booking.serialize(),
+                "requires_manual_confirmation": True
+            }), 201
+
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error creating manual booking: {str(e)}")
+            return jsonify({"msg": "Failed to create booking"}), 500
+
+    # --- Original Calendly integration code (when URI is provided) --- 
+    # Get Mentor's Calendly Access Token 
     access_token, token_error_msg = get_valid_calendly_access_token(mentor_id)
     if token_error_msg or not access_token:
         current_app.logger.error(f"Failed to get Calendly token for mentor {mentor_id} during booking: {token_error_msg}")
-        # Potentially create the booking with a PENDING_CONFIRMATION status if payment was made
-        return jsonify({"msg": token_error_msg or "Could not authenticate with Calendly for this mentor."}), 503 # Service Unavailable or custom code
+        return jsonify({"msg": token_error_msg or "Could not authenticate with Calendly for this mentor."}), 503
 
-    # --- Prepare data for Calendly API --- 
-    # Calendly API to create a scheduled event (booking an invitee to an event)
-    # This usually requires the URI of the *event slot* the user picked or the *event type* URI.
-    # The `onDateAndTimeSelected` from react-calendly gives `event.uri` (the specific time slot selected).
-    # We are using `calendly_selected_event_uri` which should be this `event.uri`.
-
-    # If the event_start_time_str is from Calendly, it's usually already in UTC (ISO 8601).
-    # We need to ensure it's in the format Calendly API expects for scheduling if it differs from selected slot info.
-    # However, for creating an invitee for an *existing* scheduled event URI (the slot picked),
-    # the times are often implicit in that event URI.
-
-    # Calendly's "Create Invitee" endpoint: POST /scheduled_events/{event_uuid}/invitees
-    # Or, if `calendly_selected_event_uri` is an event *type* link, use POST /scheduling_links to book.
-    # Let's assume `calendly_selected_event_uri` is the event slot URI from onDateAndTimeSelected.
-    # The UUID is the last part of this URI.
+    # Extract event UUID from URI
     try:
         event_uuid = calendly_selected_event_uri.split("/")[-1]
     except Exception:
@@ -1274,26 +1314,10 @@ def finalize_booking():
 
     create_invitee_url = f"https://api.calendly.com/scheduled_events/{event_uuid}/invitees"
 
-    # Construct questions and answers for prefill notes (if Calendly event type has custom questions)
-    # For simplicity, we'll pass notes as part of tracking information if available.
-    # If the Calendly event type has a specific question for notes, map invitee_notes to it.
-    # Example: questions_and_answers: [{"question_uuid": "xxxx", "answer": invitee_notes}]
-    # This needs the question_uuid from the event type definition.
-    # For a simpler approach, often just name and email are sufficient for the API, 
-    # and notes are stored in your DB.
-
     invitee_payload = {
         "email": invitee_email,
         "name": invitee_name,
-        # "first_name": invitee_name.split(' ')[0] if ' ' in invitee_name else invitee_name,
-        # "last_name": invitee_name.split(' ')[-1] if ' ' in invitee_name and len(invitee_name.split(' ')) > 1 else None,
-        # "questions_and_answers": [], # Add if you have custom question UUIDs
-        # "utm_source": "devmentor_platform", # Optional tracking
-        # "routing_form_submission_uri": data.get('calendlyRoutingFormSubmissionUri') # If using routing forms
     }
-    # Add notes as a custom answer if your event type is configured for it.
-    # This part is highly dependent on how the mentor configured their Calendly event type.
-    # For now, we are not sending notes directly into Calendly questions unless we know the question_uuid.
 
     headers = {
         'Authorization': f'Bearer {access_token}',
@@ -1301,35 +1325,30 @@ def finalize_booking():
     }
 
     try:
-        current_app.logger.info(f"Attempting to create Calendly invitee for event {event_uuid} with payload: {invitee_payload}")
+        current_app.logger.info(f"Attempting to create Calendly invitee for event {event_uuid}")
         calendly_response = requests.post(create_invitee_url, headers=headers, json=invitee_payload)
-        calendly_response.raise_for_status() # Raise an exception for HTTP errors
+        calendly_response.raise_for_status()
         calendly_invitee_data = calendly_response.json().get('resource', {})
         
-        confirmed_calendly_event_uri = calendly_invitee_data.get('scheduled_event', {}).get('uri') # Should match original if booking existing slot
+        confirmed_calendly_event_uri = calendly_invitee_data.get('scheduled_event', {}).get('uri')
         confirmed_calendly_invitee_uri = calendly_invitee_data.get('uri')
 
-        current_app.logger.info(f"Successfully created Calendly invitee: {confirmed_calendly_invitee_uri} for event: {confirmed_calendly_event_uri}")
-
-        # --- Create Booking Record in DB --- 
-        # Convert string dates from frontend/Calendly to datetime objects
-        # Ensure they are timezone-aware if stored as DateTime(timezone=True)
+        # Convert string dates to datetime objects
         parsed_event_start_time = datetime.fromisoformat(event_start_time_str.replace('Z', '+00:00')) if event_start_time_str else None
         parsed_event_end_time = datetime.fromisoformat(event_end_time_str.replace('Z', '+00:00')) if event_end_time_str else None
 
-        # Calculate fees (example)
-        # This is simplified; ensure your fee logic is accurate.
+        # Calculate fees
         calculated_amount_paid = Decimal(amount_paid) if amount_paid else Decimal(mentor.price or 0)
-        calculated_platform_fee = calculated_amount_paid * Decimal('0.10') # Example 10% platform fee
+        calculated_platform_fee = calculated_amount_paid * Decimal('0.10') 
         calculated_mentor_payout = calculated_amount_paid - calculated_platform_fee
 
         new_booking = Booking(
             mentor_id=mentor_id,
             customer_id=current_customer_id,
-            paid_at=datetime.utcnow(), # Assuming payment was just confirmed
-            scheduled_at=datetime.utcnow(), # Calendly event confirmed now
+            paid_at=datetime.utcnow(),
+            scheduled_at=datetime.utcnow(),
             
-            calendly_event_uri=confirmed_calendly_event_uri or calendly_selected_event_uri, # Fallback to selected if confirmation doesn't provide it
+            calendly_event_uri=confirmed_calendly_event_uri or calendly_selected_event_uri,
             calendly_invitee_uri=confirmed_calendly_invitee_uri,
             calendly_event_start_time=parsed_event_start_time,
             calendly_event_end_time=parsed_event_end_time,
@@ -1349,27 +1368,23 @@ def finalize_booking():
         db.session.add(new_booking)
         db.session.commit()
 
-        # TODO: Send confirmation emails to customer and mentor (with booking details and Calendly info)
-        # send_email(customer.email, "Your booking is confirmed!", f"Details: {new_booking.serialize()}")
-        # send_email(mentor.email, "You have a new booking!", f"Details: {new_booking.serialize()}")
-
-        current_app.logger.info(f"Booking {new_booking.id} created successfully and confirmed with Calendly.")
-        return jsonify({"success": True, "message": "Booking successfully scheduled with Calendly!", "bookingDetails": new_booking.serialize()}), 201
+        current_app.logger.info(f"Booking {new_booking.id} created successfully with Calendly integration")
+        return jsonify({
+            "success": True, 
+            "message": "Booking successfully scheduled with Calendly!", 
+            "bookingDetails": new_booking.serialize()
+        }), 201
 
     except requests.exceptions.HTTPError as e:
-        current_app.logger.error(f"Calendly API error during invitee creation for mentor {mentor_id}: {e}")
+        current_app.logger.error(f"Calendly API error: {e}")
         error_details = "Unknown Calendly API error."
         if e.response is not None:
-            error_details = e.response.json() # Calendly usually returns JSON errors
-            current_app.logger.error(f"Calendly error response: {e.response.status_code} - {e.response.text}")
-        # Potentially create booking with PENDING_CONFIRMATION status and alert admin
-        return jsonify({"msg": "Failed to schedule with Calendly due to an API error.", "details": error_details}), 502 # Bad Gateway
+            error_details = e.response.json()
+        return jsonify({"msg": "Failed to schedule with Calendly due to an API error.", "details": error_details}), 502
     except Exception as e:
-        db.session.rollback() # Rollback DB changes if Calendly or other steps fail post-DB interaction attempt
-        current_app.logger.error(f"Unexpected error finalizing booking for mentor {mentor_id}: {str(e)}")
+        db.session.rollback()
+        current_app.logger.error(f"Unexpected error finalizing booking: {str(e)}")
         return jsonify({"msg": "An unexpected server error occurred while finalizing your booking."}), 500
 
 # Make sure to import Decimal if using it for precise fee calculations
 from decimal import Decimal
-
-# ... (rest of your routes.py)

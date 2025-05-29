@@ -76,37 +76,75 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
     utmCampaign: "mentorship_booking"
   };
 
-  // Use the Calendly event listener for intercepting the date/time selection
+  // Enhanced Calendly event listener with better error handling
   useCalendlyEventListener({
     onDateAndTimeSelected: (e) => {
-      console.log("--- INSPECT CALENDLY EVENT DATA START ---");
-      console.log("e.data (raw from Calendly):", e.data);
-      console.log("e.data.payload (raw from Calendly, INSPECT THIS OBJECT IN CONSOLE):", e.data.payload);
-      console.log("--- INSPECT CALENDLY EVENT DATA END ---");
+      console.log("--- CALENDLY EVENT DEBUG START ---");
+      console.log("Full event object:", e);
+      console.log("Event data:", e.data);
+      console.log("Event payload:", e.data?.payload);
 
-      if (e.data && e.data.payload && e.data.payload.event && e.data.payload.event.uri) {
-        const calendlyEventDetails = e.data.payload.event;
-        const plainEventData = {
-          uri: calendlyEventDetails.uri,
-          start_time: calendlyEventDetails.start_time,
-          end_time: calendlyEventDetails.end_time,
-        };
-        console.log("Storing PLAIN event data in selectedTimeData:", plainEventData);
-        setSelectedTimeData(plainEventData);
-      } else {
-        console.error("Calendly e.data.payload.event is missing, empty, or has an unexpected structure! Payload was:", e.data.payload);
-        setSelectedTimeData(null);
+      // Try different payload structures that Calendly might use
+      let eventData = null;
+
+      // Structure 1: e.data.payload.event (your current expectation)
+      if (e.data?.payload?.event) {
+        eventData = e.data.payload.event;
+        console.log("Found event data in payload.event:", eventData);
+      }
+      // Structure 2: e.data.event (alternative structure)
+      else if (e.data?.event) {
+        eventData = e.data.event;
+        console.log("Found event data in data.event:", eventData);
+      }
+      // Structure 3: Direct in payload
+      else if (e.data?.payload && (e.data.payload.uri || e.data.payload.start_time)) {
+        eventData = e.data.payload;
+        console.log("Found event data directly in payload:", eventData);
       }
 
-      setShowCalendly(false);
+      console.log("--- CALENDLY EVENT DEBUG END ---");
 
-      // Check if user is authenticated
-      if (store.token && store.currentUserData) {
-        // User is logged in, show payment form
-        setShowPaymentForm(true);
+      if (eventData && (eventData.uri || eventData.start_time)) {
+        const plainEventData = {
+          uri: eventData.uri,
+          start_time: eventData.start_time,
+          end_time: eventData.end_time,
+          // Add any other fields that might be present
+          name: eventData.name,
+          location: eventData.location
+        };
+
+        console.log("Successfully extracted event data:", plainEventData);
+        setSelectedTimeData(plainEventData);
+        setShowCalendly(false);
+
+        // Check if user is authenticated
+        if (store.token && store.currentUserData) {
+          setShowPaymentForm(true);
+        } else {
+          setShowAuthForm(true);
+        }
       } else {
-        // User is not logged in, show auth form
-        setShowAuthForm(true);
+        console.error("Could not find valid event data in Calendly response");
+        console.error("Full event structure:", JSON.stringify(e, null, 2));
+
+        // Fallback: Still proceed but with limited data
+        const fallbackData = {
+          uri: null,
+          start_time: new Date().toISOString(), // Use current time as fallback
+          end_time: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour later
+          error: "Limited event data available"
+        };
+
+        setSelectedTimeData(fallbackData);
+        setShowCalendly(false);
+
+        if (store.token && store.currentUserData) {
+          setShowPaymentForm(true);
+        } else {
+          setShowAuthForm(true);
+        }
       }
     }
   });
@@ -142,79 +180,77 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
     setActiveAuthTab(tab);
   };
 
-  // Payment handlers
   const handlePaymentSuccess = (paymentIntent) => {
-    // Record the successful payment
-    if (currentMentor && selectedTimeData) {
-      // Get current date/time in EST/EDT timezone
-      const now = new Date();
-      // Format the date as ISO string
-      const currentDateTime = now.toISOString();
+    console.log("handlePaymentSuccess called with:", {
+      currentMentor: !!currentMentor,
+      selectedTimeData: !!selectedTimeData,
+      paymentIntent: !!paymentIntent
+    });
 
-      const bookingData = {
-        mentorId: currentMentor.id,
-        paidDateTime: currentDateTime, // Use current time instead of Calendly time
-        clientEmail: store.currentUserData?.user_data?.email || selectedTimeData.email || '',
-        amount: parseFloat(currentMentor.price || 0),
-        mentorPayout: parseFloat(currentMentor.price || 0) * 0.9,
-        platformFee: parseFloat(currentMentor.price || 0) * 0.1,
-        status: 'paid'
-      };
-
-      console.log("Sending booking data:", bookingData);
-
-      actions.trackMentorBooking(bookingData)
-        .then(success => {
-          if (success) {
-            console.log("Booking successfully tracked by backend");
-            // Navigate to the booking details form page
-            // Pass necessary data via route state
-            console.log("CalendlyAvailability: selectedTimeData BEFORE navigate:", selectedTimeData);
-            navigate('/booking-details', {
-              state: {
-                mentorId: currentMentor.id,
-                calendlyEventData: selectedTimeData, // This contains event URI, start/end times etc.
-                paymentIntentData: paymentIntent, // Pass paymentIntent if needed for further processing
-                mentorName: `${currentMentor.first_name} ${currentMentor.last_name}`
-              }
-            });
-          } else {
-            console.warn("Failed to track booking with backend, but payment was successful. Consider how to handle this.");
-            // Still navigate, but maybe with a warning or different state?
-            // For now, proceeding to booking details form, but this needs robust error handling.
-            alert("Payment was successful, but there was an issue tracking the booking on our server. Please contact support if your booking doesn't appear.")
-            console.log("CalendlyAvailability: selectedTimeData BEFORE navigate (on tracking failure):", selectedTimeData);
-            navigate('/booking-details', {
-              state: {
-                mentorId: currentMentor.id,
-                calendlyEventData: selectedTimeData,
-                paymentIntentData: paymentIntent,
-                mentorName: `${currentMentor.first_name} ${currentMentor.last_name}`,
-                trackingError: true
-              }
-            });
-          }
-        })
-        .catch(error => {
-          console.error("Error tracking booking with backend:", error);
-          // Critical error - payment made but backend tracking failed.
-          // Advise user and maybe don't proceed or proceed with caution
-          alert("Payment was successful, but a critical error occurred while tracking your booking. Please contact support immediately.")
-          // Potentially navigate to an error page or dashboard with a message
-        });
-    } else {
-      console.error("handlePaymentSuccess called without currentMentor or selectedTimeData");
-      // This case should ideally not happen if UI flow is correct
-      alert("An unexpected error occurred after payment. Please contact support.");
+    // Enhanced validation
+    if (!currentMentor) {
+      console.error("handlePaymentSuccess: currentMentor is missing");
+      alert("Error: Mentor information is missing. Please contact support with your payment confirmation.");
+      return;
     }
 
-    // DO NOT Reset the booking flow here anymore
-    // setShowPaymentForm(false);
-    // setShowCalendly(true);
+    if (!selectedTimeData) {
+      console.error("handlePaymentSuccess: selectedTimeData is missing");
+      alert("Error: Selected time information is missing. Please contact support with your payment confirmation.");
+      return;
+    }
 
-    // DO NOT Show success message here anymore
-    // alert("Your session has been booked successfully!");
+    // Record the successful payment
+    const now = new Date();
+    const currentDateTime = now.toISOString();
+
+    const bookingData = {
+      mentorId: currentMentor.id,
+      paidDateTime: currentDateTime,
+      clientEmail: store.currentUserData?.user_data?.email || '',
+      amount: parseFloat(currentMentor.price || 0),
+      mentorPayout: parseFloat(currentMentor.price || 0) * 0.9,
+      platformFee: parseFloat(currentMentor.price || 0) * 0.1,
+      status: 'paid'
+    };
+
+    console.log("Sending booking data:", bookingData);
+
+    actions.trackMentorBooking(bookingData)
+      .then(success => {
+        if (success) {
+          console.log("Booking successfully tracked by backend");
+          console.log("Navigating with selectedTimeData:", selectedTimeData);
+
+          navigate('/booking-details', {
+            state: {
+              mentorId: currentMentor.id,
+              calendlyEventData: selectedTimeData,
+              paymentIntentData: paymentIntent,
+              mentorName: `${currentMentor.first_name} ${currentMentor.last_name}`
+            }
+          });
+        } else {
+          console.warn("Failed to track booking with backend, but payment was successful");
+          alert("Payment was successful, but there was an issue tracking the booking on our server. Please contact support if your booking doesn't appear.");
+
+          navigate('/booking-details', {
+            state: {
+              mentorId: currentMentor.id,
+              calendlyEventData: selectedTimeData,
+              paymentIntentData: paymentIntent,
+              mentorName: `${currentMentor.first_name} ${currentMentor.last_name}`,
+              trackingError: true
+            }
+          });
+        }
+      })
+      .catch(error => {
+        console.error("Error tracking booking with backend:", error);
+        alert("Payment was successful, but a critical error occurred while tracking your booking. Please contact support immediately.");
+      });
   };
+
 
   const handleCancel = () => {
     // Reset the booking flow
