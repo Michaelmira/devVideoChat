@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: d06b0dc64e95
+Revision ID: 4a2e7f6aef53
 Revises: 
-Create Date: 2025-04-29 23:12:01.206616
+Create Date: 2025-05-07 19:15:31.401569
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'd06b0dc64e95'
+revision = '4a2e7f6aef53'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -36,6 +36,7 @@ def upgrade():
     op.create_table('mentor',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('email', sa.String(length=120), nullable=False),
+    sa.Column('calendly_url', sa.String(length=500), nullable=True),
     sa.Column('is_active', sa.Boolean(), nullable=True),
     sa.Column('last_active', sa.DateTime(timezone=True), nullable=True),
     sa.Column('password', sa.String(length=256), nullable=False),
@@ -53,7 +54,6 @@ def upgrade():
     sa.Column('price', sa.Numeric(precision=10, scale=2), nullable=True),
     sa.Column('date_joined', sa.DateTime(timezone=True), nullable=True),
     sa.Column('google_oauth_credentials', sa.Text(), nullable=True),
-    sa.Column('calendly_url', sa.String(length=500), nullable=True),
     sa.Column('stripe_account_id', sa.String(length=255), nullable=True),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('stripe_account_id')
