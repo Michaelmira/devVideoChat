@@ -16,6 +16,8 @@ import { MentorList } from "./pages/mentorList";
 import { MentorDashboard } from "./pages/MentorDashboard";
 import { MentorProfile } from "./pages/MentorProfile";
 import { MentorDetails } from "./pages/MentorDetails";
+import { BookingDetailsPage } from "./pages/BookingDetailsPage";
+import { BookingConfirmedPage } from "./pages/BookingConfirmedPage";
 
 
 //create your first component
@@ -28,8 +30,8 @@ const Layout = () => {
 
     const { store, actions } = useContext(Context);
 
-     //useEffect to handle token exp. instances
-     useEffect(() => {
+    //useEffect to handle token exp. instances
+    useEffect(() => {
         if (store.token) {
             actions.getCurrentUser();
         }
@@ -57,10 +59,12 @@ const Layout = () => {
                         <Route element={<Home />} path="/" />
                         <Route element={<MentorProfile />} path="/mentor-profile" />
                         <Route element={<Single />} path="/single/:theid" />
-                        <Route element={<h1>Not found!</h1>} />
                         <Route element={<MentorList />} path="/mentor-list" />
                         <Route element={<MentorDashboard />} path="/mentor-dashboard" />
                         <Route element={<MentorDetails />} path="/mentor-details/:theid" />
+                        <Route element={<BookingDetailsPage />} path="/booking-details" />
+                        <Route element={<BookingConfirmedPage />} path="/booking-confirmed" />
+                        <Route element={<h1>Not found!</h1>} path="*" />
                     </Routes>
                     <Footer />
                 </ScrollToTop>

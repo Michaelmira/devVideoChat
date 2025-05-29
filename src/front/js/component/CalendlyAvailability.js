@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { InlineWidget, useCalendlyEventListener } from 'react-calendly';
 import { Context } from "../store/appContext";
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { CustomerLogin } from '../auth/CustomerLogin';
 import { CustomerSignup } from '../auth/CustomerSignup';
 import { PaymentForm } from './PaymentForm';
@@ -10,6 +10,7 @@ import { PaymentForm } from './PaymentForm';
 const CalendlyAvailability = ({ mentorId, mentor }) => {
   const { store, actions } = useContext(Context);
   const { theid } = useParams();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [currentMentor, setCurrentMentor] = useState(mentor);
@@ -127,7 +128,7 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
   };
 
   // Payment handlers
-  const handlePaymentSuccess = () => {
+  const handlePaymentSuccess = (paymentIntent) => {
     // Record the successful payment
     if (currentMentor && selectedTimeData) {
       // Get current date/time in EST/EDT timezone
@@ -150,22 +151,52 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
       actions.trackMentorBooking(bookingData)
         .then(success => {
           if (success) {
-            console.log("Booking successfully tracked");
+            console.log("Booking successfully tracked by backend");
+            // Navigate to the booking details form page
+            // Pass necessary data via route state
+            navigate('/booking-details', {
+              state: {
+                mentorId: currentMentor.id,
+                calendlyEventData: selectedTimeData, // This contains event URI, start/end times etc.
+                paymentIntentData: paymentIntent, // Pass paymentIntent if needed for further processing
+                mentorName: `${currentMentor.first_name} ${currentMentor.last_name}`
+              }
+            });
           } else {
-            console.warn("Failed to track booking, but payment was successful");
+            console.warn("Failed to track booking with backend, but payment was successful. Consider how to handle this.");
+            // Still navigate, but maybe with a warning or different state?
+            // For now, proceeding to booking details form, but this needs robust error handling.
+            alert("Payment was successful, but there was an issue tracking the booking on our server. Please contact support if your booking doesn't appear.")
+            navigate('/booking-details', {
+              state: {
+                mentorId: currentMentor.id,
+                calendlyEventData: selectedTimeData,
+                paymentIntentData: paymentIntent,
+                mentorName: `${currentMentor.first_name} ${currentMentor.last_name}`,
+                trackingError: true
+              }
+            });
           }
         })
         .catch(error => {
-          console.error("Error tracking booking:", error);
+          console.error("Error tracking booking with backend:", error);
+          // Critical error - payment made but backend tracking failed.
+          // Advise user and maybe don't proceed or proceed with caution
+          alert("Payment was successful, but a critical error occurred while tracking your booking. Please contact support immediately.")
+          // Potentially navigate to an error page or dashboard with a message
         });
+    } else {
+      console.error("handlePaymentSuccess called without currentMentor or selectedTimeData");
+      // This case should ideally not happen if UI flow is correct
+      alert("An unexpected error occurred after payment. Please contact support.");
     }
 
-    // Reset the booking flow
-    setShowPaymentForm(false);
-    setShowCalendly(true);
+    // DO NOT Reset the booking flow here anymore
+    // setShowPaymentForm(false);
+    // setShowCalendly(true);
 
-    // Show success message
-    alert("Your session has been booked successfully!");
+    // DO NOT Show success message here anymore
+    // alert("Your session has been booked successfully!");
   };
 
   const handleCancel = () => {
