@@ -22,6 +22,12 @@ static_file_dir = os.path.join(os.path.dirname(
 app = Flask(__name__)
 app.url_map.strict_slashes = False
 
+# Set the secret key for session management (VERY IMPORTANT for OAuth state)
+app.secret_key = os.getenv("FLASK_SESSION_SECRET_KEY")
+if not app.secret_key:
+    app.secret_key = "fallback-dev-secret-key-please-set-FLASK_SESSION_SECRET_KEY-in-env"
+    print("WARNING: FLASK_SESSION_SECRET_KEY not set in .env. Using a default, insecure key. Please set it for proper session management.")
+
 # database condiguration
 db_url = os.getenv("DATABASE_URL")
 if db_url is not None:
@@ -35,16 +41,28 @@ MIGRATE = Migrate(app, db, compare_type=True)
 db.init_app(app)
 
 # JWT Configuration
-app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "your-secret-key")  
+app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY") 
+if not app.config["JWT_SECRET_KEY"]:
+    app.config["JWT_SECRET_KEY"] = "fallback-jwt-secret-key-please-set-JWT_SECRET_KEY-in-env"
+    print("WARNING: JWT_SECRET_KEY not set in .env. Using a default, insecure key. Please set it for Flask-JWT-Extended.")
+
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = datetime.timedelta(days=1)
 jwt = JWTManager(app)
 
 # CORS Configuration
+cors_origins = []
+frontend_url = os.getenv('FRONTEND_URL')
+backend_url = os.getenv('BACKEND_URL')
+if frontend_url:
+    cors_origins.append(frontend_url)
+if backend_url: # Usually, backend doesn't need to be in its own CORS origins unless it serves a frontend part
+    cors_origins.append(backend_url)
+if not cors_origins: # Fallback if neither is set
+    cors_origins = ["http://localhost:3000", "http://127.0.0.1:3000"] # Sensible defaults for local dev
+    print(f"WARNING: FRONTEND_URL and BACKEND_URL not set in .env for CORS. Defaulting to: {cors_origins}")
+
 CORS(app, resources={r"/api/*": {
-    "origins": [
-        os.getenv('FRONTEND_URL'),
-        os.getenv('BACKEND_URL')
-    ],
+    "origins": cors_origins,
     "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     "allow_headers": ["Content-Type", "Authorization"],
     "supports_credentials": True
