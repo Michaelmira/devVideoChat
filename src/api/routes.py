@@ -1291,7 +1291,7 @@ def finalize_booking():
                 gcal_event_details = (f"This is a tentative placeholder for your session with {mentor.first_name} {mentor.last_name}. "
                                       f"Your mentor will send a final confirmation and official calendar invite. "
                                       f"Notes provided: {invitee_notes if invitee_notes else 'None'}")
-                gcal_location = mentor.calendly_event_location or 'Online / Video Call'
+                gcal_location = 'Online / Video Call' # Defaulting for ICS as well for now
                 
                 gcal_params = {
                     'action': 'TEMPLATE',
@@ -1452,7 +1452,7 @@ def finalize_booking():
                 'dtend': parsed_event_end_time.strftime('%Y%m%dT%H%M%SZ'),
                 'summary': f"Mentorship: {invitee_name} & {mentor.first_name} {mentor.last_name}",
                 'description': f"Mentorship session. Notes: {invitee_notes if invitee_notes else 'None'}. Calendly Event: {confirmed_calendly_event_uri}",
-                'location': mentor.calendly_event_location or 'Online / Video Call' # Assuming mentor might have a default location
+                'location': 'Online / Video Call' # Defaulting for ICS as well for now
             }
 
         send_booking_confirmation_email(invitee_email, email_subject, email_body_html, meeting_details=meeting_details_ics)
