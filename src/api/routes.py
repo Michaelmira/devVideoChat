@@ -1627,5 +1627,6 @@ def finalize_booking():
         db.session.rollback()
         current_app.logger.error(f"Unexpected error finalizing booking: {str(e)}")
         return jsonify({"msg": "An unexpected server error occurred while finalizing your booking."}), 500
+
 # Make sure to import Decimal if using it for precise fee calculations
 from decimal import Decimal
