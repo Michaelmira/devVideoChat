@@ -5,7 +5,8 @@ import { Context } from "../store/appContext";
 import { MapPin, Mail, Phone, Calendar, Clock, DollarSign, Award, BookOpen } from 'lucide-react';
 import { useParams, Link, useNavigate } from "react-router-dom";
 import CalendlyAvailability from "../component/CalendlyAvailability";
-import { StripePaymentComponent } from "../component/StripePaymentComponent"; // Import Stripe component
+import CalendlyAvailability2 from "../component/CalendlyAvailability2"; // Import the new component
+import { StripePaymentComponent } from "../component/StripePaymentComponent";
 
 export const MentorDetails = () => {
     const { store, actions } = useContext(Context);
@@ -13,7 +14,12 @@ export const MentorDetails = () => {
     const navigate = useNavigate();
     const [mentor, setMentor] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [showPaymentModal, setShowPaymentModal] = useState(false); // State for payment modal
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    
+    // New states for managing the booking flow
+    const [bookingStep, setBookingStep] = useState('initial'); // 'initial', 'payment', 'calendly_finalize'
+    const [paymentIntentData, setPaymentIntentData] = useState(null);
+    const [bookingId, setBookingId] = useState(null);
 
     useEffect(() => {
         // Get the specific mentor details
@@ -57,41 +63,80 @@ export const MentorDetails = () => {
 
         // User is authenticated, show payment modal
         setShowPaymentModal(true);
+        setBookingStep('payment');
     };
 
-    // Handle payment success
+    // Handle payment success - Updated to show CalendlyAvailability2
     const handlePaymentSuccess = (paymentIntent) => {
         console.log("Payment successful:", paymentIntent);
-        setShowPaymentModal(false);
-
-        // You might want to show a success message or redirect
-        // You could also record the successful payment in your system here
-
-        // Example: Record booking
+        
+        // Track the booking
         if (mentor) {
-            actions.trackMentorBooking({
+            const bookingData = {
                 mentorId: mentor.id,
-                paidDateTime: new Date().toISOString(), // You might want to pass actual session date
-                clientEmail: store.user?.email || '',
+                paidDateTime: new Date().toISOString(),
+                clientEmail: store.currentUserData?.user_data?.email || '',
                 amount: parseFloat(mentor.price || 0),
                 status: 'paid'
-            });
-        }
+            };
 
-        // Show success message
-        alert("Payment successful! Your session has been booked.");
+            actions.trackMentorBooking(bookingData)
+                .then(bookingResult => {
+                    if (bookingResult && bookingResult.id) {
+                        console.log("Booking successfully tracked by backend. ID:", bookingResult.id);
+                        setBookingId(bookingResult.id);
+                    } else {
+                        console.warn("Payment was successful, but backend booking tracking did not yield a booking ID.");
+                        setBookingId(null);
+                    }
+                    
+                    // Store payment data and move to Calendly step
+                    setPaymentIntentData(paymentIntent);
+                    setShowPaymentModal(false);
+                    setBookingStep('calendly_finalize');
+                })
+                .catch(error => {
+                    console.error("Error tracking booking with backend:", error);
+                    alert("Payment was successful, but a critical error occurred while tracking your booking. Please contact support immediately.");
+                });
+        }
     };
 
     // Handle payment error
     const handlePaymentError = (error) => {
         console.error("Payment error:", error);
-        // You might want to show an error message but keep the modal open
         alert(`Payment error: ${error.message || 'Unknown error'}`);
     };
 
-    // Close payment modal
+    // Close payment modal and reset to initial state
     const handleClosePaymentModal = () => {
         setShowPaymentModal(false);
+        setBookingStep('initial');
+        setPaymentIntentData(null);
+        setBookingId(null);
+    };
+
+    // Handle payment success from CalendlyAvailability component
+    const handleCalendlyPaymentSuccess = (paymentIntent, bookingId, mentor) => {
+        console.log("Payment successful from Calendly widget:", paymentIntent);
+        
+        // Store payment data and move to Calendly finalization step
+        setPaymentIntentData(paymentIntent);
+        setBookingId(bookingId);
+        setBookingStep('calendly_finalize');
+    };
+
+    // Handle cancel from CalendlyAvailability component
+    const handleCalendlyCancel = () => {
+        // Reset to initial state if user cancels from the Calendly widget
+        setBookingStep('initial');
+    };
+
+    // Handle when user wants to go back from Calendly step
+    const handleBackFromCalendly = () => {
+        setBookingStep('initial');
+        setPaymentIntentData(null);
+        setBookingId(null);
     };
 
     if (loading) {
@@ -117,6 +162,30 @@ export const MentorDetails = () => {
                         </Link>
                     </div>
                 </div>
+            </div>
+        );
+    }
+
+    // If we're in the Calendly finalization step, show CalendlyAvailability2
+    if (bookingStep === 'calendly_finalize') {
+        return (
+            <div className="container mt-5 mb-5">
+                <div className="row">
+                    <div className="col-12 mb-4">
+                        <button 
+                            className="btn btn-outline-secondary"
+                            onClick={handleBackFromCalendly}
+                        >
+                            &larr; Back to Mentor Profile
+                        </button>
+                    </div>
+                </div>
+                
+                <CalendlyAvailability2 
+                    mentor={mentor}
+                    paymentIntentData={paymentIntentData}
+                    bookingId={bookingId}
+                />
             </div>
         );
     }
@@ -252,7 +321,6 @@ export const MentorDetails = () => {
                                 <p>
                                     <strong>Years of Experience:</strong> {mentor.years_exp || "Not specified"}
                                 </p>
-                                {/* Add additional experience details here if available */}
                             </div>
 
                             {/* Availability Section */}
@@ -279,8 +347,6 @@ export const MentorDetails = () => {
                                 ) : (
                                     <p>Availability not specified.</p>
                                 )}
-
-                                {/* Add time slots here if available */}
                             </div>
 
                             {/* Session Details Section */}
@@ -317,8 +383,8 @@ export const MentorDetails = () => {
                 </div>
             </div>
 
-            {/* Calendly Availability Section */}
-            {mentor && mentor.calendly_url && (
+            {/* Calendly Availability Section - Show with callbacks for inline payment flow */}
+            {bookingStep === 'initial' && mentor && mentor.calendly_url && (
                 <div className="row mt-4">
                     <div className="col-12">
                         <div className="card border-secondary shadow border-2">
@@ -326,8 +392,11 @@ export const MentorDetails = () => {
                                 <h3 className="mb-0">Schedule a Session with {mentor.first_name}</h3>
                             </div>
                             <div className="card-body p-0">
-                                {/* Key fixes: don't wrap in another container that might affect styling */}
-                                <CalendlyAvailability mentor={mentor} />
+                                <CalendlyAvailability 
+                                    mentor={mentor} 
+                                    onPaymentSuccess={handleCalendlyPaymentSuccess}
+                                    onCancel={handleCalendlyCancel}
+                                />
                             </div>
                         </div>
                     </div>
@@ -335,7 +404,7 @@ export const MentorDetails = () => {
             )}
 
             {/* Payment Modal */}
-            {showPaymentModal && (
+            {showPaymentModal && bookingStep === 'payment' && (
                 <div className="modal" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
                     <div className="modal-dialog modal-dialog-centered">
                         <div className="modal-content">
@@ -345,8 +414,8 @@ export const MentorDetails = () => {
                             </div>
                             <div className="modal-body">
                                 <StripePaymentComponent
-                                    customerId={store.user?.id.toString()}
-                                    customerName={`${store.user?.first_name || ''} ${store.user?.last_name || ''}`}
+                                    customerId={store.currentUserData?.user_data?.id?.toString()}
+                                    customerName={`${store.currentUserData?.user_data?.first_name || ''} ${store.currentUserData?.user_data?.last_name || ''}`}
                                     mentorId={mentor.id.toString()}
                                     mentorName={`${mentor.first_name} ${mentor.last_name}`}
                                     amount={parseFloat(mentor.price || 0)}

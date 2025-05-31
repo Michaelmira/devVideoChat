@@ -1209,6 +1209,53 @@ def get_valid_calendly_access_token(mentor_id):
     except Exception as e:
         current_app.logger.error(f"[Calendly Token Helper] Unexpected error during refresh for mentor {mentor_id}: {str(e)}")
         return None, "An unexpected error occurred while refreshing Calendly token."
+    
+# Add this route to your routes.py
+@api.route('/bookings/<int:booking_id>/calendly-details', methods=['PUT'])
+@jwt_required()
+def update_booking_calendly_details(booking_id):
+    """Update a booking with Calendly event details after final scheduling"""
+    current_customer_id = get_jwt_identity()
+    
+    # Get the booking and verify ownership
+    booking = Booking.query.get(booking_id)
+    if not booking:
+        return jsonify({"msg": "Booking not found"}), 404
+    
+    if booking.customer_id != current_customer_id:
+        return jsonify({"msg": "Unauthorized - not your booking"}), 403
+    
+    data = request.get_json()
+    calendly_event_uri = data.get('calendly_event_uri')
+    calendly_invitee_uri = data.get('calendly_invitee_uri')
+    
+    if not calendly_event_uri:
+        return jsonify({"msg": "Missing required Calendly event URI"}), 400
+    
+    try:
+        # Update the booking with Calendly details
+        booking.calendly_event_uri = calendly_event_uri
+        if calendly_invitee_uri:
+            booking.calendly_invitee_uri = calendly_invitee_uri
+        
+        # Update status to confirmed since Calendly event is now scheduled
+        booking.status = BookingStatus.CONFIRMED
+        booking.scheduled_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        current_app.logger.info(f"Successfully updated booking {booking_id} with Calendly details")
+        
+        return jsonify({
+            "success": True,
+            "message": "Booking updated with Calendly details",
+            "booking": booking.serialize()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error updating booking {booking_id} with Calendly details: {str(e)}")
+        return jsonify({"msg": "Failed to update booking"}), 500
 
 @api.route('/finalize-booking', methods=['POST'])
 @jwt_required() # Customer must be logged in to finalize a booking

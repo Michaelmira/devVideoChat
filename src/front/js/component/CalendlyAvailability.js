@@ -1,16 +1,15 @@
-// CalendlyAvailability.js - Simplified version with direct auth and payment
+// CalendlyAvailability.js - Updated for inline flow without navigation
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { InlineWidget, useCalendlyEventListener } from 'react-calendly';
 import { Context } from "../store/appContext";
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { CustomerLogin } from '../auth/CustomerLogin';
 import { CustomerSignup } from '../auth/CustomerSignup';
 import { PaymentForm } from './PaymentForm';
 
-const CalendlyAvailability = ({ mentorId, mentor }) => {
+const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCancel }) => {
   const { store, actions } = useContext(Context);
   const { theid } = useParams();
-  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [currentMentor, setCurrentMentor] = useState(mentor);
@@ -125,7 +124,6 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
         console.log("Found event data directly in e.data:", eventData);
       }
 
-
       console.log("--- CALENDLY EVENT DEBUG END (Source: " + eventSource + ") ---");
 
       if (eventData) {
@@ -135,17 +133,12 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
           end_time: eventData.end_time || null, // Ensure end_time is present
           name: eventData.name || null,
           location: eventData.location || null,
-          // invitee_first_name: e.data?.payload?.invitee?.first_name, // Example of accessing invitee data
-          // invitee_last_name: e.data?.payload?.invitee?.last_name,
-          // invitee_email: e.data?.payload?.invitee?.email,
         };
 
         console.log("Successfully extracted event data (" + eventSource + "):", plainEventData);
 
         if (!plainEventData.start_time) {
           console.error("CRITICAL: start_time is missing from extracted eventData. Full e.data:", JSON.stringify(e.data, null, 2));
-          // Potentially trigger fallback here if start_time is essential and missing
-          // For now, we'll proceed but this needs monitoring.
         }
 
         setSelectedTimeData(plainEventData);
@@ -161,7 +154,6 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
         console.error("Could not find valid event data in Calendly response. Fallback will be used.");
         console.error("Full event structure (e):", JSON.stringify(e, null, 2));
         console.error("Full e.data structure:", JSON.stringify(e.data, null, 2));
-
 
         // Fallback: Still proceed but with limited data
         const fallbackData = {
@@ -256,42 +248,43 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
       .then(bookingResult => {
         if (bookingResult && bookingResult.id) {
           console.log("Booking successfully tracked by backend. ID:", bookingResult.id);
-          console.log("Navigating to final Calendly selection step.");
-
-          navigate(`/finalize-booking-slot/${currentMentor.id}`, {
-            state: {
-              mentor: currentMentor,
-              paymentIntentData: paymentIntent,
-              bookingId: bookingResult.id
-            }
-          });
+          
+          // Instead of navigating, call the parent component's callback
+          if (onPaymentSuccess) {
+            onPaymentSuccess(paymentIntent, bookingResult.id, currentMentor);
+          }
 
         } else {
           console.warn("Payment was successful, but backend booking tracking did not yield a booking ID. Proceeding to final Calendly selection without automated linking.", bookingResult);
           alert("Your payment was successful! We're proceeding to the final scheduling step. Please note: there might be a slight delay for this booking to fully appear in your account, or it may require support to manually link. Please complete your time selection.");
 
-          navigate(`/finalize-booking-slot/${currentMentor.id}`, {
-            state: {
-              mentor: currentMentor,
-              paymentIntentData: paymentIntent,
-              bookingId: null
-            }
-          });
+          // Still call the callback even without booking ID
+          if (onPaymentSuccess) {
+            onPaymentSuccess(paymentIntent, null, currentMentor);
+          }
         }
       })
       .catch(error => {
         console.error("Error tracking booking with backend:", error);
         alert("Payment was successful, but a critical error occurred while tracking your booking. Please contact support immediately.");
-        navigate('/dashboard', { state: { error: "Booking tracking failed" } });
+        
+        // Even on error, we can still proceed to scheduling since payment succeeded
+        if (onPaymentSuccess) {
+          onPaymentSuccess(paymentIntent, null, currentMentor);
+        }
       });
   };
-
 
   const handleCancel = () => {
     // Reset the booking flow
     setShowAuthForm(false);
     setShowPaymentForm(false);
     setShowCalendly(true);
+    
+    // Call parent component's cancel callback if provided
+    if (onCancel) {
+      onCancel();
+    }
   };
 
   // Render the appropriate booking step

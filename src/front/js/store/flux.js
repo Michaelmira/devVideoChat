@@ -940,6 +940,45 @@ const getState = ({ getStore, getActions, setStore }) => {
                     return false;
                 }
             },
+            // Add this to your flux actions
+            updateBookingWithCalendlyDetails: async (bookingId, calendlyDetails) => {
+                try {
+                    const token = sessionStorage.getItem("token");
+                    if (!token) {
+                        console.error("No token found in sessionStorage");
+                        return { success: false, message: "Please log in to update your booking" };
+                    }
+
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/bookings/${bookingId}/calendly-details`, {
+                        method: "PUT",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${token}`
+                        },
+                        body: JSON.stringify(calendlyDetails)
+                    });
+
+                    if (response.status === 401) {
+                        getActions().logOut();
+                        alert("Your login token has expired. Please log in again to continue.");
+                        return { success: false, message: "Session expired. Please log in again." };
+                    }
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        console.log("Booking updated with Calendly details successfully:", data);
+                        return { success: true, ...data };
+                    } else {
+                        console.error("Failed to update booking with Calendly details:", data);
+                        return { success: false, message: data.msg || data.message || "Failed to update booking" };
+                    }
+
+                } catch (error) {
+                    console.error("Error in updateBookingWithCalendlyDetails:", error);
+                    return { success: false, message: "Network error occurred while updating booking" };
+                }
+            },
             finalizeBooking: async (bookingData) => {
                 try {
                     const token = sessionStorage.getItem("token");

@@ -1,15 +1,11 @@
-// CalendlyAvailability.js - Simplified version with direct auth and payment
+// CalendlyAvailability2.js - Updated to accept props directly
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { InlineWidget, useCalendlyEventListener } from 'react-calendly';
 import { Context } from "../store/appContext";
-import { useLocation, useNavigate } from 'react-router-dom';
-import { CustomerLogin } from '../auth/CustomerLogin';
-import { CustomerSignup } from '../auth/CustomerSignup';
-import { PaymentForm } from './PaymentForm';
+import { useNavigate } from 'react-router-dom';
 
-const CalendlyAvailability2 = () => {
+const CalendlyAvailability2 = ({ mentor: propMentor, paymentIntentData: propPaymentIntentData, bookingId: propBookingId }) => {
     const { store, actions } = useContext(Context);
-    const location = useLocation();
     const navigate = useNavigate();
 
     const [isLoading, setIsLoading] = useState(true);
@@ -21,28 +17,23 @@ const CalendlyAvailability2 = () => {
     const calendlyContainerRef = useRef(null);
 
     useEffect(() => {
-        // Mentor data should be passed in location.state from the previous step
-        if (location.state?.mentor) {
-            setCurrentMentor(location.state.mentor);
-        } else if (location.state?.mentorId) {
-            // If only mentorId is passed, fetch the mentor details
-            actions.getMentorById(location.state.mentorId).then(data => {
-                if (data) setCurrentMentor(data);
-                else setHasError(true); // Mentor not found
-            });
+        // Use props directly instead of location.state
+        if (propMentor) {
+            setCurrentMentor(propMentor);
         } else {
-            console.error("CalendlyAvailability2: Mentor data not provided in location state.");
-            setHasError(true); // Critical error, mentor data missing
+            console.error("CalendlyAvailability2: Mentor data not provided in props.");
+            setHasError(true);
         }
 
-        if (location.state?.paymentIntentData) {
-            setPaymentIntentData(location.state.paymentIntentData);
-        }
-        if (location.state?.bookingId) { // Assuming bookingId is passed from handlePaymentSuccess
-            setOriginalBookingId(location.state.bookingId);
+        if (propPaymentIntentData) {
+            setPaymentIntentData(propPaymentIntentData);
         }
 
-    }, [location.state, actions]);
+        if (propBookingId) {
+            setOriginalBookingId(propBookingId);
+        }
+
+    }, [propMentor, propPaymentIntentData, propBookingId]);
 
     const calendlyUrl = currentMentor?.calendly_url;
     const isValidUrl = calendlyUrl && typeof calendlyUrl === 'string' && calendlyUrl.trim() !== '' && calendlyUrl.includes('calendly.com');
@@ -56,11 +47,8 @@ const CalendlyAvailability2 = () => {
     // User is already logged in, prefill their details
     const prefill = {
         email: store.currentUserData?.user_data?.email || "",
-        name: store.currentUserData?.user_data?.name || // Use full name if available
+        name: store.currentUserData?.user_data?.name || 
             ((store.currentUserData?.user_data?.first_name || "") + " " + (store.currentUserData?.user_data?.last_name || "")).trim() || "",
-        // You might be able to pre-fill the date if you captured an *approximate* one earlier,
-        // but it might be better to let the user re-select freely.
-        // date: location.state?.initialSelectedDate // Example, if you passed it
     };
 
     const utm = {
@@ -79,7 +67,6 @@ const CalendlyAvailability2 = () => {
                 const finalEventDataForBackend = {
                     calendly_event_uri: scheduledEventDetails.uri,
                     calendly_invitee_uri: inviteeDetails.uri,
-                    // Any other details your backend might want at this stage
                 };
 
                 let bookingUpdateAttempted = false;
@@ -88,22 +75,25 @@ const CalendlyAvailability2 = () => {
                 if (originalBookingId) {
                     bookingUpdateAttempted = true;
                     try {
-                        console.log("TODO: Call backend to update booking ID:", originalBookingId, "with data:", finalEventDataForBackend);
-                        // const backendResponse = await actions.updateBookingWithCalendlyDetails(originalBookingId, finalEventDataForBackend);
-                        // bookingUpdateSuccess = backendResponse.success; 
-                        bookingUpdateSuccess = true; // Placeholder for actual API call result
+                        console.log("Updating booking ID:", originalBookingId, "with Calendly data:", finalEventDataForBackend);
+                        const backendResponse = await actions.updateBookingWithCalendlyDetails(originalBookingId, finalEventDataForBackend);
+                        bookingUpdateSuccess = backendResponse.success;
+                        
+                        if (bookingUpdateSuccess) {
+                            console.log("Successfully updated booking with Calendly details");
+                        } else {
+                            console.warn("Failed to update booking:", backendResponse.message);
+                        }
                     } catch (apiError) {
                         console.error("Error updating booking on backend:", apiError);
-                        // bookingUpdateSuccess remains false
                     }
                 }
 
-                // Navigate to confirmation regardless of backend update for now, but pass relevant info
                 console.log("Event successfully scheduled with Calendly. Navigating to confirmation.");
 
                 const bookingConfirmedState = {
                     mentorId: currentMentor.id,
-                    bookingId: originalBookingId, // Will be null if not available initially
+                    bookingId: originalBookingId,
                     calendlyEventData: {
                         uri: scheduledEventDetails.uri,
                         start_time: scheduledEventDetails.start_time || null,
@@ -130,7 +120,6 @@ const CalendlyAvailability2 = () => {
                 alert("Your event may be scheduled with Calendly, but we had an issue processing the details. Please check your email for Calendly's confirmation and contact support if needed.");
             }
         },
-        // Optional: Listen to other events for UX if needed
         onDateAndTimeSelected: (e) => {
             console.log("Date and Time selected in CalendlyAvailability2 (informational):", e);
         },
@@ -139,26 +128,27 @@ const CalendlyAvailability2 = () => {
 
     useEffect(() => {
         if (isValidUrl) {
-            setIsLoading(true); // Show loader initially
+            setIsLoading(true);
             const timer = setTimeout(() => setIsLoading(false), 1500);
             return () => clearTimeout(timer);
-        } else if (currentMentor) { // currentMentor is loaded but URL is invalid
+        } else if (currentMentor) {
             setIsLoading(false);
             setHasError(true);
         }
-        // If currentMentor is null initially, it will be caught by the loading in return
     }, [isValidUrl, currentMentor]);
 
     const handleCancelFinalStep = () => {
         console.log("User cancelled final Calendly selection step.");
-        navigate('/dashboard'); // Navigate to dashboard or a relevant page
+        navigate('/dashboard');
         alert("You have cancelled the final booking step. Your payment was processed. Please contact support if you wish to reschedule or need assistance.");
     };
 
     if (!currentMentor && !hasError) {
         return (
             <div className="d-flex justify-content-center align-items-center" style={{ height: "80vh" }}>
-                <div className="spinner-border text-primary" role="status"><span className="visually-hidden">Loading...</span></div>
+                <div className="spinner-border text-primary" role="status">
+                    <span className="visually-hidden">Loading...</span>
+                </div>
             </div>
         );
     }
@@ -173,7 +163,9 @@ const CalendlyAvailability2 = () => {
                         </div>
                         <div className="card-body p-4">
                             {hasError && !currentMentor && (
-                                <div className="alert alert-danger">Could not load mentor details. Please try again or contact support.</div>
+                                <div className="alert alert-danger">
+                                    Could not load mentor details. Please try again or contact support.
+                                </div>
                             )}
                             {currentMentor && !isValidUrl && (
                                 <div className="alert alert-warning">
@@ -186,7 +178,9 @@ const CalendlyAvailability2 = () => {
                                     <p className="text-center mb-3">
                                         Please select your preferred date and time for your session with <strong>{currentMentor.first_name} {currentMentor.last_name}</strong>.
                                     </p>
-                                    <p className="text-center text-muted small mb-4">Your payment is confirmed. This final step reserves your slot directly in the mentor's calendar.</p>
+                                    <p className="text-center text-muted small mb-4">
+                                        Your payment is confirmed. This final step reserves your slot directly in the mentor's calendar.
+                                    </p>
 
                                     {isLoading && (
                                         <div className="d-flex justify-content-center my-5">
@@ -195,7 +189,11 @@ const CalendlyAvailability2 = () => {
                                             </div>
                                         </div>
                                     )}
-                                    <div style={{ opacity: isLoading ? 0 : 1, transition: 'opacity 0.5s ease-in-out', minHeight: isLoading ? '700px' : 'auto' }} ref={calendlyContainerRef}>
+                                    <div style={{ 
+                                        opacity: isLoading ? 0 : 1, 
+                                        transition: 'opacity 0.5s ease-in-out', 
+                                        minHeight: isLoading ? '700px' : 'auto' 
+                                    }} ref={calendlyContainerRef}>
                                         {!isLoading && (
                                             <InlineWidget
                                                 url={calendlyUrl}
@@ -204,7 +202,7 @@ const CalendlyAvailability2 = () => {
                                                 utm={utm}
                                                 pageSettings={{
                                                     hideEventTypeDetails: false,
-                                                    hideLandingPageDetails: true, // Hides Calendly's own branding/footer if possible
+                                                    hideLandingPageDetails: true,
                                                     backgroundColor: 'ffffff',
                                                     primaryColor: '00a2ff',
                                                     textColor: '4d5055'
@@ -227,4 +225,4 @@ const CalendlyAvailability2 = () => {
     );
 };
 
-export default CalendlyAvailability2; 
+export default CalendlyAvailability2;
