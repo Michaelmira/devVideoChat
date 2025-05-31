@@ -63,9 +63,16 @@ export const BookingDetailsForm = ({ mentorId, calendlyEventData, paymentIntentD
             const result = await actions.finalizeBooking(finalBookingData);
 
             if (result.success) {
-                console.log("Booking finalized successfully!");
+                console.log("Booking finalized successfully!", result.bookingDetails);
                 setIsLoading(false);
                 // Navigate to success page or show success message
+                navigate('/booking-confirmed', {
+                    state: {
+                        bookingDetails: result.bookingDetails,
+                        mentorName: mentorName, // Pass mentorName for display
+                        requiresManualConfirmation: result.requires_manual_confirmation // Pass this flag too
+                    }
+                });
             } else {
                 setError(result.message || "Failed to finalize booking");
                 setIsLoading(false);
