@@ -80,11 +80,22 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
   useCalendlyEventListener({
     onDateAndTimeSelected: (e) => {
       console.log("--- CALENDLY EVENT DEBUG START ---");
-      console.log("Full event object:", e);
-      console.log("Event data:", e.data);
-      console.log("Event payload:", e.data?.payload);
+      console.log("Full event object (e):", e);
+      console.log("e.data structure:", e.data);
 
-      // Try different payload structures that Calendly might use
+      // Log the payload with more detail to see its true content
+      if (e.data && typeof e.data.payload !== 'undefined') {
+        console.log("e.data.payload (raw):", e.data.payload);
+        try {
+          // Attempt to stringify to catch circular references or complex objects
+          console.log("e.data.payload (stringified):", JSON.stringify(e.data.payload, null, 2));
+        } catch (err) {
+          console.error("Could not stringify e.data.payload:", err);
+        }
+      } else {
+        console.log("e.data.payload is undefined or e.data is missing.");
+      }
+
       let eventData = null;
 
       // Structure 1: e.data.payload.event (your current expectation)
