@@ -1299,7 +1299,7 @@ def finalize_booking():
                     'dates': f'{gcal_start_time}/{gcal_end_time}',
                     'details': gcal_event_details,
                     'location': gcal_location,
-                    'trp': 'false' # Show as busy: true, Available: false
+                    'trp': 'true' # Changed to true to mark as busy
                 }
                 gcal_link = f"https://www.google.com/calendar/render?{urlencode(gcal_params)}"
 
@@ -1333,13 +1333,55 @@ def finalize_booking():
             send_booking_confirmation_email(invitee_email, email_subject, email_body_html)
             # Also notify mentor
             mentor_email_subject = f"New Manual Booking Alert: {invitee_name} for {parsed_event_start_time.strftime('%Y-%m-%d %H:%M') if parsed_event_start_time else 'N/A'}"
+            
+            # Mentor's Google Calendar link
+            mentor_gcal_link = "#"
+            if parsed_event_start_time:
+                # Default end time to 1 hour after start if not available for mentor link
+                mentor_event_end_time_for_link = parsed_event_end_time if parsed_event_end_time else parsed_event_start_time + timedelta(hours=1)
+                
+                gcal_start_str_mentor = parsed_event_start_time.strftime('%Y%m%dT%H%M%SZ')
+                gcal_end_str_mentor = mentor_event_end_time_for_link.strftime('%Y%m%dT%H%M%SZ')
+                
+                mentor_gcal_event_text = f"Mentorship: {invitee_name} with {mentor.first_name} {mentor.last_name}"
+                mentor_gcal_event_details = (
+                    f"Client: {invitee_name} ({invitee_email}).\n"
+                    f"Requested time for mentorship session: {parsed_event_start_time.strftime('%Y-%m-%d %H:%M %Z')}.\n"
+                    f"Notes from client: {invitee_notes if invitee_notes else 'None'}.\n\n"
+                    f"Please confirm these details, schedule the meeting in your calendar, and ensure an invitation is sent to {invitee_email}."
+                )
+                mentor_gcal_location = 'Online / Video Call' 
+                
+                mentor_gcal_params = {
+                    'action': 'TEMPLATE',
+                    'text': mentor_gcal_event_text,
+                    'dates': f'{gcal_start_str_mentor}/{gcal_end_str_mentor}',
+                    'details': mentor_gcal_event_details,
+                    'location': mentor_gcal_location,
+                    'add': invitee_email # Add customer as attendee
+                }
+                mentor_gcal_link = f"https://www.google.com/calendar/render?{urlencode(mentor_gcal_params)}"
+
             mentor_email_body = f"""
             <p>Hi {mentor.first_name},</p>
             <p>A new booking needs your manual attention and calendar scheduling:</p>
             <p><strong>Client:</strong> {invitee_name} ({invitee_email})</p>
             <p><strong>Requested Time:</strong> {parsed_event_start_time.strftime('%Y-%m-%d %H:%M %Z') if parsed_event_start_time else 'Not specified'}</p>
             <p><strong>Notes:</strong> {invitee_notes if invitee_notes else 'None'}</p>
-            <p>Please coordinate with the client and add this to your calendar. The Calendly link was not used for this booking.</p>
+            <p>The Calendly link was not used for this booking, so please schedule this session manually.</p>"""
+            
+            if mentor_gcal_link != "#":
+                mentor_email_body += f"""
+                <p>To help you schedule this, you can use the link below to create a Google Calendar event. It will be pre-filled with the client's details and requested time. Please review, confirm the details with the client if necessary, and then send the official calendar invitation to {invitee_email}.</p>
+                <div style="text-align: center; margin: 20px 0;">
+                    <a href="{mentor_gcal_link}" target="_blank" 
+                       style="background-color: #007bff; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-size: 16px; display: inline-block;">
+                        Schedule in Google Calendar
+                    </a>
+                </div>"""
+            
+            mentor_email_body += """
+            <p>Thank you,<br>The devMentor Team</p>
             """
             send_booking_confirmation_email(mentor.email, mentor_email_subject, mentor_email_body)
 
