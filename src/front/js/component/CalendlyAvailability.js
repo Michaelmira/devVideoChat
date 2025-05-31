@@ -82,6 +82,7 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
       console.log("--- CALENDLY EVENT DEBUG START ---");
       console.log("Full event object (e):", e);
       console.log("e.data structure:", e.data);
+      console.log("Type of e.data.payload before check:", typeof e.data?.payload);
 
       // Log the payload with more detail to see its true content
       if (e.data && typeof e.data.payload !== 'undefined') {
