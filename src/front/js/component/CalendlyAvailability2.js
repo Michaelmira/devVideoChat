@@ -47,7 +47,7 @@ const CalendlyAvailability2 = ({ mentor: propMentor, paymentIntentData: propPaym
     // User is already logged in, prefill their details
     const prefill = {
         email: store.currentUserData?.user_data?.email || "",
-        name: store.currentUserData?.user_data?.name || 
+        name: store.currentUserData?.user_data?.name ||
             ((store.currentUserData?.user_data?.first_name || "") + " " + (store.currentUserData?.user_data?.last_name || "")).trim() || "",
     };
 
@@ -67,6 +67,13 @@ const CalendlyAvailability2 = ({ mentor: propMentor, paymentIntentData: propPaym
                 const finalEventDataForBackend = {
                     calendly_event_uri: scheduledEventDetails.uri,
                     calendly_invitee_uri: inviteeDetails.uri,
+                    calendly_event_start_time: scheduledEventDetails.start_time,
+                    calendly_event_end_time: scheduledEventDetails.end_time,
+                    invitee_name: inviteeDetails.name,
+                    invitee_email: inviteeDetails.email,
+                    invitee_notes: inviteeDetails.questions_and_answers && inviteeDetails.questions_and_answers.length > 0 ?
+                        inviteeDetails.questions_and_answers.find(qa => qa.question.toLowerCase().includes("notes") || qa.question.toLowerCase().includes("share anything") || qa.question.toLowerCase().includes("prepare"))?.answer || inviteeDetails.questions_and_answers[0].answer
+                        : null,
                 };
 
                 let bookingUpdateAttempted = false;
@@ -78,7 +85,7 @@ const CalendlyAvailability2 = ({ mentor: propMentor, paymentIntentData: propPaym
                         console.log("Updating booking ID:", originalBookingId, "with Calendly data:", finalEventDataForBackend);
                         const backendResponse = await actions.updateBookingWithCalendlyDetails(originalBookingId, finalEventDataForBackend);
                         bookingUpdateSuccess = backendResponse.success;
-                        
+
                         if (bookingUpdateSuccess) {
                             console.log("Successfully updated booking with Calendly details");
                         } else {
@@ -189,10 +196,10 @@ const CalendlyAvailability2 = ({ mentor: propMentor, paymentIntentData: propPaym
                                             </div>
                                         </div>
                                     )}
-                                    <div style={{ 
-                                        opacity: isLoading ? 0 : 1, 
-                                        transition: 'opacity 0.5s ease-in-out', 
-                                        minHeight: isLoading ? '700px' : 'auto' 
+                                    <div style={{
+                                        opacity: isLoading ? 0 : 1,
+                                        transition: 'opacity 0.5s ease-in-out',
+                                        minHeight: isLoading ? '700px' : 'auto'
                                     }} ref={calendlyContainerRef}>
                                         {!isLoading && (
                                             <InlineWidget

@@ -797,47 +797,82 @@ def webhook():
 def track_booking():
     try:
         user_id = get_jwt_identity()
-        role = get_jwt()['role']
+        # role = get_jwt()['role'] # Role might not be strictly needed if we assume customer books
         data = request.get_json()
         
         # Required fields
         mentor_id = data.get('mentorId')
-        paid_date_time = data.get('paidDateTime')
-        client_email = data.get('clientEmail')
-        amount = data.get('amount')
-        status = data.get('status', 'paid')  # Default to 'paid'
+        paid_date_time_str = data.get('paidDateTime') # Expecting ISO string
+        client_email = data.get('clientEmail') # This might be redundant if customer is logged in
+        amount_str = data.get('amount')
         
-        # Optional fields
-        mentor_payout = data.get('mentorPayout')
-        platform_fee = data.get('platformFee')
+        # Optional fields from frontend that might be passed
+        stripe_payment_intent_id = data.get('paymentIntentId') # If available at this stage
         
         # Validate data
-        if not mentor_id or not paid_date_time or not amount:
+        if not mentor_id or not paid_date_time_str or not amount_str:
+            current_app.logger.error(f"Track booking missing required fields: mentor_id={mentor_id}, paid_date_time={paid_date_time_str}, amount={amount_str}")
             return jsonify({"error": "Missing required fields"}), 400
         
-        # Here you would add the booking to your database
-        # This is just a placeholder - you'll need to create a Booking model
-        # booking = Booking(
-        #     mentor_id=mentor_id,
-        #     customer_id=user_id if role == 'customer' else None,
-        #     paid_date_time=paid_date_time,
-        #     client_email=client_email,
-        #     amount=amount,
-        #     mentor_payout=mentor_payout,
-        #     platform_fee=platform_fee,
-        #     status=status
-        # )
-        # db.session.add(booking)
-        # db.session.commit()
+        customer = Customer.query.get(user_id)
+        if not customer:
+            current_app.logger.error(f"Customer not found for ID: {user_id} during track-booking")
+            return jsonify({"error": "Customer not found"}), 404
+
+        mentor = Mentor.query.get(mentor_id)
+        if not mentor:
+            current_app.logger.error(f"Mentor not found for ID: {mentor_id} during track-booking")
+            return jsonify({"error": "Mentor not found"}), 404
+
+        try:
+            paid_date_time = dt.fromisoformat(paid_date_time_str.replace('Z', '+00:00'))
+        except ValueError:
+            current_app.logger.error(f"Invalid paidDateTime format: {paid_date_time_str}")
+            return jsonify({"error": "Invalid date format for paidDateTime"}), 400
         
-        # For now, just log it
-        current_app.logger.info(f"Booking tracked: Mentor ID {mentor_id}, Date/Time: {paid_date_time}, Amount: ${amount}, Status: {status}")
+        try:
+            amount = Decimal(amount_str)
+        except:
+            current_app.logger.error(f"Invalid amount format: {amount_str}")
+            return jsonify({"error": "Invalid amount format"}), 400
+
+        platform_fee = amount * Decimal('0.10')
+        mentor_payout = amount - platform_fee
+
+        new_booking = Booking(
+            mentor_id=mentor_id,
+            customer_id=user_id,
+            paid_at=paid_date_time,
+            # calendly_event_start_time, calendly_event_end_time will be set later
+            invitee_name=f"{customer.first_name} {customer.last_name}", # Pre-fill from customer profile
+            invitee_email=customer.email, # Pre-fill from customer profile
+            stripe_payment_intent_id=stripe_payment_intent_id, # If available
+            amount_paid=amount,
+            currency='usd', # Assuming USD for now
+            platform_fee=platform_fee,
+            mentor_payout_amount=mentor_payout,
+            status=BookingStatus.PAID # Or a more specific "PENDING_CALENDLY_CONFIRMATION" if you add it
+        )
         
-        return jsonify({"success": True, "message": "Booking tracked successfully"}), 201
+        db.session.add(new_booking)
+        db.session.commit()
+        db.session.refresh(new_booking) # To get the ID and other defaults
+        
+        current_app.logger.info(f"Booking {new_booking.id} tracked successfully for mentor {mentor_id}, customer {user_id}")
+        
+        return jsonify({
+            "success": True, 
+            "id": new_booking.id, # CRITICAL: return the booking ID
+            "message": "Booking tracked successfully, pending final Calendly confirmation.",
+            "booking": new_booking.serialize() # Optional: return serialized booking
+        }), 201
         
     except Exception as e:
+        db.session.rollback()
         current_app.logger.error(f"Error tracking booking: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({"error": "An internal error occurred while tracking the booking."}), 500
 
 # Calendly OAuth Configuration (should be in .env and loaded via os.getenv)
 # CALENDLY_CLIENT_ID = os.getenv("CALENDLY_CLIENT_ID")
@@ -1228,6 +1263,11 @@ def update_booking_calendly_details(booking_id):
     data = request.get_json()
     calendly_event_uri = data.get('calendly_event_uri')
     calendly_invitee_uri = data.get('calendly_invitee_uri')
+    calendly_event_start_time_str = data.get('calendly_event_start_time')
+    calendly_event_end_time_str = data.get('calendly_event_end_time')
+    invitee_name = data.get('invitee_name')
+    invitee_email = data.get('invitee_email')
+    invitee_notes = data.get('invitee_notes')
     
     if not calendly_event_uri:
         return jsonify({"msg": "Missing required Calendly event URI"}), 400
@@ -1237,7 +1277,17 @@ def update_booking_calendly_details(booking_id):
         booking.calendly_event_uri = calendly_event_uri
         if calendly_invitee_uri:
             booking.calendly_invitee_uri = calendly_invitee_uri
-        
+        if calendly_event_start_time_str:
+            booking.calendly_event_start_time = dt.fromisoformat(calendly_event_start_time_str.replace('Z', '+00:00'))
+        if calendly_event_end_time_str:
+            booking.calendly_event_end_time = dt.fromisoformat(calendly_event_end_time_str.replace('Z', '+00:00'))
+        if invitee_name:
+            booking.invitee_name = invitee_name
+        if invitee_email:
+            booking.invitee_email = invitee_email
+        if invitee_notes:
+            booking.invitee_notes = invitee_notes
+
         # Update status to confirmed since Calendly event is now scheduled
         booking.status = BookingStatus.CONFIRMED
         booking.scheduled_at = datetime.utcnow()
