@@ -1383,6 +1383,7 @@ def finalize_booking():
             mentor_email_body += """
             <p>Thank you,<br>The devMentor Team</p>
             """
+            current_app.logger.info(f"Attempting to send manual booking notification to mentor: {mentor.email} with subject: {mentor_email_subject}")
             send_booking_confirmation_email(mentor.email, mentor_email_subject, mentor_email_body)
 
 
