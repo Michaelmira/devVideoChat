@@ -98,36 +98,56 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
       }
 
       let eventData = null;
+      let eventSource = "unknown"; // To track where we found the data
 
       // Structure 1: e.data.payload.event (your current expectation)
-      if (e.data?.payload?.event) {
+      if (e.data?.payload?.event && (e.data.payload.event.uri || e.data.payload.event.start_time)) {
         eventData = e.data.payload.event;
+        eventSource = "e.data.payload.event";
         console.log("Found event data in payload.event:", eventData);
       }
       // Structure 2: e.data.event (alternative structure)
-      else if (e.data?.event) {
+      else if (e.data?.event && (e.data.event.uri || e.data.event.start_time)) {
         eventData = e.data.event;
+        eventSource = "e.data.event";
         console.log("Found event data in data.event:", eventData);
       }
       // Structure 3: Direct in payload
       else if (e.data?.payload && (e.data.payload.uri || e.data.payload.start_time)) {
         eventData = e.data.payload;
+        eventSource = "e.data.payload";
         console.log("Found event data directly in payload:", eventData);
       }
+      // Structure 4: Direct in e.data (NEW CHECK)
+      else if (e.data && (e.data.uri || e.data.start_time)) {
+        eventData = e.data;
+        eventSource = "e.data";
+        console.log("Found event data directly in e.data:", eventData);
+      }
 
-      console.log("--- CALENDLY EVENT DEBUG END ---");
 
-      if (eventData && (eventData.uri || eventData.start_time)) {
+      console.log("--- CALENDLY EVENT DEBUG END (Source: " + eventSource + ") ---");
+
+      if (eventData) {
         const plainEventData = {
-          uri: eventData.uri,
-          start_time: eventData.start_time,
-          end_time: eventData.end_time,
-          // Add any other fields that might be present
-          name: eventData.name,
-          location: eventData.location
+          uri: eventData.uri || null, // Ensure uri is present
+          start_time: eventData.start_time || null, // Ensure start_time is present
+          end_time: eventData.end_time || null, // Ensure end_time is present
+          name: eventData.name || null,
+          location: eventData.location || null,
+          // invitee_first_name: e.data?.payload?.invitee?.first_name, // Example of accessing invitee data
+          // invitee_last_name: e.data?.payload?.invitee?.last_name,
+          // invitee_email: e.data?.payload?.invitee?.email,
         };
 
-        console.log("Successfully extracted event data:", plainEventData);
+        console.log("Successfully extracted event data (" + eventSource + "):", plainEventData);
+
+        if (!plainEventData.start_time) {
+          console.error("CRITICAL: start_time is missing from extracted eventData. Full e.data:", JSON.stringify(e.data, null, 2));
+          // Potentially trigger fallback here if start_time is essential and missing
+          // For now, we'll proceed but this needs monitoring.
+        }
+
         setSelectedTimeData(plainEventData);
         setShowCalendly(false);
 
@@ -138,15 +158,19 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
           setShowAuthForm(true);
         }
       } else {
-        console.error("Could not find valid event data in Calendly response");
-        console.error("Full event structure:", JSON.stringify(e, null, 2));
+        console.error("Could not find valid event data in Calendly response. Fallback will be used.");
+        console.error("Full event structure (e):", JSON.stringify(e, null, 2));
+        console.error("Full e.data structure:", JSON.stringify(e.data, null, 2));
+
 
         // Fallback: Still proceed but with limited data
         const fallbackData = {
           uri: null,
           start_time: new Date().toISOString(), // Use current time as fallback
           end_time: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour later
-          error: "Limited event data available"
+          name: "Fallback Event",
+          location: "Unknown",
+          error: "Complete event data not available from Calendly widget. Used fallback time."
         };
 
         setSelectedTimeData(fallbackData);
