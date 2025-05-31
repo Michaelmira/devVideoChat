@@ -1287,77 +1287,16 @@ def finalize_booking():
             return jsonify({"msg": "Failed to create booking"}), 500
 
         # --- Email sending AFTER successful database commit ---
-        customer_email_sent = False
+        # Only mentor email will be sent in this manual flow
         mentor_email_sent = False
         
-        # Prepare customer email
-        email_subject = "Your Mentorship Booking Confirmation (Action Required)"
-        
-        gcal_link = "#"
-        if parsed_event_start_time and parsed_event_end_time:
-            current_app.logger.info(f"[Customer GCal Link] Raw parsed_event_start_time: {parsed_event_start_time}, Raw parsed_event_end_time: {parsed_event_end_time}")
-            gcal_start_time = parsed_event_start_time.strftime('%Y%m%dT%H%M%SZ')
-            gcal_end_time = parsed_event_end_time.strftime('%Y%m%dT%H%M%SZ')
-            current_app.logger.info(f"[Customer GCal Link] Formatted gcal_start_time: {gcal_start_time}, Formatted gcal_end_time: {gcal_end_time}")
-            gcal_event_text = f"Mentorship Session with {mentor.first_name} {mentor.last_name} (Tentative)"
-            gcal_event_details = (f"This is a tentative placeholder for your session with {mentor.first_name} {mentor.last_name}. "
-                                  f"Your mentor will send a final confirmation and official calendar invite. "
-                                  f"Notes provided: {invitee_notes if invitee_notes else 'None'}")
-            gcal_location = 'Online / Video Call'
-            
-            gcal_params = {
-                'action': 'TEMPLATE',
-                'text': gcal_event_text,
-                'dates': f'{gcal_start_time}/{gcal_end_time}',
-                'details': gcal_event_details,
-                'location': gcal_location,
-                'trp': 'true'
-            }
-            gcal_link = f"https://www.google.com/calendar/render?{urlencode(gcal_params)}"
-            current_app.logger.info(f"[Customer GCal Link] Generated Google Calendar Link: {gcal_link}")
-
-        email_body_html = f"""
-        <div style='font-family: Arial, sans-serif; color: #333;'>
-            <h1>Booking Received</h1>
-            <p>Hi {invitee_name},</p>
-            <p>We've received your booking request for a session with <strong>{mentor.first_name} {mentor.last_name}</strong>.</p>
-            <p><strong>Session Time (Approximate):</strong> {parsed_event_start_time.strftime('%Y-%m-%d %H:%M %Z') if parsed_event_start_time else 'Not specified'}</p>
-            <p>Since this booking couldn't be automatically added to your calendar via Calendly, we will manually confirm the details and send you a separate calendar invitation once your mentor has scheduled it, typically within 24 hours.</p>
-            
-            {f'''<p>You can add a tentative hold to your Google Calendar using the button below. Please note that this is a placeholder and the final timing will be confirmed by your mentor's official invitation.</p>
-            <div style="text-align: center; margin: 20px 0;">
-                <a href="{gcal_link}" target="_blank" 
-                   style="background-color: #007bff; 
-                          color: white; 
-                          padding: 12px 25px; 
-                          text-decoration: none; 
-                          border-radius: 5px; 
-                          font-size: 16px; 
-                          display: inline-block;">
-                    Add Tentative Slot to Google Calendar
-                </a>
-            </div>''' if gcal_link != "#" else ""}
-            
-            <p>If you have any urgent questions, please contact your mentor or our support team.</p>
-            <p>Thank you!</p>
-            <p><em>The devMentor Team</em></p>
-        </div>
-        """
-
-        # Send customer email
-        try:
-            send_booking_confirmation_email(invitee_email, email_subject, email_body_html)
-            customer_email_sent = True
-            current_app.logger.info(f"Customer confirmation email sent to {invitee_email}")
-        except Exception as e:
-            current_app.logger.error(f"Failed to send customer confirmation email: {str(e)}")
-
         # Prepare mentor email
-        mentor_email_subject = f"New Manual Booking Alert: {invitee_name} for {parsed_event_start_time.strftime('%Y-%m-%d %H:%M') if parsed_event_start_time else 'N/A'}"
+        mentor_email_subject = f"Action Required: New Mentorship Booking Request from {invitee_name}"
         
         # Mentor's Google Calendar link
         mentor_gcal_link = "#"
         if parsed_event_start_time:
+            # Default end time to 1 hour after start if not available for mentor link
             mentor_event_end_time_for_link = parsed_event_end_time if parsed_event_end_time else parsed_event_start_time + timedelta(hours=1)
             current_app.logger.info(f"[Mentor GCal Link] Raw parsed_event_start_time: {parsed_event_start_time}, Calculated mentor_event_end_time_for_link: {mentor_event_end_time_for_link}")
             
@@ -1368,9 +1307,9 @@ def finalize_booking():
             mentor_gcal_event_text = f"Mentorship: {invitee_name} with {mentor.first_name} {mentor.last_name}"
             mentor_gcal_event_details = (
                 f"Client: {invitee_name} ({invitee_email}).\n"
-                f"Requested time for mentorship session: {parsed_event_start_time.strftime('%Y-%m-%d %H:%M %Z')}.\n"
+                f"Requested time for mentorship session: {parsed_event_start_time.strftime('%Y-%m-%d %H:%M %Z') if parsed_event_start_time else 'N/A'}.\n"
                 f"Notes from client: {invitee_notes if invitee_notes else 'None'}.\n\n"
-                f"Please confirm these details, schedule the meeting in your calendar, and ensure an invitation is sent to {invitee_email}."
+                f"Please confirm these details, schedule the meeting in your calendar, and ensure an invitation is sent to {invitee_email} from your Google Calendar."
             )
             mentor_gcal_location = 'Online / Video Call' 
             
@@ -1380,35 +1319,41 @@ def finalize_booking():
                 'dates': f'{gcal_start_str_mentor}/{gcal_end_str_mentor}',
                 'details': mentor_gcal_event_details,
                 'location': mentor_gcal_location,
-                'add': invitee_email
+                'add': invitee_email # Add customer as attendee
             }
             mentor_gcal_link = f"https://www.google.com/calendar/render?{urlencode(mentor_gcal_params)}"
             current_app.logger.info(f"[Mentor GCal Link] Generated Google Calendar Link: {mentor_gcal_link}")
 
         mentor_email_body = f"""
-        <p>Hi {mentor.first_name},</p>
-        <p>A new booking needs your manual attention and calendar scheduling:</p>
-        <p><strong>Client:</strong> {invitee_name} ({invitee_email})</p>
-        <p><strong>Requested Time:</strong> {parsed_event_start_time.strftime('%Y-%m-%d %H:%M %Z') if parsed_event_start_time else 'Not specified'}</p>
-        <p><strong>Notes:</strong> {invitee_notes if invitee_notes else 'None'}</p>
-        <p>The Calendly link was not used for this booking, so please schedule this session manually.</p>"""
+        <div style='font-family: Arial, sans-serif; color: #333;'>
+            <h2>Action Required: New Mentorship Booking Request</h2>
+            <p>Hi {mentor.first_name},</p>
+            <p>You have received a new mentorship booking request that requires your manual attention and calendar scheduling:</p>
+            <p><strong>Client Name:</strong> {invitee_name}</p>
+            <p><strong>Client Email:</strong> {invitee_email}</p>
+            <p><strong>Requested Time (UTC):</strong> {parsed_event_start_time.strftime('%Y-%m-%d %H:%M %Z') if parsed_event_start_time else 'Not specified by client system'}</p>
+            <p><strong>Client Notes:</strong> {invitee_notes if invitee_notes else 'None'}</p>
+            <p>Since the Calendly link was not used for this booking, please schedule this session manually.</p>"""
         
         if mentor_gcal_link != "#":
             mentor_email_body += f"""
-            <p>To help you schedule this, you can use the link below to create a Google Calendar event. It will be pre-filled with the client's details and requested time. Please review, confirm the details with the client if necessary, and then send the official calendar invitation to {invitee_email}.</p>
+            <p>To help you schedule this, you can use the link below to create a Google Calendar event. It will be pre-filled with the client's details and requested time. Please review, adjust the time if necessary, and then <strong>save the event in your Google Calendar to send the official calendar invitation to {invitee_email}</strong>.</p>
             <div style="text-align: center; margin: 20px 0;">
                 <a href="{mentor_gcal_link}" target="_blank" 
                    style="background-color: #007bff; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-size: 16px; display: inline-block;">
                     Schedule in Google Calendar
                 </a>
             </div>"""
-        
-        mentor_email_body += """
-        <p>Thank you,<br>The devMentor Team</p>
+        else:
+            mentor_email_body += "<p>Please schedule this meeting manually in your calendar and send an invitation to the client.</p>"
+
+        mentor_email_body += f"""
+            <p>Thank you,<br>The devMentor Team</p>
+        </div>
         """
 
         # Send mentor email - Enhanced debugging
-        current_app.logger.info(f"=== MENTOR EMAIL DEBUG START ===")
+        current_app.logger.info(f"=== MENTOR EMAIL DEBUG START (Manual Booking) ===")
         current_app.logger.info(f"Mentor object: {mentor}")
         current_app.logger.info(f"Mentor ID: {mentor.id if mentor else 'None'}")
         current_app.logger.info(f"Mentor email: '{mentor.email}' (type: {type(mentor.email)})")
@@ -1438,17 +1383,17 @@ def finalize_booking():
                 current_app.logger.error(f"Full traceback: {traceback.format_exc()}")
                 mentor_email_sent = False
         
-        current_app.logger.info(f"=== MENTOR EMAIL DEBUG END ===")
+        current_app.logger.info(f"=== MENTOR EMAIL DEBUG END (Manual Booking) ===")
         current_app.logger.info(f"Final mentor_email_sent status: {mentor_email_sent}")
 
-        # Return success response with email status
+        # Return success response with updated message and email status
         return jsonify({
             "success": True, 
-            "message": "Booking created successfully! We'll send you a calendar invitation manually within 24 hours.",
+            "message": "Your booking request has been sent to the mentor. They will contact you with a calendar invitation shortly.",
             "bookingDetails": new_booking.serialize(),
-            "requires_manual_confirmation": True,
+            "requires_manual_confirmation": True, # This flag is still relevant
             "email_status": {
-                "customer_notified": customer_email_sent,
+                "customer_notified": False, # Customer is NOT notified by the system
                 "mentor_notified": mentor_email_sent
             }
         }), 201
