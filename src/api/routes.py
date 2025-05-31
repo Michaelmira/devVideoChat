@@ -1295,7 +1295,20 @@ def finalize_booking():
         
         # Mentor's Google Calendar link
         mentor_gcal_link = "#"
+        
+        # Timezone conversion for mentor email
+        readable_event_time_utc = "Not specified by client system"
+        readable_event_time_et = "Not specified, cannot convert"
         if parsed_event_start_time:
+            readable_event_time_utc = parsed_event_start_time.strftime('%Y-%m-%d %H:%M %Z')
+            try:
+                eastern_tz = pytz.timezone('America/New_York')
+                time_in_eastern = parsed_event_start_time.astimezone(eastern_tz)
+                readable_event_time_et = time_in_eastern.strftime('%Y-%m-%d %I:%M %p %Z') # e.g., 2025-05-31 03:14 PM EDT
+            except Exception as e:
+                current_app.logger.error(f"Could not convert time to Eastern for mentor email: {e}")
+                readable_event_time_et = "Time conversion error"
+
             # Default end time to 1 hour after start if not available for mentor link
             mentor_event_end_time_for_link = parsed_event_end_time if parsed_event_end_time else parsed_event_start_time + timedelta(hours=1)
             current_app.logger.info(f"[Mentor GCal Link] Raw parsed_event_start_time: {parsed_event_start_time}, Calculated mentor_event_end_time_for_link: {mentor_event_end_time_for_link}")
@@ -1307,7 +1320,8 @@ def finalize_booking():
             mentor_gcal_event_text = f"Mentorship: {invitee_name} with {mentor.first_name} {mentor.last_name}"
             mentor_gcal_event_details = (
                 f"Client: {invitee_name} ({invitee_email}).\n"
-                f"Requested time for mentorship session: {parsed_event_start_time.strftime('%Y-%m-%d %H:%M %Z') if parsed_event_start_time else 'N/A'}.\n"
+                f"Requested time for mentorship session: {readable_event_time_utc}.\n"
+                f"Example (US Eastern Time): {readable_event_time_et}\n"
                 f"Notes from client: {invitee_notes if invitee_notes else 'None'}.\n\n"
                 f"Please confirm these details, schedule the meeting in your calendar, and ensure an invitation is sent to {invitee_email} from your Google Calendar."
             )
@@ -1331,7 +1345,8 @@ def finalize_booking():
             <p>You have received a new mentorship booking request that requires your manual attention and calendar scheduling:</p>
             <p><strong>Client Name:</strong> {invitee_name}</p>
             <p><strong>Client Email:</strong> {invitee_email}</p>
-            <p><strong>Requested Time (UTC):</strong> {parsed_event_start_time.strftime('%Y-%m-%d %H:%M %Z') if parsed_event_start_time else 'Not specified by client system'}</p>
+            <p><strong>Requested Time (UTC):</strong> {readable_event_time_utc}</p>
+            <p><strong>Example (US Eastern Time):</strong> {readable_event_time_et}</p>
             <p><strong>Client Notes:</strong> {invitee_notes if invitee_notes else 'None'}</p>
             <p>Since the Calendly link was not used for this booking, please schedule this session manually.</p>"""
         
