@@ -1295,8 +1295,10 @@ def finalize_booking():
         
         gcal_link = "#"
         if parsed_event_start_time and parsed_event_end_time:
+            current_app.logger.info(f"[Customer GCal Link] Raw parsed_event_start_time: {parsed_event_start_time}, Raw parsed_event_end_time: {parsed_event_end_time}")
             gcal_start_time = parsed_event_start_time.strftime('%Y%m%dT%H%M%SZ')
             gcal_end_time = parsed_event_end_time.strftime('%Y%m%dT%H%M%SZ')
+            current_app.logger.info(f"[Customer GCal Link] Formatted gcal_start_time: {gcal_start_time}, Formatted gcal_end_time: {gcal_end_time}")
             gcal_event_text = f"Mentorship Session with {mentor.first_name} {mentor.last_name} (Tentative)"
             gcal_event_details = (f"This is a tentative placeholder for your session with {mentor.first_name} {mentor.last_name}. "
                                   f"Your mentor will send a final confirmation and official calendar invite. "
@@ -1312,6 +1314,7 @@ def finalize_booking():
                 'trp': 'true'
             }
             gcal_link = f"https://www.google.com/calendar/render?{urlencode(gcal_params)}"
+            current_app.logger.info(f"[Customer GCal Link] Generated Google Calendar Link: {gcal_link}")
 
         email_body_html = f"""
         <div style='font-family: Arial, sans-serif; color: #333;'>
@@ -1356,9 +1359,11 @@ def finalize_booking():
         mentor_gcal_link = "#"
         if parsed_event_start_time:
             mentor_event_end_time_for_link = parsed_event_end_time if parsed_event_end_time else parsed_event_start_time + timedelta(hours=1)
+            current_app.logger.info(f"[Mentor GCal Link] Raw parsed_event_start_time: {parsed_event_start_time}, Calculated mentor_event_end_time_for_link: {mentor_event_end_time_for_link}")
             
             gcal_start_str_mentor = parsed_event_start_time.strftime('%Y%m%dT%H%M%SZ')
             gcal_end_str_mentor = mentor_event_end_time_for_link.strftime('%Y%m%dT%H%M%SZ')
+            current_app.logger.info(f"[Mentor GCal Link] Formatted gcal_start_str_mentor: {gcal_start_str_mentor}, Formatted gcal_end_str_mentor: {gcal_end_str_mentor}")
             
             mentor_gcal_event_text = f"Mentorship: {invitee_name} with {mentor.first_name} {mentor.last_name}"
             mentor_gcal_event_details = (
@@ -1378,6 +1383,7 @@ def finalize_booking():
                 'add': invitee_email
             }
             mentor_gcal_link = f"https://www.google.com/calendar/render?{urlencode(mentor_gcal_params)}"
+            current_app.logger.info(f"[Mentor GCal Link] Generated Google Calendar Link: {mentor_gcal_link}")
 
         mentor_email_body = f"""
         <p>Hi {mentor.first_name},</p>
