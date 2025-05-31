@@ -267,9 +267,16 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
           });
 
         } else {
-          console.warn("Failed to track booking with backend or booking ID missing, but payment was successful", bookingResult);
-          alert("Payment was successful, but there was an issue initiating the final booking step. Please contact support.");
-          navigate('/payment-successful-tracking-issue');
+          console.warn("Payment was successful, but backend booking tracking did not yield a booking ID. Proceeding to final Calendly selection without automated linking.", bookingResult);
+          alert("Your payment was successful! We're proceeding to the final scheduling step. Please note: there might be a slight delay for this booking to fully appear in your account, or it may require support to manually link. Please complete your time selection.");
+
+          navigate(`/finalize-booking-slot/${currentMentor.id}`, {
+            state: {
+              mentor: currentMentor,
+              paymentIntentData: paymentIntent,
+              bookingId: null
+            }
+          });
         }
       })
       .catch(error => {

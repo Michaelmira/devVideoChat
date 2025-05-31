@@ -76,57 +76,54 @@ const CalendlyAvailability2 = () => {
             const inviteeDetails = e.data.payload?.invitee;
 
             if (currentMentor && scheduledEventDetails?.uri && inviteeDetails?.uri) {
-                const finalEventData = {
+                const finalEventDataForBackend = {
                     calendly_event_uri: scheduledEventDetails.uri,
                     calendly_invitee_uri: inviteeDetails.uri,
-                    // The backend should use these URIs to fetch the definitive start_time, end_time, event_name etc.
-                    // from Calendly API and update the booking record.
+                    // Any other details your backend might want at this stage
                 };
 
-                // API call to backend to update the booking (created in step 1) with these Calendly details
-                // Assumes originalBookingId was passed in location.state or is retrievable.
-                // You'll need an action like `actions.updateBookingWithCalendlyUris(originalBookingId, finalEventData)`
-                let updateSuccess = false;
+                let bookingUpdateAttempted = false;
+                let bookingUpdateSuccess = false;
+
                 if (originalBookingId) {
+                    bookingUpdateAttempted = true;
                     try {
-                        // Example: const backendResponse = await actions.updateBookingWithCalendlyDetails(originalBookingId, finalEventData);
-                        // updateSuccess = backendResponse.success;
-                        // For now, let's assume success for navigation. Replace with actual call.
-                        console.log("TODO: Call backend to update booking ID:", originalBookingId, "with data:", finalEventData);
-                        updateSuccess = true; // Placeholder for actual API call result
+                        console.log("TODO: Call backend to update booking ID:", originalBookingId, "with data:", finalEventDataForBackend);
+                        // const backendResponse = await actions.updateBookingWithCalendlyDetails(originalBookingId, finalEventDataForBackend);
+                        // bookingUpdateSuccess = backendResponse.success; 
+                        bookingUpdateSuccess = true; // Placeholder for actual API call result
                     } catch (apiError) {
                         console.error("Error updating booking on backend:", apiError);
-                        alert("Your event is scheduled with Calendly, but we had trouble updating our records. Please contact support.");
-                        // Decide if you still navigate or show error here
+                        // bookingUpdateSuccess remains false
                     }
                 }
 
-                if (updateSuccess) { // Or even if backend update had issues, Calendly event is made.
-                    console.log("Event successfully scheduled. Navigating to confirmation.");
+                // Navigate to confirmation regardless of backend update for now, but pass relevant info
+                console.log("Event successfully scheduled with Calendly. Navigating to confirmation.");
 
-                    // For /booking-confirmed, ideally it fetches full details from backend using bookingId/eventUri
-                    // For now, we pass what we can. The actual start_time, etc., might still be missing here
-                    // unless Calendly directly provides it in onEventScheduled payload (check e.data.payload.event)
-                    navigate('/booking-confirmed', {
-                        state: {
-                            mentorId: currentMentor.id,
-                            bookingId: originalBookingId, // Pass the original booking ID
-                            calendlyEventData: { // This is what BookingConfirmedPage might expect for display
-                                uri: scheduledEventDetails.uri,
-                                start_time: scheduledEventDetails.start_time || null, // If provided by Calendly directly
-                                end_time: scheduledEventDetails.end_time || null,     // If provided by Calendly directly
-                                name: scheduledEventDetails.name || "Meeting with " + currentMentor.first_name, // Or fetch from API
-                                location: scheduledEventDetails.location?.location || "Video Call" // Or fetch from API
-                            },
-                            paymentIntentData: paymentIntentData, // Forward paymentIntent if needed
-                            mentorName: `${currentMentor.first_name} ${currentMentor.last_name}`,
-                            isFinalConfirmation: true // Flag to indicate this is the definitive confirmation
-                        }
-                    });
-                } else if (!originalBookingId) {
-                    console.error("Original booking ID not available. Cannot update backend record.");
-                    alert("Your event is scheduled with Calendly, but we could not link it to your payment. Please contact support.");
+                const bookingConfirmedState = {
+                    mentorId: currentMentor.id,
+                    bookingId: originalBookingId, // Will be null if not available initially
+                    calendlyEventData: {
+                        uri: scheduledEventDetails.uri,
+                        start_time: scheduledEventDetails.start_time || null,
+                        end_time: scheduledEventDetails.end_time || null,
+                        name: scheduledEventDetails.name || "Meeting with " + currentMentor.first_name,
+                        location: scheduledEventDetails.location?.location || "Video Call"
+                    },
+                    paymentIntentData: paymentIntentData,
+                    mentorName: `${currentMentor.first_name} ${currentMentor.last_name}`,
+                    isFinalConfirmation: true,
+                    requiresManualLinking: !originalBookingId || (bookingUpdateAttempted && !bookingUpdateSuccess)
+                };
+
+                if (!originalBookingId) {
+                    alert("Your event is scheduled with Calendly. We couldn't automatically link it to your initial payment record. Please save your Calendly confirmation and contact support if needed.");
+                } else if (bookingUpdateAttempted && !bookingUpdateSuccess) {
+                    alert("Your event is scheduled with Calendly, but we had trouble updating our records automatically. Please contact support if this booking doesn't appear in your account shortly.");
                 }
+
+                navigate('/booking-confirmed', { state: bookingConfirmedState });
 
             } else {
                 console.error("Calendly onEventScheduled error: Missing crucial details.", e.data.payload);
