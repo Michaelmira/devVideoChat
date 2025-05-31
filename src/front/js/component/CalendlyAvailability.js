@@ -253,37 +253,29 @@ const CalendlyAvailability = ({ mentorId, mentor }) => {
     console.log("Sending booking data:", bookingData);
 
     actions.trackMentorBooking(bookingData)
-      .then(success => {
-        if (success) {
-          console.log("Booking successfully tracked by backend");
-          console.log("Navigating with selectedTimeData:", selectedTimeData);
+      .then(bookingResult => {
+        if (bookingResult && bookingResult.id) {
+          console.log("Booking successfully tracked by backend. ID:", bookingResult.id);
+          console.log("Navigating to final Calendly selection step.");
 
-          navigate('/booking-details', {
+          navigate(`/finalize-booking-slot/${currentMentor.id}`, {
             state: {
-              mentorId: currentMentor.id,
-              calendlyEventData: selectedTimeData,
+              mentor: currentMentor,
               paymentIntentData: paymentIntent,
-              mentorName: `${currentMentor.first_name} ${currentMentor.last_name}`
+              bookingId: bookingResult.id
             }
           });
+
         } else {
-          console.warn("Failed to track booking with backend, but payment was successful");
-          alert("Payment was successful, but there was an issue tracking the booking on our server. Please contact support if your booking doesn't appear.");
-
-          navigate('/booking-details', {
-            state: {
-              mentorId: currentMentor.id,
-              calendlyEventData: selectedTimeData,
-              paymentIntentData: paymentIntent,
-              mentorName: `${currentMentor.first_name} ${currentMentor.last_name}`,
-              trackingError: true
-            }
-          });
+          console.warn("Failed to track booking with backend or booking ID missing, but payment was successful", bookingResult);
+          alert("Payment was successful, but there was an issue initiating the final booking step. Please contact support.");
+          navigate('/payment-successful-tracking-issue');
         }
       })
       .catch(error => {
         console.error("Error tracking booking with backend:", error);
         alert("Payment was successful, but a critical error occurred while tracking your booking. Please contact support immediately.");
+        navigate('/dashboard', { state: { error: "Booking tracking failed" } });
       });
   };
 
