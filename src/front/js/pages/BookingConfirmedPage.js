@@ -3,7 +3,7 @@ import { useLocation, Link } from 'react-router-dom';
 
 export const BookingConfirmedPage = () => {
     const location = useLocation();
-    const { bookingDetails } = location.state || {};
+    const { bookingDetails, mentorName, requiresManualConfirmation } = location.state || {};
 
     if (!bookingDetails) {
         return (
@@ -31,20 +31,26 @@ export const BookingConfirmedPage = () => {
                             <h2 className="h3 mb-0">Booking Confirmed!</h2>
                         </div>
                         <div className="card-body p-4">
-                            <p className="lead text-center mb-4">Your session with <strong>{bookingDetails.mentorName || 'your mentor'}</strong> has been successfully scheduled.</p>
+                            <p className="lead text-center mb-4">Your session with <strong>{mentorName || bookingDetails.mentor_name || 'your mentor'}</strong> has been successfully scheduled.</p>
 
                             <div className="alert alert-info">
                                 <h5 className="alert-heading">Session Details:</h5>
                                 <ul className="list-unstyled mb-0">
-                                    <li><strong>Mentor:</strong> {bookingDetails.mentorName || 'N/A'}</li>
-                                    <li><strong>Scheduled For:</strong> {bookingDetails.time || 'N/A'}</li>
-                                    <li><strong>Your Name:</strong> {bookingDetails.inviteeName || 'N/A'}</li>
-                                    <li><strong>Your Email:</strong> {bookingDetails.inviteeEmail || 'N/A'}</li>
-                                    {bookingDetails.notes &&
-                                        <li><strong>Notes Provided:</strong> <span style={{ whiteSpace: "pre-wrap" }}>{bookingDetails.notes}</span></li>
+                                    <li><strong>Mentor:</strong> {mentorName || bookingDetails.mentor_name || 'N/A'}</li>
+                                    <li><strong>Scheduled For:</strong> {bookingDetails.calendly_event_start_time ? new Date(bookingDetails.calendly_event_start_time).toLocaleString() : 'N/A'}</li>
+                                    <li><strong>Your Name:</strong> {bookingDetails.invitee_name || 'N/A'}</li>
+                                    <li><strong>Your Email:</strong> {bookingDetails.invitee_email || 'N/A'}</li>
+                                    {bookingDetails.invitee_notes &&
+                                        <li><strong>Notes Provided:</strong> <span style={{ whiteSpace: "pre-wrap" }}>{bookingDetails.invitee_notes}</span></li>
                                     }
                                 </ul>
                             </div>
+
+                            {requiresManualConfirmation && (
+                                <div className="alert alert-warning mt-3">
+                                    <strong>Important:</strong> As this booking requires manual confirmation from your mentor, the time is approximate. Your mentor will send a final calendar invitation to confirm the exact details.
+                                </div>
+                            )}
 
                             <p className="mt-4 text-muted">
                                 You should receive a calendar invitation and confirmation email shortly.
