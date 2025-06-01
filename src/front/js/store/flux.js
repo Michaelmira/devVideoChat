@@ -1,4 +1,3 @@
-
 const getState = ({ getStore, getActions, setStore }) => {
     return {
         store: {
@@ -915,7 +914,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                     const token = sessionStorage.getItem("token");
                     if (!token) {
                         console.error("No token found in sessionStorage");
-                        return false;
+                        return { success: false, message: "Authentication required.", data: null };
                     }
 
                     const response = await fetch(`${process.env.BACKEND_URL}/api/track-booking`, {
@@ -927,17 +926,18 @@ const getState = ({ getStore, getActions, setStore }) => {
                         body: JSON.stringify(bookingData)
                     });
 
+                    const data = await response.json();
+
                     if (response.ok) {
-                        const data = await response.json();
                         console.log("Booking tracked successfully:", data);
-                        return true;
+                        return { success: true, message: "Booking tracked successfully", data: data };
                     } else {
-                        console.error("Failed to track booking with status:", response.status);
-                        return false;
+                        console.error("Failed to track booking with status:", response.status, "Response:", data);
+                        return { success: false, message: data.message || data.msg || "Failed to track booking", data: data };
                     }
                 } catch (error) {
                     console.error("Error tracking booking:", error);
-                    return false;
+                    return { success: false, message: "Network error during booking tracking.", data: null };
                 }
             },
             // Add this to your flux actions
