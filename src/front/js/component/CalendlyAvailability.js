@@ -1,6 +1,6 @@
 // CalendlyAvailability.js - Updated for inline flow without navigation
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { InlineWidget } from 'react-calendly';
+import { InlineWidget, useCalendlyEventListener } from 'react-calendly';
 import { Context } from "../store/appContext";
 import { useParams } from 'react-router-dom';
 import { CustomerLogin } from '../auth/CustomerLogin';
@@ -73,6 +73,19 @@ const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCancel }) 
     utmMedium: "scheduling_page",
     utmCampaign: "mentorship_booking"
   };
+
+  // Listener to move to auth/payment after a time is selected
+  useCalendlyEventListener({
+    onDateAndTimeSelected: () => {
+      console.log("Calendly: Date and time selected by user. Proceeding to auth/payment.");
+      setShowCalendly(false);
+      if (store.token && store.currentUserData) {
+        setShowPaymentForm(true);
+      } else {
+        setShowAuthForm(true);
+      }
+    }
+  });
 
   // Loading state management
   useEffect(() => {
