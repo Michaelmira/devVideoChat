@@ -81,14 +81,10 @@ const CalendlyAvailability2 = ({ mentor: propMentor, paymentIntentData: propPaym
                     if (backendResponse && backendResponse.success) {
                         console.log("Successfully fetched Calendly details and updated booking from backend.", backendResponse.booking);
                         // Navigate to confirmation page with the full booking data from the backend
-                        navigate('/booking-confirmed', {
+                        navigate(`/booking-confirmed/${originalBookingId}`, {
                             state: {
-                                bookingId: originalBookingId,
-                                calendlyEventData: backendResponse.booking, // Use the rich booking data
-                                paymentIntentData: paymentIntentData, // This was a prop
+                                bookingDetails: backendResponse.booking,
                                 mentorName: `${currentMentor.first_name} ${currentMentor.last_name}`,
-                                isFinalConfirmation: true,
-                                requiresManualLinking: false // Assuming success if we reach here
                             }
                         });
                     } else {
