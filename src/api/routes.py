@@ -1333,6 +1333,105 @@ def get_booking_by_id(booking_id):
         current_app.logger.error(f"Error retrieving booking {booking_id}: {str(e)}")
         return jsonify({"msg": "Failed to retrieve booking"}), 500
 
+@api.route('/api/booking/calendly-sync', methods=['POST'])
+@jwt_required()
+def sync_booking_with_calendly_details():
+    current_customer_id = get_jwt_identity()
+    data = request.get_json()
+
+    booking_id = data.get('bookingId')
+    calendly_event_uri = data.get('calendlyEventUri') # We might not strictly need this if invitee URI is enough
+    calendly_invitee_uri = data.get('calendlyInviteeUri')
+    mentor_id = data.get('mentorId')
+
+    if not all([booking_id, calendly_invitee_uri, mentor_id]):
+        return jsonify({"success": False, "message": "Missing bookingId, invitee URI, or mentorId"}), 400
+
+    booking = Booking.query.get(booking_id)
+    if not booking:
+        return jsonify({"success": False, "message": "Booking not found"}), 404
+    if booking.customer_id != current_customer_id:
+        return jsonify({"success": False, "message": "Unauthorized - not your booking"}), 403
+
+    mentor = Mentor.query.get(mentor_id)
+    if not mentor:
+        return jsonify({"success": False, "message": "Mentor not found for Calendly token retrieval"}), 404
+
+    access_token, token_error_msg = get_valid_calendly_access_token(mentor_id)
+    if token_error_msg or not access_token:
+        current_app.logger.warning(f"No valid Calendly token for mentor {mentor_id} during sync: {token_error_msg}")
+        return jsonify({"success": False, "message": token_error_msg or "Could not get Calendly token for mentor."}), 401 # Or 503
+
+    try:
+        headers = {'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'}
+        # Fetch details from the Invitee URI - this usually has all the needed data including event times
+        # Example: GET https://api.calendly.com/scheduled_events/{event_uuid}/invitees/{invitee_uuid}
+        current_app.logger.info(f"Fetching Calendly invitee details from: {calendly_invitee_uri}")
+        invitee_response = requests.get(calendly_invitee_uri, headers=headers, timeout=15)
+        invitee_response.raise_for_status() # Will raise HTTPError for bad responses (4xx or 5xx)
+        
+        invitee_data = invitee_response.json().get('resource', {})
+        current_app.logger.info(f"Calendly invitee_data received: {json.dumps(invitee_data, indent=2)}")
+
+        # Extract data - paths might need adjustment based on actual Calendly API response
+        booking.calendly_event_uri = invitee_data.get('event', calendly_event_uri) # Fallback to original if not in invitee payload
+        booking.calendly_invitee_uri = invitee_data.get('uri', calendly_invitee_uri) # Usually this is the same
+        
+        event_details_from_invitee = invitee_data # Sometimes event details are nested directly under invitee
+        # If not, and you have a separate event URI from the invitee_data.event field, you might need another call
+        # but usually, the invitee object for a specific event contains start/end times for THAT event instance.
+
+        # If start_time/end_time are directly on the invitee's scheduled_event object (common)
+        if invitee_data.get('scheduled_event') and isinstance(invitee_data['scheduled_event'], dict):
+             event_payload_source = invitee_data['scheduled_event']
+        else: # Fallback to top-level fields if they exist or use what we got from initial webhook
+             event_payload_source = invitee_data
+
+        start_time_str = event_payload_source.get('start_time')
+        end_time_str = event_payload_source.get('end_time')
+
+        if start_time_str:
+            booking.calendly_event_start_time = dt.fromisoformat(start_time_str.replace('Z', '+00:00'))
+        if end_time_str:
+            booking.calendly_event_end_time = dt.fromisoformat(end_time_str.replace('Z', '+00:00'))
+        
+        booking.invitee_name = invitee_data.get('name', booking.invitee_name) # Keep existing if not found
+        booking.invitee_email = invitee_data.get('email', booking.invitee_email)
+        
+        questions_and_answers = invitee_data.get('questions_and_answers', [])
+        if questions_and_answers:
+            notes_answer = next((qa.get('answer') for qa in questions_and_answers if qa.get('question','').lower().strip() in [
+                "notes or special requests?", 
+                "please share anything that will help prepare for our meeting.",
+                "notes",
+                # Add more common note questions here from your Calendly setup
+            ]), None)
+            if notes_answer:
+                booking.invitee_notes = notes_answer
+            elif not booking.invitee_notes and questions_and_answers: # If no specific note, but other Q&A exist, take the first answer as a generic note
+                booking.invitee_notes = questions_and_answers[0].get('answer')
+
+        booking.status = BookingStatus.CONFIRMED
+        booking.scheduled_at = datetime.utcnow()
+        
+        db.session.commit()
+        current_app.logger.info(f"Booking {booking_id} successfully synced with detailed Calendly info.")
+        return jsonify({"success": True, "message": "Booking synced with Calendly details.", "booking": booking.serialize()}), 200
+
+    except requests.exceptions.HTTPError as e:
+        current_app.logger.error(f"Calendly API HTTPError during sync for booking {booking_id}: {e.response.text if e.response else str(e)}")
+        error_detail = "Could not fetch details from Calendly."
+        if e.response is not None:
+            try: error_detail = e.response.json().get("message", error_detail)
+            except: pass # Keep generic if parsing fails
+        return jsonify({"success": False, "message": f"Calendly API error: {error_detail}"}), e.response.status_code if e.response is not None else 502
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error syncing Calendly details for booking {booking_id}: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({"success": False, "message": "Internal server error during Calendly sync."}), 500
+
 @api.route('/finalize-booking', methods=['POST'])
 @jwt_required() # Customer must be logged in to finalize a booking
 def finalize_booking():

@@ -61,81 +61,54 @@ const CalendlyAvailability2 = ({ mentor: propMentor, paymentIntentData: propPaym
         onEventScheduled: async (e) => {
             console.log("--- CALENDLY EVENT SCHEDULED (CalendlyAvailability2) --- RAW e.data.payload:", JSON.stringify(e.data.payload, null, 2));
 
-            const scheduledEventDetails = e.data.payload?.event;
-            const inviteeDetails = e.data.payload?.invitee;
+            const minimalEventDetails = e.data.payload?.event;
+            const minimalInviteeDetails = e.data.payload?.invitee;
 
-            console.log("--- Extracted scheduledEventDetails ---", JSON.stringify(scheduledEventDetails, null, 2));
-            console.log("--- Extracted inviteeDetails ---", JSON.stringify(inviteeDetails, null, 2));
+            console.log("--- Extracted minimalEventDetails ---", JSON.stringify(minimalEventDetails, null, 2));
+            console.log("--- Extracted minimalInviteeDetails ---", JSON.stringify(minimalInviteeDetails, null, 2));
 
-            // It's safer to check for the presence of essential data before trying to use it
-            if (currentMentor && scheduledEventDetails && inviteeDetails && scheduledEventDetails.uri && inviteeDetails.uri) {
-                const finalEventDataForBackend = {
-                    calendly_event_uri: scheduledEventDetails.uri,
-                    calendly_invitee_uri: inviteeDetails.uri,
-                    calendly_event_start_time: scheduledEventDetails.start_time, // Check actual path from log
-                    calendly_event_end_time: scheduledEventDetails.end_time,     // Check actual path from log
-                    invitee_name: inviteeDetails.name,                         // Check actual path from log
-                    invitee_email: inviteeDetails.email,                       // Check actual path from log
-                    invitee_notes: inviteeDetails.questions_and_answers && inviteeDetails.questions_and_answers.length > 0 ?
-                        inviteeDetails.questions_and_answers.find(qa =>
-                            qa.question && (
-                                qa.question.toLowerCase().includes("notes") ||
-                                qa.question.toLowerCase().includes("share anything") ||
-                                qa.question.toLowerCase().includes("prepare")
-                            )
-                        )?.answer || inviteeDetails.questions_and_answers[0]?.answer
-                        : null,
-                };
+            if (currentMentor && originalBookingId && minimalEventDetails?.uri && minimalInviteeDetails?.uri) {
+                try {
+                    console.log(`Attempting to fetch full Calendly details for event URI: ${minimalEventDetails.uri} and update booking ID: ${originalBookingId}`);
+                    // NEW: Call an action to fetch full details and then update
+                    const backendResponse = await actions.fetchCalendlyDetailsAndUpdateBooking(
+                        originalBookingId,
+                        minimalEventDetails.uri,
+                        minimalInviteeDetails.uri,
+                        currentMentor.id // Pass mentorId to get their Calendly token on backend
+                    );
 
-                let bookingUpdateAttempted = false;
-                let bookingUpdateSuccess = false;
-
-                if (originalBookingId) {
-                    bookingUpdateAttempted = true;
-                    try {
-                        console.log("Updating booking ID:", originalBookingId, "with Calendly data:", finalEventDataForBackend);
-                        const backendResponse = await actions.updateBookingWithCalendlyDetails(originalBookingId, finalEventDataForBackend);
-                        bookingUpdateSuccess = backendResponse.success;
-
-                        if (bookingUpdateSuccess) {
-                            console.log("Successfully updated booking with Calendly details");
-                        } else {
-                            console.warn("Failed to update booking:", backendResponse.message);
-                        }
-                    } catch (apiError) {
-                        console.error("Error updating booking on backend:", apiError);
+                    if (backendResponse && backendResponse.success) {
+                        console.log("Successfully fetched Calendly details and updated booking from backend.", backendResponse.booking);
+                        // Navigate to confirmation page with the full booking data from the backend
+                        navigate('/booking-confirmed', {
+                            state: {
+                                bookingId: originalBookingId,
+                                calendlyEventData: backendResponse.booking, // Use the rich booking data
+                                paymentIntentData: paymentIntentData, // This was a prop
+                                mentorName: `${currentMentor.first_name} ${currentMentor.last_name}`,
+                                isFinalConfirmation: true,
+                                requiresManualLinking: false // Assuming success if we reach here
+                            }
+                        });
+                    } else {
+                        console.warn("Failed to fetch full Calendly details or update booking:", backendResponse?.message);
+                        alert(backendResponse?.message || "Could not finalize your booking with full Calendly details. Please contact support.");
+                        // Potentially navigate to dashboard or show error message
+                        navigate('/dashboard');
                     }
+                } catch (error) {
+                    console.error("Error in onEventScheduled while fetching/updating details:", error);
+                    alert("An unexpected error occurred while finalizing your booking. Please contact support.");
+                    navigate('/dashboard');
                 }
-
-                console.log("Event successfully scheduled with Calendly. Navigating to confirmation.");
-
-                const bookingConfirmedState = {
-                    mentorId: currentMentor.id,
-                    bookingId: originalBookingId,
-                    calendlyEventData: {
-                        uri: scheduledEventDetails.uri,
-                        start_time: scheduledEventDetails.start_time || null,
-                        end_time: scheduledEventDetails.end_time || null,
-                        name: scheduledEventDetails.name || "Meeting with " + currentMentor.first_name,
-                        location: scheduledEventDetails.location?.location || "Video Call"
-                    },
-                    paymentIntentData: paymentIntentData,
-                    mentorName: `${currentMentor.first_name} ${currentMentor.last_name}`,
-                    isFinalConfirmation: true,
-                    requiresManualLinking: !originalBookingId || (bookingUpdateAttempted && !bookingUpdateSuccess)
-                };
-
-                if (!originalBookingId) {
-                    alert("Your event is scheduled with Calendly. We couldn't automatically link it to your initial payment record. Please save your Calendly confirmation and contact support if needed.");
-                } else if (bookingUpdateAttempted && !bookingUpdateSuccess) {
-                    alert("Your event is scheduled with Calendly, but we had trouble updating our records automatically. Please contact support if this booking doesn't appear in your account shortly.");
-                }
-
-                navigate('/booking-confirmed', { state: bookingConfirmedState });
-
             } else {
-                console.error("Calendly onEventScheduled error: Missing crucial details.", e.data.payload);
-                alert("Your event may be scheduled with Calendly, but we had an issue processing the details. Please check your email for Calendly's confirmation and contact support if needed.");
+                console.error("Calendly onEventScheduled error: Missing crucial URIs or booking/mentor info.", {
+                    payload: e.data.payload,
+                    originalBookingId,
+                    currentMentor: !!currentMentor
+                });
+                alert("Your event may be scheduled with Calendly, but we had an issue processing the initial details. Please contact support.");
             }
         },
         onDateAndTimeSelected: (e) => {

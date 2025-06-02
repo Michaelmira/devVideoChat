@@ -979,6 +979,42 @@ const getState = ({ getStore, getActions, setStore }) => {
                     return { success: false, message: "Network error occurred while updating booking" };
                 }
             },
+            fetchCalendlyDetailsAndUpdateBooking: async (bookingId, eventUri, inviteeUri, mentorId) => {
+                try {
+                    const token = sessionStorage.getItem("token");
+                    if (!token) {
+                        console.error("No token found for fetchCalendlyDetailsAndUpdateBooking");
+                        return { success: false, message: "Authentication required." };
+                    }
+
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/booking/calendly-sync`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            bookingId: bookingId,
+                            calendlyEventUri: eventUri,
+                            calendlyInviteeUri: inviteeUri,
+                            mentorId: mentorId
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        console.log("Successfully fetched Calendly details and updated booking:", data);
+                        return { success: true, booking: data.booking };
+                    } else {
+                        console.error("Backend failed to fetch Calendly details or update booking:", data);
+                        return { success: false, message: data.message || data.msg || "Failed to sync Calendly details with booking." };
+                    }
+                } catch (error) {
+                    console.error("Error in fetchCalendlyDetailsAndUpdateBooking action:", error);
+                    return { success: false, message: "Network error during Calendly sync." };
+                }
+            },
             finalizeBooking: async (bookingData) => {
                 try {
                     const token = sessionStorage.getItem("token");
