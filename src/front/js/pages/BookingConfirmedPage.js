@@ -92,6 +92,7 @@ export const BookingConfirmedPage = () => {
     const displayMentorName = mentorName ||
         (bookingData.mentor ? `${bookingData.mentor.first_name} ${bookingData.mentor.last_name}` :
             (bookingData.mentor_id ? `Mentor ID: ${bookingData.mentor_id}` : 'your mentor'));
+    const mentorEmail = bookingData.mentor?.email || 'the mentor directly'; // Get mentor email
 
     return (
         <div className="container my-5">
@@ -127,7 +128,7 @@ export const BookingConfirmedPage = () => {
                             {/* Update requiresManualConfirmation logic based on fetched bookingData status if necessary */}
                             {bookingData.status !== 'CONFIRMED' && (
                                 <div className="alert alert-warning mt-3">
-                                    <strong>Important:</strong> This booking may require further action or confirmation.
+                                    <strong>Important:</strong> Please additionally contact your mentor at {mentorEmail} as needed if you would like to open up a dialog.
                                 </div>
                             )}
 
@@ -138,8 +139,8 @@ export const BookingConfirmedPage = () => {
                             </p>
 
                             <div className="text-center mt-4 pt-3 border-top">
-                                <Link to="/dashboard/customer" className="btn btn-primary btn-lg me-2 mb-2">View My Bookings</Link>
-                                <Link to="/mentors" className="btn btn-outline-secondary btn-lg mb-2">Find Another Mentor</Link>
+                                <Link to="/" className="btn btn-primary btn-lg me-2 mb-2">Go Home</Link>
+                                <Link to="/mentor-list" className="btn btn-outline-secondary btn-lg mb-2">Find Another Mentor</Link>
                             </div>
                         </div>
                     </div>

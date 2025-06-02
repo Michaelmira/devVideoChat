@@ -1,12 +1,13 @@
 // MentorDetails.js 
 
-import React, { useEffect, useContext, useState } from "react";
+import React, { useEffect, useContext, useState, useRef } from "react";
 import { Context } from "../store/appContext";
 import { MapPin, Mail, Phone, Calendar, Clock, DollarSign, Award, BookOpen } from 'lucide-react';
 import { useParams, Link, useNavigate } from "react-router-dom";
 import CalendlyAvailability from "../component/CalendlyAvailability";
 import CalendlyAvailability2 from "../component/CalendlyAvailability2"; // Import the new component
 import { StripePaymentComponent } from "../component/StripePaymentComponent";
+import './MentorDetails.css'; // Create and import a CSS file for custom styles
 
 export const MentorDetails = () => {
     const { store, actions } = useContext(Context);
@@ -15,11 +16,27 @@ export const MentorDetails = () => {
     const [mentor, setMentor] = useState(null);
     const [loading, setLoading] = useState(true);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
-    
+
     // New states for managing the booking flow
     const [bookingStep, setBookingStep] = useState('initial'); // 'initial', 'payment', 'calendly_finalize'
     const [paymentIntentData, setPaymentIntentData] = useState(null);
     const [bookingId, setBookingId] = useState(null);
+
+    const calendlySectionRef = useRef(null); // Ref for the Calendly section
+
+    // State for portfolio image modal
+    const [showPortfolioModal, setShowPortfolioModal] = useState(false);
+    const [selectedPortfolioImage, setSelectedPortfolioImage] = useState(null);
+
+    const openPortfolioModal = (imageUrl) => {
+        setSelectedPortfolioImage(imageUrl);
+        setShowPortfolioModal(true);
+    };
+
+    const closePortfolioModal = () => {
+        setShowPortfolioModal(false);
+        setSelectedPortfolioImage(null);
+    };
 
     useEffect(() => {
         // Get the specific mentor details
@@ -50,26 +67,27 @@ export const MentorDetails = () => {
     const handleBookSession = () => {
         // Check if user is authenticated
         if (!store.token || !store.currentUserData) {
-            // Save the current page to sessionStorage so you can redirect back after login
             sessionStorage.setItem('redirectAfterLogin', window.location.pathname);
-
-            // Alert the user
             alert("You need to be logged in to book a session. Redirecting to login page...");
-
-            // Redirect to login page
-            navigate("/login");
+            navigate("/login"); // Assuming you have a /login route
             return;
         }
 
-        // User is authenticated, show payment modal
-        setShowPaymentModal(true);
-        setBookingStep('payment');
+        // Scroll to Calendly section and then proceed with booking logic
+        if (calendlySectionRef.current) {
+            calendlySectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        // The rest of the booking logic (showing payment modal etc.) can remain here
+        // or be triggered after a slight delay if needed for the scroll to complete.
+        // For now, let's assume immediate continuation is fine.
+        // setShowPaymentModal(true); // This will be handled by CalendlyAvailability now
+        // setBookingStep('payment');
     };
 
     // Handle payment success - Updated to show CalendlyAvailability2
     const handlePaymentSuccess = (paymentIntent) => {
         console.log("Payment successful:", paymentIntent);
-        
+
         // Track the booking
         if (mentor) {
             const bookingData = {
@@ -89,7 +107,7 @@ export const MentorDetails = () => {
                         console.warn("Payment was successful, but backend booking tracking did not yield a booking ID.");
                         setBookingId(null);
                     }
-                    
+
                     // Store payment data and move to Calendly step
                     setPaymentIntentData(paymentIntent);
                     setShowPaymentModal(false);
@@ -119,7 +137,7 @@ export const MentorDetails = () => {
     // Handle payment success from CalendlyAvailability component
     const handleCalendlyPaymentSuccess = (paymentIntent, bookingId, mentor) => {
         console.log("Payment successful from Calendly widget:", paymentIntent);
-        
+
         // Store payment data and move to Calendly finalization step
         setPaymentIntentData(paymentIntent);
         setBookingId(bookingId);
@@ -172,7 +190,7 @@ export const MentorDetails = () => {
             <div className="container mt-5 mb-5">
                 <div className="row">
                     <div className="col-12 mb-4">
-                        <button 
+                        <button
                             className="btn btn-outline-secondary"
                             onClick={handleBackFromCalendly}
                         >
@@ -180,8 +198,8 @@ export const MentorDetails = () => {
                         </button>
                     </div>
                 </div>
-                
-                <CalendlyAvailability2 
+
+                <CalendlyAvailability2
                     mentor={mentor}
                     paymentIntentData={paymentIntentData}
                     bookingId={bookingId}
@@ -191,7 +209,7 @@ export const MentorDetails = () => {
     }
 
     return (
-        <div className="container mt-5 mb-5">
+        <div className="container mt-5 mb-5 mentor-details-page">
             <div className="row">
                 <div className="col-12 mb-4">
                     <Link to="/mentor-list" className="btn btn-outline-primary">
@@ -293,21 +311,47 @@ export const MentorDetails = () => {
                             </div>
 
                             {/* Skills Section */}
-                            {mentor.skills && mentor.skills.length > 0 && (
-                                <div className="mb-4">
-                                    <h4 className="d-flex align-items-center mb-3">
-                                        <Award size={20} className="me-2 text-primary" />
-                                        Skills & Expertise
-                                    </h4>
-                                    <div className="d-flex flex-wrap gap-2">
-                                        {mentor.skills.map((skill, index) => (
-                                            <span
-                                                key={index}
-                                                className="badge bg-primary py-2 px-3 fs-6"
-                                            >
-                                                {skill}
-                                            </span>
-                                        ))}
+                            <div className="card w-100 mb-4">
+                                <div className="card-header bg-light">
+                                    <h5 className="mb-0 d-flex align-items-center">
+                                        <Award size={20} className="me-2 text-primary" /> Skills & Expertise
+                                    </h5>
+                                </div>
+                                <div className="card-body">
+                                    {mentor.skills && mentor.skills.length > 0 ? (
+                                        <div className="d-flex flex-wrap">
+                                            {mentor.skills.map((skill, index) => (
+                                                <span key={index} className="badge bg-primary-soft text-primary-emphasis rounded-pill me-2 mb-2 p-2 px-3">
+                                                    {skill}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-muted">No skills listed.</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Portfolio Section - Updated */}
+                            {mentor.portfolio_photos && mentor.portfolio_photos.length > 0 && (
+                                <div className="card w-100 mb-4">
+                                    <div className="card-header bg-light">
+                                        <h5 className="mb-0 d-flex align-items-center">
+                                            <BookOpen size={20} className="me-2 text-primary" /> Portfolio
+                                        </h5>
+                                    </div>
+                                    <div className="card-body">
+                                        <div className="portfolio-thumbnails-grid">
+                                            {mentor.portfolio_photos.map((photo, index) => (
+                                                <img
+                                                    key={index}
+                                                    src={photo.image_url}
+                                                    alt={`Portfolio ${index + 1}`}
+                                                    className="portfolio-thumbnail"
+                                                    onClick={() => openPortfolioModal(photo.image_url)}
+                                                />
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -383,25 +427,26 @@ export const MentorDetails = () => {
                 </div>
             </div>
 
-            {/* Calendly Availability Section - Show with callbacks for inline payment flow */}
-            {bookingStep === 'initial' && mentor && mentor.calendly_url && (
-                <div className="row mt-4">
-                    <div className="col-12">
-                        <div className="card border-secondary shadow border-2">
-                            <div className="card-header bg-primary text-white">
-                                <h3 className="mb-0">Schedule a Session with {mentor.first_name}</h3>
-                            </div>
-                            <div className="card-body p-0">
-                                <CalendlyAvailability 
-                                    mentor={mentor} 
-                                    onPaymentSuccess={handleCalendlyPaymentSuccess}
-                                    onCancel={handleCalendlyCancel}
-                                />
-                            </div>
+            {/* "Schedule a Session with [Mentor Name]" Section */}
+            <div className="row mt-5">
+                <div className="col-12">
+                    <div className="card shadow-sm">
+                        <div className="card-header bg-light">
+                            <h3 className="mb-0 text-center text-primary">Schedule a Session with {mentor.first_name}</h3>
+                        </div>
+                        <div className="card-body p-4" ref={calendlySectionRef}>
+                            <p className="text-center text-muted mb-4">
+                                Select a date and time below to initiate your booking. You will be prompted for login/signup and payment to confirm.
+                            </p>
+                            <CalendlyAvailability
+                                mentor={mentor}
+                                onPaymentSuccess={handleCalendlyPaymentSuccess}
+                                onCancel={handleCalendlyCancel}
+                            />
                         </div>
                     </div>
                 </div>
-            )}
+            </div>
 
             {/* Payment Modal */}
             {showPaymentModal && bookingStep === 'payment' && (
@@ -430,6 +475,14 @@ export const MentorDetails = () => {
                             </div>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Portfolio Image Modal */}
+            {showPortfolioModal && selectedPortfolioImage && (
+                <div className="portfolio-modal" onClick={closePortfolioModal}>
+                    <span className="portfolio-modal-close" onClick={closePortfolioModal}>&times;</span>
+                    <img className="portfolio-modal-content" src={selectedPortfolioImage} alt="Portfolio Full Size" />
                 </div>
             )}
         </div>

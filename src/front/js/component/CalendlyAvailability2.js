@@ -39,7 +39,7 @@ const CalendlyAvailability2 = ({ mentor: propMentor, paymentIntentData: propPaym
     const isValidUrl = calendlyUrl && typeof calendlyUrl === 'string' && calendlyUrl.trim() !== '' && calendlyUrl.includes('calendly.com');
 
     const styles = {
-        height: '700px',
+        height: '800px',
         minWidth: '320px',
         position: 'relative',
     };
