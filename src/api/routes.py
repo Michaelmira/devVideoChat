@@ -1308,6 +1308,31 @@ def update_booking_calendly_details(booking_id):
         current_app.logger.error(f"Error updating booking {booking_id} with Calendly details: {str(e)}")
         return jsonify({"msg": "Failed to update booking"}), 500
 
+@api.route('/bookings/<int:booking_id>', methods=['GET'])
+@jwt_required()
+def get_booking_by_id(booking_id):
+    """Get a specific booking by ID"""
+    current_customer_id = get_jwt_identity()
+    
+    # Get the booking and verify it exists
+    booking = Booking.query.get(booking_id)
+    if not booking:
+        return jsonify({"msg": "Booking not found"}), 404
+    
+    # Verify ownership - customer can only see their own bookings
+    if booking.customer_id != current_customer_id:
+        return jsonify({"msg": "Unauthorized - not your booking"}), 403
+    
+    try:
+        return jsonify({
+            "success": True,
+            "booking": booking.serialize()
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error retrieving booking {booking_id}: {str(e)}")
+        return jsonify({"msg": "Failed to retrieve booking"}), 500
+
 @api.route('/finalize-booking', methods=['POST'])
 @jwt_required() # Customer must be logged in to finalize a booking
 def finalize_booking():
