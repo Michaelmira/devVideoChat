@@ -1333,7 +1333,7 @@ def get_booking_by_id(booking_id):
         current_app.logger.error(f"Error retrieving booking {booking_id}: {str(e)}")
         return jsonify({"msg": "Failed to retrieve booking"}), 500
 
-@api.route('/api/booking/calendly-sync', methods=['POST'])
+@api.route('/booking/calendly-sync', methods=['POST'])
 @jwt_required()
 def sync_booking_with_calendly_details():
     current_customer_id = get_jwt_identity()
