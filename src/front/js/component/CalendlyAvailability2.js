@@ -59,20 +59,31 @@ const CalendlyAvailability2 = ({ mentor: propMentor, paymentIntentData: propPaym
 
     useCalendlyEventListener({
         onEventScheduled: async (e) => {
-            console.log("--- CALENDLY EVENT SCHEDULED (CalendlyAvailability2) ---", e.data.payload);
+            console.log("--- CALENDLY EVENT SCHEDULED (CalendlyAvailability2) --- RAW e.data.payload:", JSON.stringify(e.data.payload, null, 2));
+
             const scheduledEventDetails = e.data.payload?.event;
             const inviteeDetails = e.data.payload?.invitee;
 
-            if (currentMentor && scheduledEventDetails?.uri && inviteeDetails?.uri) {
+            console.log("--- Extracted scheduledEventDetails ---", JSON.stringify(scheduledEventDetails, null, 2));
+            console.log("--- Extracted inviteeDetails ---", JSON.stringify(inviteeDetails, null, 2));
+
+            // It's safer to check for the presence of essential data before trying to use it
+            if (currentMentor && scheduledEventDetails && inviteeDetails && scheduledEventDetails.uri && inviteeDetails.uri) {
                 const finalEventDataForBackend = {
                     calendly_event_uri: scheduledEventDetails.uri,
                     calendly_invitee_uri: inviteeDetails.uri,
-                    calendly_event_start_time: scheduledEventDetails.start_time,
-                    calendly_event_end_time: scheduledEventDetails.end_time,
-                    invitee_name: inviteeDetails.name,
-                    invitee_email: inviteeDetails.email,
+                    calendly_event_start_time: scheduledEventDetails.start_time, // Check actual path from log
+                    calendly_event_end_time: scheduledEventDetails.end_time,     // Check actual path from log
+                    invitee_name: inviteeDetails.name,                         // Check actual path from log
+                    invitee_email: inviteeDetails.email,                       // Check actual path from log
                     invitee_notes: inviteeDetails.questions_and_answers && inviteeDetails.questions_and_answers.length > 0 ?
-                        inviteeDetails.questions_and_answers.find(qa => qa.question.toLowerCase().includes("notes") || qa.question.toLowerCase().includes("share anything") || qa.question.toLowerCase().includes("prepare"))?.answer || inviteeDetails.questions_and_answers[0].answer
+                        inviteeDetails.questions_and_answers.find(qa =>
+                            qa.question && (
+                                qa.question.toLowerCase().includes("notes") ||
+                                qa.question.toLowerCase().includes("share anything") ||
+                                qa.question.toLowerCase().includes("prepare")
+                            )
+                        )?.answer || inviteeDetails.questions_and_answers[0]?.answer
                         : null,
                 };
 

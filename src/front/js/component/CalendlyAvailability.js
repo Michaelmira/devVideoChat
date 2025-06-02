@@ -142,10 +142,11 @@ const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCancel }) 
       amount: parseFloat(currentMentor.price || 0),
       mentorPayout: parseFloat(currentMentor.price || 0) * 0.9,
       platformFee: parseFloat(currentMentor.price || 0) * 0.1,
-      status: 'paid'
+      status: 'paid',
+      stripePaymentIntentId: paymentIntent?.id || null
     };
 
-    console.log("Sending booking data:", bookingData);
+    console.log("Sending booking data (including Stripe ID if available):", bookingData);
 
     actions.trackMentorBooking(bookingData)
       .then(bookingResult => {

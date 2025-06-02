@@ -807,7 +807,8 @@ def track_booking():
         amount_str = data.get('amount')
         
         # Optional fields from frontend that might be passed
-        stripe_payment_intent_id = data.get('paymentIntentId') # If available at this stage
+        # Ensure this key matches what frontend sends (stripePaymentIntentId)
+        stripe_payment_intent_id = data.get('stripePaymentIntentId') 
         
         # Validate data
         if not mentor_id or not paid_date_time_str or not amount_str:
@@ -846,7 +847,7 @@ def track_booking():
             # calendly_event_start_time, calendly_event_end_time will be set later
             invitee_name=f"{customer.first_name} {customer.last_name}", # Pre-fill from customer profile
             invitee_email=customer.email, # Pre-fill from customer profile
-            stripe_payment_intent_id=stripe_payment_intent_id, # If available
+            stripe_payment_intent_id=stripe_payment_intent_id, # Save the ID
             amount_paid=amount,
             currency='usd', # Assuming USD for now
             platform_fee=platform_fee,
