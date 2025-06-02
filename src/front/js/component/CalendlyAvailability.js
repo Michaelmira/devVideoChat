@@ -149,19 +149,19 @@ const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCancel }) 
 
     actions.trackMentorBooking(bookingData)
       .then(bookingResult => {
-        if (bookingResult && bookingResult.id) {
-          console.log("Booking successfully tracked by backend. ID:", bookingResult.id);
+        if (bookingResult && bookingResult.success && bookingResult.data && bookingResult.data.id) {
+          console.log("Booking successfully tracked by backend. ID:", bookingResult.data.id);
 
           // Instead of navigating, call the parent component's callback
           if (onPaymentSuccess) {
-            onPaymentSuccess(paymentIntent, bookingResult.id, currentMentor);
+            onPaymentSuccess(paymentIntent, bookingResult.data.id, currentMentor);
           }
 
         } else {
-          console.warn("Payment was successful, but backend booking tracking did not yield a booking ID. Proceeding to final Calendly selection without automated linking.", bookingResult);
-          alert("Your payment was successful! We're proceeding to the final scheduling step. Please note: there might be a slight delay for this booking to fully appear in your account, or it may require support to manually link. Please complete your time selection.");
+          console.warn("Payment was successful, but backend booking tracking did not yield a valid booking ID from bookingResult.data.id. Proceeding to final Calendly selection without automated linking.", bookingResult);
+          alert("Your payment was successful but we encountered an issue linking it to our system. We're proceeding to the final scheduling step. Please note: there might be a slight delay for this booking to fully appear in your account, or it may require support to manually link. Please complete your time selection.");
 
-          // Still call the callback even without booking ID
+          // Still call the callback even without booking ID, passing null
           if (onPaymentSuccess) {
             onPaymentSuccess(paymentIntent, null, currentMentor);
           }
