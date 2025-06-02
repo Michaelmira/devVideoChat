@@ -1053,6 +1053,39 @@ const getState = ({ getStore, getActions, setStore }) => {
                     console.error("Error in finalizeBooking:", error);
                     return { success: false, message: "Network error occurred while finalizing booking" };
                 }
+            },
+            // New action to get booking details by ID
+            getBookingDetails: async (bookingId) => {
+                const store = getStore();
+                try {
+                    const token = sessionStorage.getItem("token");
+                    if (!token) {
+                        console.error("No token found for getBookingDetails");
+                        return { success: false, message: "Authentication required." };
+                    }
+
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/bookings/${bookingId}`, {
+                        method: "GET",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${token}`
+                        }
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        console.log("Successfully fetched booking details:", data.booking);
+                        // No need to setStore here, the component will handle the data
+                        return { success: true, booking: data.booking };
+                    } else {
+                        console.error("Failed to fetch booking details:", data.message || response.statusText);
+                        return { success: false, message: data.message || "Failed to fetch booking details" };
+                    }
+                } catch (error) {
+                    console.error("Network error fetching booking details:", error);
+                    return { success: false, message: "Network error occurred while fetching booking details" };
+                }
             }
 
         }

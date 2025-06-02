@@ -63,7 +63,7 @@ const Layout = () => {
                         <Route element={<MentorDashboard />} path="/mentor-dashboard" />
                         <Route element={<MentorDetails />} path="/mentor-details/:theid" />
                         <Route element={<BookingDetailsPage />} path="/booking-details" />
-                        <Route element={<BookingConfirmedPage />} path="/booking-confirmed" />
+                        <Route element={<BookingConfirmedPage />} path="/booking-confirmed/:bookingId" />
                         <Route element={<h1>Not found!</h1>} path="*" />
                     </Routes>
                     <Footer />
