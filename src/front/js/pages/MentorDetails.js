@@ -313,7 +313,7 @@ export const MentorDetails = () => {
                             {/* Skills Section */}
                             <div className="card w-100 mb-4">
                                 <div className="card-header bg-light">
-                                    <h5 className="mb-0 d-flex align-items-center">
+                                    <h5 className="mb-0 d-flex align-items-center text-dark">
                                         <Award size={20} className="me-2 text-primary" /> Skills & Expertise
                                     </h5>
                                 </div>

@@ -260,6 +260,6 @@ class Booking(db.Model):
             "status": self.status.value, # Return the string value of the enum
             
             # Optional: include serialized mentor/customer details
-            # "mentor": self.mentor.serialize() if self.mentor else None, 
-            # "customer": self.customer.serialize() if self.customer else None,
+            "mentor": self.mentor.serialize() if self.mentor else None, 
+            "customer": self.customer.serialize() if self.customer else None,
         }
