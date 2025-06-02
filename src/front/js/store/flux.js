@@ -929,7 +929,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                     const data = await response.json();
 
                     if (response.ok) {
-                        console.log("Booking tracked successfully:", data);
+                        // console.log("Booking tracked successfully:", data); // Keep concise log or remove if too verbose
                         return { success: true, message: "Booking tracked successfully", data: data };
                     } else {
                         console.error("Failed to track booking with status:", response.status, "Response:", data);
@@ -967,7 +967,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                     const data = await response.json();
 
                     if (response.ok) {
-                        console.log("Booking updated with Calendly details successfully:", data);
+                        // console.log("Booking updated with Calendly details successfully:", data); // Keep concise or remove
                         return { success: true, ...data };
                     } else {
                         console.error("Failed to update booking with Calendly details:", data);
@@ -1004,7 +1004,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                     const data = await response.json();
 
                     if (response.ok && data.success) {
-                        console.log("Successfully fetched Calendly details and updated booking:", data);
+                        // console.log("Successfully fetched Calendly details and updated booking:", data); // Keep concise or remove
                         return { success: true, booking: data.booking };
                     } else {
                         console.error("Backend failed to fetch Calendly details or update booking:", data);
@@ -1075,8 +1075,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                     const data = await response.json();
 
                     if (response.ok && data.success) {
-                        console.log("Successfully fetched booking details:", data.booking);
-                        // No need to setStore here, the component will handle the data
+                        // console.log("Successfully fetched booking details:", data.booking); // Keep concise or remove
                         return { success: true, booking: data.booking };
                     } else {
                         console.error("Failed to fetch booking details:", data.message || response.statusText);

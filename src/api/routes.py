@@ -1371,7 +1371,7 @@ def sync_booking_with_calendly_details():
         invitee_response.raise_for_status() # Will raise HTTPError for bad responses (4xx or 5xx)
         
         invitee_data = invitee_response.json().get('resource', {})
-        current_app.logger.info(f"Calendly invitee_data received: {json.dumps(invitee_data, indent=2)}")
+        # current_app.logger.info(f"Calendly invitee_data received: {json.dumps(invitee_data, indent=2)}") # Verbose
 
         # Extract data - paths might need adjustment based on actual Calendly API response
         booking.calendly_event_uri = invitee_data.get('event', calendly_event_uri) # Fallback to original if not in invitee payload
@@ -1400,7 +1400,7 @@ def sync_booking_with_calendly_details():
                 event_response = requests.get(booking.calendly_event_uri, headers=headers, timeout=15)
                 event_response.raise_for_status()
                 event_full_details = event_response.json().get('resource', {})
-                current_app.logger.info(f"Calendly full event_details received: {json.dumps(event_full_details, indent=2)}")
+                # current_app.logger.info(f"Calendly full event_details received: {json.dumps(event_full_details, indent=2)}") # Verbose
                 # Use these details as the primary source if they contain times
                 if event_full_details.get('start_time') and event_full_details.get('end_time'):
                     event_details_source = event_full_details

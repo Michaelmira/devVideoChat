@@ -59,28 +59,26 @@ const CalendlyAvailability2 = ({ mentor: propMentor, paymentIntentData: propPaym
 
     useCalendlyEventListener({
         onEventScheduled: async (e) => {
-            console.log("--- CALENDLY EVENT SCHEDULED (CalendlyAvailability2) --- RAW e.data.payload:", JSON.stringify(e.data.payload, null, 2));
+            // console.log("--- CALENDLY EVENT SCHEDULED (CalendlyAvailability2) --- RAW e.data.payload:", JSON.stringify(e.data.payload, null, 2));
 
             const minimalEventDetails = e.data.payload?.event;
             const minimalInviteeDetails = e.data.payload?.invitee;
 
-            console.log("--- Extracted minimalEventDetails ---", JSON.stringify(minimalEventDetails, null, 2));
-            console.log("--- Extracted minimalInviteeDetails ---", JSON.stringify(minimalInviteeDetails, null, 2));
+            // console.log("--- Extracted minimalEventDetails ---", JSON.stringify(minimalEventDetails, null, 2));
+            // console.log("--- Extracted minimalInviteeDetails ---", JSON.stringify(minimalInviteeDetails, null, 2));
 
             if (currentMentor && originalBookingId && minimalEventDetails?.uri && minimalInviteeDetails?.uri) {
                 try {
-                    console.log(`Attempting to fetch full Calendly details for event URI: ${minimalEventDetails.uri} and update booking ID: ${originalBookingId}`);
-                    // NEW: Call an action to fetch full details and then update
+                    // console.log(`Attempting to fetch full Calendly details for event URI: ${minimalEventDetails.uri} and update booking ID: ${originalBookingId}`);
                     const backendResponse = await actions.fetchCalendlyDetailsAndUpdateBooking(
                         originalBookingId,
                         minimalEventDetails.uri,
                         minimalInviteeDetails.uri,
-                        currentMentor.id // Pass mentorId to get their Calendly token on backend
+                        currentMentor.id
                     );
 
                     if (backendResponse && backendResponse.success) {
                         console.log("Successfully fetched Calendly details and updated booking from backend.", backendResponse.booking);
-                        // Navigate to confirmation page with the full booking data from the backend
                         navigate(`/booking-confirmed/${originalBookingId}`, {
                             state: {
                                 bookingDetails: backendResponse.booking,
@@ -108,7 +106,7 @@ const CalendlyAvailability2 = ({ mentor: propMentor, paymentIntentData: propPaym
             }
         },
         onDateAndTimeSelected: (e) => {
-            console.log("Date and Time selected in CalendlyAvailability2 (informational):", e);
+            // console.log("Date and Time selected in CalendlyAvailability2 (informational):", e);
         },
         onPageHeightResize: (e) => { /* console.log('height resized', e.data.payload) */ }
     });

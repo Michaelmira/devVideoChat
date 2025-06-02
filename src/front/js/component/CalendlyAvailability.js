@@ -77,7 +77,7 @@ const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCancel }) 
   // Listener to move to auth/payment after a time is selected
   useCalendlyEventListener({
     onDateAndTimeSelected: () => {
-      console.log("Calendly: Date and time selected by user. Proceeding to auth/payment.");
+      // console.log("Calendly: Date and time selected by user. Proceeding to auth/payment."); // Informative, can be kept or commented
       setShowCalendly(false);
       if (store.token && store.currentUserData) {
         setShowPaymentForm(true);
@@ -119,10 +119,10 @@ const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCancel }) 
   };
 
   const handlePaymentSuccess = (paymentIntent) => {
-    console.log("handlePaymentSuccess called with:", {
-      currentMentor: !!currentMentor,
-      paymentIntent: !!paymentIntent
-    });
+    // console.log("handlePaymentSuccess called with:", { // Can be removed, data logged below
+    //   currentMentor: !!currentMentor,
+    //   paymentIntent: !!paymentIntent
+    // });
 
     // Enhanced validation
     if (!currentMentor) {
@@ -146,12 +146,12 @@ const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCancel }) 
       stripePaymentIntentId: paymentIntent?.id || null
     };
 
-    console.log("Sending booking data (including Stripe ID if available):", bookingData);
+    // console.log("Sending booking data (including Stripe ID if available):", bookingData); // Verbose, can be removed
 
     actions.trackMentorBooking(bookingData)
       .then(bookingResult => {
         if (bookingResult && bookingResult.success && bookingResult.data && bookingResult.data.id) {
-          console.log("Booking successfully tracked by backend. ID:", bookingResult.data.id);
+          console.log("Booking successfully tracked by backend. ID:", bookingResult.data.id); // Good to keep
 
           // Instead of navigating, call the parent component's callback
           if (onPaymentSuccess) {

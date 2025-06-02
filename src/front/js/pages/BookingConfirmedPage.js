@@ -125,14 +125,11 @@ export const BookingConfirmedPage = () => {
                             </div>
 
                             {/* Update requiresManualConfirmation logic based on fetched bookingData status if necessary */}
-                            {(() => {
-                                console.log("BookingConfirmedPage - Checking status:", bookingData.status, "Type:", typeof bookingData.status);
-                                return bookingData.status !== 'CONFIRMED';
-                            })() && (
-                                    <div className="alert alert-warning mt-3">
-                                        <strong>Important:</strong> This booking may require further action or confirmation.
-                                    </div>
-                                )}
+                            {bookingData.status !== 'CONFIRMED' && (
+                                <div className="alert alert-warning mt-3">
+                                    <strong>Important:</strong> This booking may require further action or confirmation.
+                                </div>
+                            )}
 
                             <p className="mt-4 text-muted">
                                 You should receive a calendar invitation and confirmation email shortly.
