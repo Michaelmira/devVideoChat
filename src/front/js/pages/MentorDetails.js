@@ -321,7 +321,7 @@ export const MentorDetails = () => {
                                     {mentor.skills && mentor.skills.length > 0 ? (
                                         <div className="d-flex flex-wrap">
                                             {mentor.skills.map((skill, index) => (
-                                                <span key={index} className="badge bg-primary-soft text-primary-emphasis rounded-pill me-2 mb-2 p-2 px-3">
+                                                <span key={index} className="badge bg-primary-soft text-dark rounded-pill me-2 mb-2 p-2 px-3">
                                                     {skill}
                                                 </span>
                                             ))}
