@@ -1377,9 +1377,47 @@ def sync_booking_with_calendly_details():
         booking.calendly_event_uri = invitee_data.get('event', calendly_event_uri) # Fallback to original if not in invitee payload
         booking.calendly_invitee_uri = invitee_data.get('uri', calendly_invitee_uri) # Usually this is the same
         
-        event_details_from_invitee = invitee_data # Sometimes event details are nested directly under invitee
-        # If not, and you have a separate event URI from the invitee_data.event field, you might need another call
-        # but usually, the invitee object for a specific event contains start/end times for THAT event instance.
+        event_details_source = invitee_data # Default to invitee data
+
+        # Try to get start_time and end_time
+        start_time_str = event_details_source.get('start_time')
+        end_time_str = event_details_source.get('end_time')
+
+        # If 'scheduled_event' object exists within invitee_data and contains times, prioritize it
+        if 'scheduled_event' in invitee_data and isinstance(invitee_data['scheduled_event'], dict):
+            current_app.logger.info("Found 'scheduled_event' in invitee_data.")
+            potential_event_source = invitee_data['scheduled_event']
+            if potential_event_source.get('start_time') and potential_event_source.get('end_time'):
+                current_app.logger.info("Using 'scheduled_event' from invitee_data for event times.")
+                event_details_source = potential_event_source
+                start_time_str = event_details_source.get('start_time')
+                end_time_str = event_details_source.get('end_time')
+
+        # If times are still missing and we have a valid event URI, fetch the full event details
+        if not (start_time_str and end_time_str) and booking.calendly_event_uri:
+            current_app.logger.info(f"Event times not found in invitee data or nested 'scheduled_event'. Fetching full event details from: {booking.calendly_event_uri}")
+            try:
+                event_response = requests.get(booking.calendly_event_uri, headers=headers, timeout=15)
+                event_response.raise_for_status()
+                event_full_details = event_response.json().get('resource', {})
+                current_app.logger.info(f"Calendly full event_details received: {json.dumps(event_full_details, indent=2)}")
+                # Use these details as the primary source if they contain times
+                if event_full_details.get('start_time') and event_full_details.get('end_time'):
+                    event_details_source = event_full_details
+                    start_time_str = event_details_source.get('start_time')
+                    end_time_str = event_details_source.get('end_time')
+                else:
+                    current_app.logger.warning("Full event details fetched but still missing start_time or end_time.")
+            except requests.exceptions.HTTPError as e_event:
+                current_app.logger.error(f"Calendly API HTTPError fetching event details for {booking.calendly_event_uri}: {e_event.response.text if e_event.response else str(e_event)}")
+                # Continue without failing, times will remain null if not found
+            except Exception as e_event_generic:
+                current_app.logger.error(f"Generic error fetching event details for {booking.calendly_event_uri}: {str(e_event_generic)}")
+        elif not (start_time_str and end_time_str):
+            current_app.logger.warning("Could not determine source for event times (no start/end time in invitee_data and no event_uri to fetch). Times will remain null.")
+        else:
+            current_app.logger.info(f"Event times found directly in invitee data or its 'scheduled_event' object: Start: {start_time_str}, End: {end_time_str}")
+
 
         # If start_time/end_time are directly on the invitee's scheduled_event object (common)
         if invitee_data.get('scheduled_event') and isinstance(invitee_data['scheduled_event'], dict):
@@ -1387,8 +1425,8 @@ def sync_booking_with_calendly_details():
         else: # Fallback to top-level fields if they exist or use what we got from initial webhook
              event_payload_source = invitee_data
 
-        start_time_str = event_payload_source.get('start_time')
-        end_time_str = event_payload_source.get('end_time')
+        start_time_str = event_details_source.get('start_time')
+        end_time_str = event_details_source.get('end_time')
 
         if start_time_str:
             booking.calendly_event_start_time = dt.fromisoformat(start_time_str.replace('Z', '+00:00'))
