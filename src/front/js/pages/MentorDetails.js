@@ -65,23 +65,10 @@ export const MentorDetails = () => {
     }, [theid, actions, store.mentors]);
 
     const handleBookSession = () => {
-        // Check if user is authenticated
-        if (!store.token || !store.currentUserData) {
-            sessionStorage.setItem('redirectAfterLogin', window.location.pathname);
-            alert("You need to be logged in to book a session. Redirecting to login page...");
-            navigate("/login"); // Assuming you have a /login route
-            return;
-        }
-
-        // Scroll to Calendly section and then proceed with booking logic
+        // Always scroll to Calendly section
         if (calendlySectionRef.current) {
             calendlySectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
-        // The rest of the booking logic (showing payment modal etc.) can remain here
-        // or be triggered after a slight delay if needed for the scroll to complete.
-        // For now, let's assume immediate continuation is fine.
-        // setShowPaymentModal(true); // This will be handled by CalendlyAvailability now
-        // setBookingStep('payment');
     };
 
     // Handle payment success - Updated to show CalendlyAvailability2
