@@ -311,20 +311,56 @@ def mentor_by_id():
 
     return jsonify(mentor.serialize()), 200
 
-@api.route('/mentor/edit-self', methods={'PUT'})
+@api.route('/mentor/edit-self', methods=['PUT'])
 @mentor_required
 def mentor_edit_self():
     mentor_id = get_jwt_identity()
     mentor = Mentor.query.get(mentor_id)
-    changes = request.json
-    for key, value in changes.items():
-        if key == 'password':
-            setattr(mentor, key, generate_password_hash(value))
-            continue
-        if(hasattr(mentor, key)):
-            setattr(mentor, key, value)
-    db.session.commit()
-    return jsonify({"msg": "user updated", "user": mentor.serialize()}), 200
+    if not mentor:
+        return jsonify({"msg": "Mentor not found"}), 404
+
+    data = request.json
+    if not data:
+        return jsonify({"msg": "No data provided"}), 400
+
+    # Define a list of fields that are safe to update directly from the main profile form
+    updatable_fields = [
+        'first_name', 'last_name', 'nick_name', 'phone', 'city',
+        'what_state', 'country', 'about_me', 'years_exp', 'skills',
+        'days', 'price', 'calendly_url'
+    ]
+
+    try:
+        for key, value in data.items():
+            if key in updatable_fields:
+                # Special handling for price to ensure it's a Decimal or None
+                if key == 'price':
+                    if value is None or value == 'None' or str(value).strip() == '':
+                        setattr(mentor, key, None)
+                    else:
+                        try:
+                            from decimal import Decimal
+                            setattr(mentor, key, Decimal(value))
+                        except Exception:
+                            current_app.logger.warning(f"Could not convert price '{value}' to Decimal for mentor {mentor_id}. Skipping update for this field.")
+                            continue
+                else:
+                    setattr(mentor, key, value)
+        
+        db.session.commit()
+        
+        # After successful commit, refresh the object to get the latest state from the DB
+        db.session.refresh(mentor)
+        
+        current_app.logger.info(f"Successfully updated profile for mentor {mentor_id}")
+        return jsonify({"msg": "User updated successfully", "user": mentor.serialize()}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error updating mentor {mentor_id}: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({"msg": "An internal error occurred while updating the profile."}), 500
 
 @api.route('/mentor/bookings', methods=['GET'])
 @mentor_required
