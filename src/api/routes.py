@@ -1331,7 +1331,6 @@ def sync_booking_with_calendly_details():
 
         booking.status = BookingStatus.CONFIRMED
         booking.scheduled_at = datetime.utcnow()
-        booking.meeting_link = join_url # Save the meeting link
 
         db.session.commit()
         current_app.logger.info(f"Booking {booking_id} successfully synced with detailed Calendly info.")
