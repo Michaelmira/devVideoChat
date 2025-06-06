@@ -1220,24 +1220,29 @@ def update_booking_calendly_details(booking_id):
 @api.route('/bookings/<int:booking_id>', methods=['GET'])
 @jwt_required()
 def get_booking_by_id(booking_id):
-    """Get a specific booking by ID"""
-    current_customer_id = get_jwt_identity()
-    
+    """Get a specific booking by ID, accessible by either the customer or the mentor."""
+    user_id = get_jwt_identity()
+    role = get_jwt().get('role')
+
     # Get the booking and verify it exists
     booking = Booking.query.get(booking_id)
     if not booking:
         return jsonify({"msg": "Booking not found"}), 404
-    
-    # Verify ownership - customer can only see their own bookings
-    if booking.customer_id != current_customer_id:
-        return jsonify({"msg": "Unauthorized - not your booking"}), 403
-    
+
+    # Verify ownership - either the customer or the mentor associated with the booking can access it.
+    if role == 'customer' and booking.customer_id == user_id:
+        pass  # Customer is authorized
+    elif role == 'mentor' and booking.mentor_id == user_id:
+        pass  # Mentor is authorized
+    else:
+        return jsonify({"msg": "Unauthorized - you do not have permission to view this booking"}), 403
+
     try:
         return jsonify({
             "success": True,
             "booking": booking.serialize()
         }), 200
-        
+
     except Exception as e:
         current_app.logger.error(f"Error retrieving booking {booking_id}: {str(e)}")
         return jsonify({"msg": "Failed to retrieve booking"}), 500
