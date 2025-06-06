@@ -236,7 +236,7 @@ class Booking(db.Model):
         return {
             "id": self.id,
             "customer_name": self.customer.first_name + " " + self.customer.last_name if self.customer else "N/A",
-            "scheduled_at": self.scheduled_at.isoformat() if self.scheduled_at else None,
+            "scheduled_at": self.calendly_event_start_time.isoformat() if self.calendly_event_start_time else None,
             "status": self.status.value,
             "amount_paid": str(self.amount_paid),
             "mentor_payout_amount": str(self.mentor_payout_amount),
@@ -247,7 +247,7 @@ class Booking(db.Model):
         return {
             "id": self.id,
             "mentor_name": self.mentor.first_name + " " + self.mentor.last_name if self.mentor else "N/A",
-            "scheduled_at": self.scheduled_at.isoformat() if self.scheduled_at else None,
+            "scheduled_at": self.calendly_event_start_time.isoformat() if self.calendly_event_start_time else None,
             "status": self.status.value,
             "amount_paid": str(self.amount_paid),
             "google_meet_link": "https://meet.google.com/your-meeting-link" # Placeholder
