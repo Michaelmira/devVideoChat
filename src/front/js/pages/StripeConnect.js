@@ -87,7 +87,7 @@ export const StripeConnect = () => {
             const data = await response.json();
 
             if (data.url) {
-                window.location.href = data.url;
+                window.top.location.href = data.url;
             } else {
                 throw new Error("Stripe URL not found in response");
             }
