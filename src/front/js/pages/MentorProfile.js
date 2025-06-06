@@ -37,6 +37,7 @@ import "../../styles/mentorProfile.css";
 
 import { CalendlyConnectionHandler } from "../component/CalendlyConnectionHandler";
 import { AuthDebugComponent } from "../component/AuthDebugComponet";
+import { StripeConnect } from "./StripeConnect";
 
 export const MentorProfile = () => {
   const { actions } = useContext(Context);
@@ -1015,6 +1016,10 @@ export const MentorProfile = () => {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="mb-3">
+        <StripeConnect />
       </div>
 
       <ToastContainer position="top-right" autoClose={5000} newestOnTop={true} />
