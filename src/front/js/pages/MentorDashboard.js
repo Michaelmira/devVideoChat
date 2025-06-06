@@ -71,6 +71,9 @@ export const MentorDashboard = () => {
 									<p className="mb-1">
 										<strong>Date & Time:</strong> {booking.scheduled_at ? new Date(booking.scheduled_at).toLocaleString() : 'Not Scheduled'}
 									</p>
+									<p className="mb-1">
+										<strong>Meeting Link:</strong> <a href={booking.google_meet_link} target="_blank" rel="noopener noreferrer">{booking.google_meet_link}</a>
+									</p>
 									<small>Booking ID: {booking.id}</small>
 								</div>
 							))}

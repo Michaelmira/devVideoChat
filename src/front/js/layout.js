@@ -19,6 +19,7 @@ import { MentorDetails } from "./pages/MentorDetails";
 import { BookingDetailsPage } from "./pages/BookingDetailsPage";
 import { BookingConfirmedPage } from "./pages/BookingConfirmedPage";
 import CustomerDashboard from "./pages/CustomerDashboard";
+import CustomerProfile from "./pages/CustomerProfile";
 
 
 //create your first component
@@ -59,6 +60,7 @@ const Layout = () => {
                     <Routes>
                         <Route element={<Home />} path="/" />
                         <Route element={<MentorProfile />} path="/mentor-profile" />
+                        <Route element={<CustomerProfile />} path="/customer-profile" />
                         <Route element={<Single />} path="/single/:theid" />
                         <Route element={<MentorList />} path="/mentor-list" />
                         <Route element={<MentorDashboard />} path="/mentor-dashboard" />

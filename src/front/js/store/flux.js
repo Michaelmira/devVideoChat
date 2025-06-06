@@ -442,6 +442,35 @@ const getState = ({ getStore, getActions, setStore }) => {
                 }
             },
 
+            editCustomer: async (customer) => {
+                const token = getStore().token;
+                if (!token) {
+                    console.error("No token available for editing customer.");
+                    return false;
+                }
+
+                try {
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/customer/edit-self`, {
+                        method: "PUT",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${token}`
+                        },
+                        body: JSON.stringify(customer)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Failed to update customer with status: ${response.status}`);
+                    }
+                    const data = await response.json();
+                    setStore({ currentUserData: data.customer }); // Assuming API returns the updated customer
+                    return true;
+                } catch (error) {
+                    console.error("Error in editCustomer:", error);
+                    return false;
+                }
+            },
+
             verifyCustomer: ({ access_token, customer_id, ...args }) => {
                 setStore({
                     token: access_token,
