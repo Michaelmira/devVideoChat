@@ -14,54 +14,53 @@ export const BookingConfirmedPage = () => {
     const [error, setError] = useState('');
 
     useEffect(() => {
-        if (bookingData && bookingId && bookingData.id?.toString() === bookingId) {
-            // If we have bookingData from location.state and its ID matches the URL param, no need to fetch.
+        // This function will fetch the booking details from the backend.
+        const fetchBooking = async () => {
+            setIsLoading(true);
+            setError('');
+            try {
+                const result = await actions.getBookingDetails(bookingId);
+                if (result && result.success && result.booking) {
+                    setBookingData(result.booking);
+                    if (result.booking.mentor) {
+                        setMentorName(`${result.booking.mentor.first_name} ${result.booking.mentor.last_name}`);
+                    }
+                    setRequiresManualConfirmation(result.booking.status !== 'CONFIRMED');
+                } else {
+                    setError(result?.message || 'Failed to fetch booking details.');
+                    setBookingData(null); // Clear any stale data
+                }
+            } catch (err) {
+                console.error("Error fetching booking details:", err);
+                setError('An error occurred while fetching booking details.');
+                setBookingData(null);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        if (!bookingId) {
+            // This case should ideally not be reached if routes are set up correctly
+            setError('No booking ID found to load details.');
             setIsLoading(false);
-            // Optionally, update mentorName if not already set and bookingData has it
+            setBookingData(null);
+            return;
+        }
+
+        // If we already have the correct booking data (from location.state), don't fetch.
+        // This is a performance optimization.
+        if (bookingData && bookingData.id?.toString() === bookingId) {
+            setIsLoading(false);
             if (!mentorName && bookingData.mentor) {
                 setMentorName(`${bookingData.mentor.first_name} ${bookingData.mentor.last_name}`);
             }
             return;
         }
 
-        if (bookingId) {
-            setIsLoading(true);
-            setError('');
-            actions.getBookingDetails(bookingId)
-                .then(result => {
-                    if (result && result.success && result.booking) {
-                        setBookingData(result.booking);
-                        // Attempt to set mentor name from the fetched booking data if available
-                        // This part depends on your booking.serialize() including mentor details or making another fetch
-                        if (result.booking.mentor) { // Check if mentor details are directly in booking
-                            setMentorName(`${result.booking.mentor.first_name} ${result.booking.mentor.last_name}`);
-                        } else if (result.booking.mentor_id) {
-                            // If only mentor_id is present, you might need another action to fetch mentor details
-                            // For now, we'll leave mentorName potentially blank if not in location.state or direct booking payload
-                            console.log("Mentor details not directly in booking, consider fetching by ID:", result.booking.mentor_id);
-                        }
-                        // requiresManualConfirmation might not be available from a direct fetch, default to false or infer if needed
-                        setRequiresManualConfirmation(result.booking.status !== 'CONFIRMED');
-                    } else {
-                        setError(result?.message || 'Failed to fetch booking details.');
-                        setBookingData(null);
-                    }
-                })
-                .catch(err => {
-                    console.error("Error fetching booking details:", err);
-                    setError('An error occurred while fetching booking details.');
-                    setBookingData(null);
-                })
-                .finally(() => {
-                    setIsLoading(false);
-                });
-        } else {
-            // No bookingId in URL, and no data from location.state implies an issue.
-            setError('No booking ID found to load details.');
-            setIsLoading(false);
-            setBookingData(null);
-        }
-    }, [bookingId, actions, location.state]); // location.state removed as direct dependency to avoid re-fetch if only state changes slightly but bookingId is primary key
+        // Otherwise, fetch the data.
+        fetchBooking();
+
+    }, [bookingId, actions]); // Removed location.state from dependencies
 
     if (isLoading) {
         return (
