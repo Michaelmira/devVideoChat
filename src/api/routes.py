@@ -20,8 +20,6 @@ from cloudinary.api import delete_resources_by_tag
 from api.models import db, Mentor, Customer, MentorImage, PortfolioPhoto, Booking, BookingStatus
 from api.utils import generate_sitemap, APIException
 from api.decorators import mentor_required, customer_required
-from api.send_email import send_email
-
 
 import pytz
 from enum import Enum as PyEnum
@@ -35,7 +33,7 @@ from google.oauth2.credentials import Credentials
 import requests # For making HTTP requests to Calendly
 import secrets # For generating secure state tokens for OAuth
 
-from .email_utils import send_booking_confirmation_email
+from .email_utils import send_email, send_booking_confirmation_email
 from datetime import datetime as dt
 
 from dotenv import load_dotenv
