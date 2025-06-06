@@ -223,8 +223,6 @@ class Booking(db.Model):
     platform_fee = db.Column(Numeric(10,2), nullable=True)
     mentor_payout_amount = db.Column(Numeric(10,2), nullable=True)
 
-    meeting_link = db.Column(db.String(500), nullable=True)
-
     status = db.Column(Enum(BookingStatus), default=BookingStatus.PENDING_PAYMENT, nullable=False)
 
     # Relationships
@@ -260,14 +258,8 @@ class Booking(db.Model):
             "mentor_payout_amount": str(self.mentor_payout_amount) if self.mentor_payout_amount is not None else None,
             
             "status": self.status.value,
-            "meeting_link": self.meeting_link
-        }
-
-    def serialize_for_mentor(self):
-        return {
-            "id": self.id,
-            "client_name": self.customer.first_name + " " + self.customer.last_name,
-            "start_time": self.calendly_event_start_time.isoformat() if self.calendly_event_start_time else None,
-            "status": self.status.value,
-            "meeting_link": self.meeting_link
+            
+            # Optional: include serialized mentor/customer details
+            "mentor": self.mentor.serialize() if self.mentor else None, 
+            "customer": self.customer.serialize() if self.customer else None,
         }

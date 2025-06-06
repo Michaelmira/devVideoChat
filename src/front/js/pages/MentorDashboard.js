@@ -15,8 +15,7 @@ export const MentorDashboard = () => {
 		} else {
 			setMentorData(store.currentUserData.user_data);
 		}
-		actions.getMentorBookings();
-	}, [store.currentUserData, actions]);
+	}, [store.currentUserData]);
 
 	return (
 		<div className="container mt-5">
@@ -39,26 +38,6 @@ export const MentorDashboard = () => {
 					<h2 className="text-center h4 mb-3">Internal Availability Overview</h2>
 					<p className="text-center text-muted small">This component might show your general availability settings within our platform (if applicable).</p>
 					<div className="card"><div className="card-body"><MentorAvailability /></div></div>
-				</div>
-			</div>
-
-			<div className="row">
-				<div className="col">
-					<h2>Upcoming Bookings</h2>
-					{store.mentorBookings && store.mentorBookings.length > 0 ? (
-						<ul className="list-group">
-							{store.mentorBookings.map(booking => (
-								<li key={booking.id} className="list-group-item">
-									<p><strong>Client:</strong> {booking.client_name}</p>
-									<p><strong>Time:</strong> {new Date(booking.start_time).toLocaleString()}</p>
-									<p><strong>Status:</strong> {booking.status}</p>
-									<p><strong>Meeting Link:</strong> <a href={booking.meeting_link} target="_blank" rel="noopener noreferrer">{booking.meeting_link}</a></p>
-								</li>
-							))}
-						</ul>
-					) : (
-						<p>You have no upcoming bookings.</p>
-					)}
 				</div>
 			</div>
 		</div>

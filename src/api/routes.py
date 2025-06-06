@@ -136,27 +136,6 @@ def mentor_login():
         "mentor_data": mentor.serialize()
     }), 200
 
-# @api.route("/forgot-password", methods=["POST"])
-# def forgot_password():
-#     data=request.json
-#     email=data.get("email")
-#     # want to get user type in the same fashion as email
-#     if not email:
-#         return jsonify({"message": "Email is required"}), 400
-    
-#     user = Mentor.query.filter_by(email=email).first() or Customer.query.filter_by(email=email).first()
-#     if user is None:
-#         return jsonify({"message": "Email does not exist"}), 400
-    
-#     expiration_time = datetime.utcnow() + timedelta(hours=1)
-#     token = jwt.encode({"email": email, "exp": expiration_time}, os.getenv("FLASK_APP_KEY"), algorithm="HS256")
-
-#     # /?userType = {usertype} in the email value
-#     # email_value = f"Here is the password recovery link!\n{os.getenv('FRONTEND_URL')}/reset-password?token={token}"
-#     email_value = f"Here is the password recovery link!\n{os.getenv('FRONTEND_URL')}/?token={token}"
-#     send_email(email, email_value, "Subject: Password recovery for devMentor")
-#     return jsonify({"message": "Recovery password email has been sent!"}), 200
-
 @api.route("/forgot-password", methods=["POST"])
 def forgot_password():
     data = request.json
@@ -206,46 +185,6 @@ def forgot_password():
     
     send_email(email, email_html, "Password Reset Request: devMentor")
     return jsonify({"message": "Recovery password email has been sent!"}), 200
-
-# @api.route("/reset-password/<token>", methods=["PUT"])
-# def reset_password(token):
-#     data = request.get_json()
-#     password = data.get("password")
-
-#     if not password:
-#         return jsonify({"message": "Please provide a new password."}), 400
-
-#     try:
-#         decoded_token = jwt.decode(token, os.getenv("FLASK_APP_KEY"), algorithms=["HS256"])
-#         email = decoded_token.get("email")
-#     # except Exception as e:
-#     #     return jsonify({"message": "Invalid or expired token."}), 400
-#     except jwt.ExpiredSignatureError:
-#         return jsonify({"message": "Token has expired"}), 400
-#     except jwt.InvalidTokenError:
-#         return jsonify({"message": "Invalid token"}), 400
-
-#     # email = json_secret.get('email')
-#     # if not email:
-#     #     return jsonify({"message": "Invalid token data."}), 400
-
-#     mentor = Mentor.query.filter_by(email=email).first()
-#     customer = Customer.query.filter_by(email=email).first()
-
-#     user = Mentor.query.filter_by(email=email).first() or Customer.query.filter_by(email=email).first()
-#     if not user:
-#         return jsonify({"message": "Email does not exist"}), 400
-
-#     # user.password = hashlib.sha256(password.encode()).hexdigest()
-#     user.password = generate_password_hash(password)
-#     db.session.commit()
-
-#     send_email(email, "Your password has been changed successfully.", "Password Change Notification")
-
-#     return jsonify({
-#         "message": "Password successfully changed.", 
-#         "role": "mentor" if mentor else "customer" if customer else None
-#     }), 200
 
 @api.route("/reset-password/<token>", methods=["PUT"])
 def reset_password(token):
@@ -751,45 +690,33 @@ def webhook():
 def track_booking():
     try:
         user_id = get_jwt_identity()
-        # role = get_jwt()['role'] # Role might not be strictly needed if we assume customer books
         data = request.get_json()
         
-        # Required fields
         mentor_id = data.get('mentorId')
-        paid_date_time_str = data.get('paidDateTime') # Expecting ISO string
-        client_email = data.get('clientEmail') # This might be redundant if customer is logged in
+        paid_date_time_str = data.get('paidDateTime')
         amount_str = data.get('amount')
+        stripe_payment_intent_id = data.get('stripePaymentIntentId')
         
-        # Optional fields from frontend that might be passed
-        # Ensure this key matches what frontend sends (stripePaymentIntentId)
-        stripe_payment_intent_id = data.get('stripePaymentIntentId') 
-        
-        # Validate data
-        if not mentor_id or not paid_date_time_str or not amount_str:
+        if not all([mentor_id, paid_date_time_str, amount_str]):
             current_app.logger.error(f"Track booking missing required fields: mentor_id={mentor_id}, paid_date_time={paid_date_time_str}, amount={amount_str}")
             return jsonify({"error": "Missing required fields"}), 400
         
         customer = Customer.query.get(user_id)
         if not customer:
-            current_app.logger.error(f"Customer not found for ID: {user_id} during track-booking")
+            current_app.logger.error(f"Customer not found for ID: {user_id}")
             return jsonify({"error": "Customer not found"}), 404
 
         mentor = Mentor.query.get(mentor_id)
         if not mentor:
-            current_app.logger.error(f"Mentor not found for ID: {mentor_id} during track-booking")
+            current_app.logger.error(f"Mentor not found for ID: {mentor_id}")
             return jsonify({"error": "Mentor not found"}), 404
 
         try:
             paid_date_time = dt.fromisoformat(paid_date_time_str.replace('Z', '+00:00'))
-        except ValueError:
-            current_app.logger.error(f"Invalid paidDateTime format: {paid_date_time_str}")
-            return jsonify({"error": "Invalid date format for paidDateTime"}), 400
-        
-        try:
             amount = Decimal(amount_str)
-        except:
-            current_app.logger.error(f"Invalid amount format: {amount_str}")
-            return jsonify({"error": "Invalid amount format"}), 400
+        except (ValueError, TypeError) as e:
+            current_app.logger.error(f"Invalid data format: {e}")
+            return jsonify({"error": "Invalid data format"}), 400
 
         platform_fee = amount * Decimal('0.10')
         mentor_payout = amount - platform_fee
@@ -798,28 +725,27 @@ def track_booking():
             mentor_id=mentor_id,
             customer_id=user_id,
             paid_at=paid_date_time,
-            # calendly_event_start_time, calendly_event_end_time will be set later
-            invitee_name=f"{customer.first_name} {customer.last_name}", # Pre-fill from customer profile
-            invitee_email=customer.email, # Pre-fill from customer profile
-            stripe_payment_intent_id=stripe_payment_intent_id, # Save the ID
+            invitee_name=f"{customer.first_name} {customer.last_name}",
+            invitee_email=customer.email,
+            stripe_payment_intent_id=stripe_payment_intent_id,
             amount_paid=amount,
-            currency='usd', # Assuming USD for now
+            currency='usd',
             platform_fee=platform_fee,
             mentor_payout_amount=mentor_payout,
-            status=BookingStatus.PAID # Or a more specific "PENDING_CALENDLY_CONFIRMATION" if you add it
+            status=BookingStatus.PAID
         )
         
         db.session.add(new_booking)
         db.session.commit()
-        db.session.refresh(new_booking) # To get the ID and other defaults
+        db.session.refresh(new_booking)
         
         current_app.logger.info(f"Booking {new_booking.id} tracked successfully for mentor {mentor_id}, customer {user_id}")
         
         return jsonify({
             "success": True, 
-            "id": new_booking.id, # CRITICAL: return the booking ID
+            "id": new_booking.id,
             "message": "Booking tracked successfully, pending final Calendly confirmation.",
-            "booking": new_booking.serialize() # Optional: return serialized booking
+            "booking": new_booking.serialize()
         }), 201
         
     except Exception as e:
@@ -1204,27 +1130,63 @@ def get_valid_calendly_access_token(mentor_id):
 @api.route('/bookings/<int:booking_id>/calendly-details', methods=['PUT'])
 @jwt_required()
 def update_booking_calendly_details(booking_id):
+    """Update a booking with Calendly event details after final scheduling"""
+    current_customer_id = get_jwt_identity()
+    
+    # Get the booking and verify ownership
     booking = Booking.query.get(booking_id)
     if not booking:
-        return jsonify({"success": False, "message": "Booking not found"}), 404
+        return jsonify({"msg": "Booking not found"}), 404
 
-    # Optional: Check if the current user is the customer who made the booking
-    # current_user_id = get_jwt_identity()
-    # if booking.customer_id != current_user_id:
-    #     return jsonify({"success": False, "message": "Unauthorized"}), 403
-
-    data = request.json
-    join_url = data.get('join_url')
+    if booking.customer_id != current_customer_id:
+        return jsonify({"msg": "Unauthorized - not your booking"}), 403
     
-    if join_url:
-        booking.meeting_link = join_url
+    data = request.get_json()
+    calendly_event_uri = data.get('calendly_event_uri')
+    calendly_invitee_uri = data.get('calendly_invitee_uri')
+    calendly_event_start_time_str = data.get('calendly_event_start_time')
+    calendly_event_end_time_str = data.get('calendly_event_end_time')
+    invitee_name = data.get('invitee_name')
+    invitee_email = data.get('invitee_email')
+    invitee_notes = data.get('invitee_notes')
+    
+    if not calendly_event_uri:
+        return jsonify({"msg": "Missing required Calendly event URI"}), 400
+    
+    try:
+        # Update the booking with Calendly details
+        booking.calendly_event_uri = calendly_event_uri
+        if calendly_invitee_uri:
+            booking.calendly_invitee_uri = calendly_invitee_uri
+        if calendly_event_start_time_str:
+            booking.calendly_event_start_time = dt.fromisoformat(calendly_event_start_time_str.replace('Z', '+00:00'))
+        if calendly_event_end_time_str:
+            booking.calendly_event_end_time = dt.fromisoformat(calendly_event_end_time_str.replace('Z', '+00:00'))
+        if invitee_name:
+            booking.invitee_name = invitee_name
+        if invitee_email:
+            booking.invitee_email = invitee_email
+        if invitee_notes:
+            booking.invitee_notes = invitee_notes
 
-    # You can also update other fields if they are sent
-    # e.g., booking.status = BookingStatus.CONFIRMED
+        # Update status to confirmed since Calendly event is now scheduled
+        booking.status = BookingStatus.CONFIRMED
+        booking.scheduled_at = datetime.utcnow()
 
-    db.session.commit()
+        db.session.commit()
 
-    return jsonify({"success": True, "message": "Booking updated successfully", "booking": booking.serialize()})
+        current_app.logger.info(f"Successfully updated booking {booking_id} with Calendly details")
+        
+        return jsonify({
+            "success": True,
+            "message": "Booking updated with Calendly details",
+            "booking": booking.serialize()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error updating booking {booking_id} with Calendly details: {str(e)}")
+        return jsonify({"msg": "Failed to update booking"}), 500
 
 @api.route('/bookings/<int:booking_id>', methods=['GET'])
 @jwt_required()
