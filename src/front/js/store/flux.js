@@ -1172,6 +1172,36 @@ const getState = ({ getStore, getActions, setStore }) => {
                     return []; // Return empty array on error
                 }
             },
+
+            syncBookingDetails: async (bookingData) => {
+                const store = getStore();
+                const token = sessionStorage.getItem("access_token");
+                if (!token) return { success: false, error: "No access token found" };
+
+                try {
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/booking/calendly-sync`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify(bookingData)
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        // Refresh the user's data to get the updated booking list
+                        await getActions().getCurrentUser();
+                        return { success: true, booking: data.booking };
+                    } else {
+                        const error = await response.json();
+                        return { success: false, error: error.message || "Failed to sync booking details" };
+                    }
+                } catch (error) {
+                    console.error("Error syncing booking details:", error);
+                    return { success: false, error: "An unexpected error occurred during sync." };
+                }
+            },
         }
     };
 };

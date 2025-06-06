@@ -1290,7 +1290,7 @@ def sync_booking_with_calendly_details():
     data = request.get_json()
 
     booking_id = data.get('bookingId')
-    calendly_event_uri = data.get('calendlyEventUri') # We might not strictly need this if invitee URI is enough
+    calendly_event_uri = data.get('calendlyEventUri')
     calendly_invitee_uri = data.get('calendlyInviteeUri')
     mentor_id = data.get('mentorId')
 
@@ -1310,30 +1310,27 @@ def sync_booking_with_calendly_details():
     access_token, token_error_msg = get_valid_calendly_access_token(mentor_id)
     if token_error_msg or not access_token:
         current_app.logger.warning(f"No valid Calendly token for mentor {mentor_id} during sync: {token_error_msg}")
-        return jsonify({"success": False, "message": token_error_msg or "Could not get Calendly token for mentor."}), 401 # Or 503
+        return jsonify({"success": False, "message": token_error_msg or "Could not get Calendly token for mentor."}), 401
 
     try:
         headers = {'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'}
-        # Fetch details from the Invitee URI - this usually has all the needed data including event times
-        # Example: GET https://api.calendly.com/scheduled_events/{event_uuid}/invitees/{invitee_uuid}
+        
+        # Fetch details from the Invitee URI
         current_app.logger.info(f"Fetching Calendly invitee details from: {calendly_invitee_uri}")
         invitee_response = requests.get(calendly_invitee_uri, headers=headers, timeout=15)
-        invitee_response.raise_for_status() # Will raise HTTPError for bad responses (4xx or 5xx)
+        invitee_response.raise_for_status()
         
         invitee_data = invitee_response.json().get('resource', {})
-        # current_app.logger.info(f"Calendly invitee_data received: {json.dumps(invitee_data, indent=2)}") # Verbose
-
-        # Extract data - paths might need adjustment based on actual Calendly API response
-        booking.calendly_event_uri = invitee_data.get('event', calendly_event_uri) # Fallback to original if not in invitee payload
-        booking.calendly_invitee_uri = invitee_data.get('uri', calendly_invitee_uri) # Usually this is the same
         
-        event_details_source = invitee_data # Default to invitee data
-
-        # Try to get start_time and end_time
+        # Extract basic data
+        booking.calendly_event_uri = invitee_data.get('event', calendly_event_uri)
+        booking.calendly_invitee_uri = invitee_data.get('uri', calendly_invitee_uri)
+        
+        event_details_source = invitee_data
         start_time_str = event_details_source.get('start_time')
         end_time_str = event_details_source.get('end_time')
 
-        # If 'scheduled_event' object exists within invitee_data and contains times, prioritize it
+        # Check for nested scheduled_event data
         if 'scheduled_event' in invitee_data and isinstance(invitee_data['scheduled_event'], dict):
             current_app.logger.info("Found 'scheduled_event' in invitee_data.")
             potential_event_source = invitee_data['scheduled_event']
@@ -1343,75 +1340,126 @@ def sync_booking_with_calendly_details():
                 start_time_str = event_details_source.get('start_time')
                 end_time_str = event_details_source.get('end_time')
 
-        # If times are still missing and we have a valid event URI, fetch the full event details
+        # If we still need event details, fetch the full event
+        event_full_details = None
         if not (start_time_str and end_time_str) and booking.calendly_event_uri:
-            current_app.logger.info(f"Event times not found in invitee data or nested 'scheduled_event'. Fetching full event details from: {booking.calendly_event_uri}")
+            current_app.logger.info(f"Fetching full event details from: {booking.calendly_event_uri}")
             try:
                 event_response = requests.get(booking.calendly_event_uri, headers=headers, timeout=15)
                 event_response.raise_for_status()
                 event_full_details = event_response.json().get('resource', {})
-                # current_app.logger.info(f"Calendly full event_details received: {json.dumps(event_full_details, indent=2)}") # Verbose
-                # Use these details as the primary source if they contain times
+                
                 if event_full_details.get('start_time') and event_full_details.get('end_time'):
                     event_details_source = event_full_details
                     start_time_str = event_details_source.get('start_time')
                     end_time_str = event_details_source.get('end_time')
-                else:
-                    current_app.logger.warning("Full event details fetched but still missing start_time or end_time.")
+                    
             except requests.exceptions.HTTPError as e_event:
-                current_app.logger.error(f"Calendly API HTTPError fetching event details for {booking.calendly_event_uri}: {e_event.response.text if e_event.response else str(e_event)}")
-                # Continue without failing, times will remain null if not found
+                current_app.logger.error(f"Calendly API HTTPError fetching event details: {e_event.response.text if e_event.response else str(e_event)}")
             except Exception as e_event_generic:
-                current_app.logger.error(f"Generic error fetching event details for {booking.calendly_event_uri}: {str(e_event_generic)}")
-        elif not (start_time_str and end_time_str):
-            current_app.logger.warning("Could not determine source for event times (no start/end time in invitee_data and no event_uri to fetch). Times will remain null.")
-        else:
-            current_app.logger.info(f"Event times found directly in invitee data or its 'scheduled_event' object: Start: {start_time_str}, End: {end_time_str}")
+                current_app.logger.error(f"Generic error fetching event details: {str(e_event_generic)}")
 
+        # ===== NEW: Extract Google Meet Link =====
+        google_meet_link = None
+        
+        # First, try to get it from the event details we already have
+        if event_details_source:
+            # Check for location field which might contain the Google Meet link
+            location = event_details_source.get('location', {})
+            if isinstance(location, dict):
+                # Calendly typically stores Google Meet links in location.join_url
+                google_meet_link = location.get('join_url') or location.get('url')
+                if google_meet_link:
+                    current_app.logger.info(f"Found Google Meet link in event location: {google_meet_link}")
+            elif isinstance(location, str) and 'meet.google.com' in location:
+                google_meet_link = location
+                current_app.logger.info(f"Found Google Meet link in location string: {google_meet_link}")
+        
+        # If we didn't find it in the existing data and we have full event details, check there
+        if not google_meet_link and event_full_details:
+            location = event_full_details.get('location', {})
+            if isinstance(location, dict):
+                google_meet_link = location.get('join_url') or location.get('url')
+                if google_meet_link:
+                    current_app.logger.info(f"Found Google Meet link in full event details: {google_meet_link}")
+            elif isinstance(location, str) and 'meet.google.com' in location:
+                google_meet_link = location
+                
+        # If we still don't have the Google Meet link, fetch the full event details specifically for it
+        if not google_meet_link and booking.calendly_event_uri and not event_full_details:
+            current_app.logger.info(f"Fetching event details specifically for Google Meet link from: {booking.calendly_event_uri}")
+            try:
+                event_response = requests.get(booking.calendly_event_uri, headers=headers, timeout=15)
+                event_response.raise_for_status()
+                event_full_details = event_response.json().get('resource', {})
+                
+                location = event_full_details.get('location', {})
+                if isinstance(location, dict):
+                    google_meet_link = location.get('join_url') or location.get('url')
+                elif isinstance(location, str) and 'meet.google.com' in location:
+                    google_meet_link = location
+                    
+                if google_meet_link:
+                    current_app.logger.info(f"Found Google Meet link in dedicated fetch: {google_meet_link}")
+                    
+            except Exception as e:
+                current_app.logger.error(f"Error fetching event details for Google Meet link: {str(e)}")
 
-        # If start_time/end_time are directly on the invitee's scheduled_event object (common)
-        if invitee_data.get('scheduled_event') and isinstance(invitee_data['scheduled_event'], dict):
-             event_payload_source = invitee_data['scheduled_event']
-        else: # Fallback to top-level fields if they exist or use what we got from initial webhook
-             event_payload_source = invitee_data
+        # Fallback: If no Google Meet link found, keep the existing one or generate a new one
+        if not google_meet_link:
+            if booking.google_meet_link:
+                current_app.logger.info("No Google Meet link found in Calendly data, keeping existing booking link")
+                google_meet_link = booking.google_meet_link
+            else:
+                # Generate a fallback Google Meet link
+                google_meet_link = f"https://meet.google.com/lookup/{booking.stripe_payment_intent_id}"
+                current_app.logger.info(f"Generated fallback Google Meet link: {google_meet_link}")
 
-        start_time_str = event_details_source.get('start_time')
-        end_time_str = event_details_source.get('end_time')
-
+        # Update booking with all the details including Google Meet link
         if start_time_str:
             booking.calendly_event_start_time = dt.fromisoformat(start_time_str.replace('Z', '+00:00'))
         if end_time_str:
             booking.calendly_event_end_time = dt.fromisoformat(end_time_str.replace('Z', '+00:00'))
         
-        booking.invitee_name = invitee_data.get('name', booking.invitee_name) # Keep existing if not found
+        booking.invitee_name = invitee_data.get('name', booking.invitee_name)
         booking.invitee_email = invitee_data.get('email', booking.invitee_email)
         
+        # Update Google Meet link
+        booking.google_meet_link = google_meet_link
+        
+        # Handle questions and answers for notes
         questions_and_answers = invitee_data.get('questions_and_answers', [])
         if questions_and_answers:
             notes_answer = next((qa.get('answer') for qa in questions_and_answers if qa.get('question','').lower().strip() in [
                 "notes or special requests?", 
                 "please share anything that will help prepare for our meeting.",
                 "notes",
-                # Add more common note questions here from your Calendly setup
             ]), None)
             if notes_answer:
                 booking.invitee_notes = notes_answer
-            elif not booking.invitee_notes and questions_and_answers: # If no specific note, but other Q&A exist, take the first answer as a generic note
+            elif not booking.invitee_notes and questions_and_answers:
                 booking.invitee_notes = questions_and_answers[0].get('answer')
 
         booking.status = BookingStatus.CONFIRMED
         booking.scheduled_at = datetime.utcnow()
 
         db.session.commit()
-        current_app.logger.info(f"Booking {booking_id} successfully synced with detailed Calendly info.")
-        return jsonify({"success": True, "message": "Booking synced with Calendly details.", "booking": booking.serialize()}), 200
+        current_app.logger.info(f"Booking {booking_id} successfully synced with detailed Calendly info including Google Meet link: {google_meet_link}")
+        
+        return jsonify({
+            "success": True, 
+            "message": "Booking synced with Calendly details including Google Meet link.", 
+            "booking": booking.serialize()
+        }), 200
 
     except requests.exceptions.HTTPError as e:
         current_app.logger.error(f"Calendly API HTTPError during sync for booking {booking_id}: {e.response.text if e.response else str(e)}")
         error_detail = "Could not fetch details from Calendly."
         if e.response is not None:
-            try: error_detail = e.response.json().get("message", error_detail)
-            except: pass # Keep generic if parsing fails
+            try: 
+                error_detail = e.response.json().get("message", error_detail)
+            except: 
+                pass
         return jsonify({"success": False, "message": f"Calendly API error: {error_detail}"}), e.response.status_code if e.response is not None else 502
     except Exception as e:
         db.session.rollback()
@@ -1930,3 +1978,34 @@ def stripe_callback():
 
         # Keep a generic error for other issues
         return redirect(f"{os.getenv('FRONTEND_URL')}/mentor-profile?stripe=error&message=ProcessingError")
+
+@api.route('/bookings/reschedule', methods=['POST'])
+@jwt_required()
+def reschedule_booking():
+    data = request.get_json()
+    booking_id = data.get('bookingId')
+    new_start_time_str = data.get('newStartTime')
+    new_end_time_str = data.get('newEndTime')
+
+    if not booking_id or not new_start_time_str or not new_end_time_str:
+        return jsonify({"error": "Missing bookingId or new start/end time"}), 400
+
+    try:
+        new_start_time = dt.fromisoformat(new_start_time_str.replace('Z', '+00:00'))
+        new_end_time = dt.fromisoformat(new_end_time_str.replace('Z', '+00:00'))
+    except ValueError:
+        return jsonify({"error": "Invalid date format for new start/end time"}), 400
+
+    booking = Booking.query.get(booking_id)
+    if not booking:
+        return jsonify({"error": "Booking not found"}), 404
+
+    booking.calendly_event_start_time = new_start_time
+    booking.calendly_event_end_time = new_end_time
+    booking.status = BookingStatus.PENDING
+
+    db.session.add(booking)
+    db.session.commit()
+    db.session.refresh(booking)
+
+    return jsonify({"success": True, "message": "Booking rescheduled successfully"}), 200

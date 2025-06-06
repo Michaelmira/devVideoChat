@@ -21,6 +21,7 @@ export const MentorDetails = () => {
     const [bookingStep, setBookingStep] = useState('initial'); // 'initial', 'payment', 'calendly_finalize'
     const [paymentIntentData, setPaymentIntentData] = useState(null);
     const [bookingId, setBookingId] = useState(null);
+    const [calendlyEventDetails, setCalendlyEventDetails] = useState({ eventUri: null, inviteeUri: null });
 
     const calendlySectionRef = useRef(null); // Ref for the Calendly section
 
@@ -71,6 +72,15 @@ export const MentorDetails = () => {
         }
     };
 
+    // This function will be passed to CalendlyAvailability to receive event details
+    const handleEventScheduled = (data) => {
+        console.log("Calendly event scheduled:", data);
+        setCalendlyEventDetails({
+            eventUri: data.event.uri,
+            inviteeUri: data.invitee.uri
+        });
+    };
+
     // Handle payment success - Updated to show CalendlyAvailability2
     const handlePaymentSuccess = (paymentIntent) => {
         console.log("Payment successful:", paymentIntent);
@@ -90,6 +100,23 @@ export const MentorDetails = () => {
                     if (bookingResult && bookingResult.id) {
                         console.log("Booking successfully tracked by backend. ID:", bookingResult.id);
                         setBookingId(bookingResult.id);
+
+                        // NOW, SYNC THE BOOKING DETAILS WITH CALENDLY
+                        actions.syncBookingDetails({
+                            bookingId: bookingResult.id,
+                            calendlyEventUri: calendlyEventDetails.eventUri,
+                            calendlyInviteeUri: calendlyEventDetails.inviteeUri,
+                            mentorId: mentor.id
+                        }).then(syncResult => {
+                            if (syncResult.success) {
+                                console.log("Booking details successfully synced with Calendly.");
+                            } else {
+                                console.error("Failed to sync booking details:", syncResult.error);
+                                // Optionally alert the user that there might be a delay in seeing the meeting link
+                                alert("Your payment was successful, but we encountered an issue syncing the final meeting details. Please check your dashboard shortly or contact support.");
+                            }
+                        });
+
                     } else {
                         console.warn("Payment was successful, but backend booking tracking did not yield a booking ID.");
                         setBookingId(null);
@@ -429,6 +456,7 @@ export const MentorDetails = () => {
                                 mentor={mentor}
                                 onPaymentSuccess={handleCalendlyPaymentSuccess}
                                 onCancel={handleCalendlyCancel}
+                                onEventScheduled={handleEventScheduled}
                             />
                         </div>
                     </div>
