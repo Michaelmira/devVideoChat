@@ -36,7 +36,6 @@ import userIcon from "../../img/user-3296.png";
 import "../../styles/mentorProfile.css";
 
 import { CalendlyConnectionHandler } from "../component/CalendlyConnectionHandler";
-import { AuthDebugComponent } from "../component/AuthDebugComponet";
 import { StripeConnect } from "./StripeConnect";
 
 export const MentorProfile = () => {
@@ -470,7 +469,6 @@ export const MentorProfile = () => {
 
   return (
     <div className="container card border-secondary shadow border-2 pt-0 mentor-profile">
-      <AuthDebugComponent /> {/* Add this temporarily */}
       <div id="header" className="card-header bg-light-subtle">
         <h2 className="my-2 header-text d-flex align-items-center justify-content-center">
           Mentor Profile

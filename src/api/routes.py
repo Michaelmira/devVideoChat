@@ -38,6 +38,19 @@ import secrets # For generating secure state tokens for OAuth
 from .email_utils import send_booking_confirmation_email
 from datetime import datetime as dt
 
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+FRONTEND_URL = os.getenv("FRONTEND_URL") or "http://localhost:3000"
+BACKEND_URL = os.getenv("BACKEND_URL") or "http://localhost:3001"
+
+# Stripe API Setup
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+STRIPE_CLIENT_ID = os.getenv("STRIPE_CLIENT_ID")
+STRIPE_CALLBACK_URL = f"{os.getenv('BACKEND_URL')}/api/stripe/callback"
+stripe.api_key = STRIPE_SECRET_KEY
+
 
 api = Blueprint('api', __name__)
 
@@ -1736,3 +1749,110 @@ def finalize_booking():
 
 # Make sure to import Decimal if using it for precise fee calculations
 from decimal import Decimal
+
+def get_user_for_reschedule(user_id, role):
+    # Logic to fetch user based on role
+    return Mentor.query.get(user_id) if role == 'mentor' else Customer.query.get(user_id)
+
+# NEW 3/18/25 DOWN
+# Add this route to redirect mentors to Stripe OAuth for account connection
+
+
+# Get Stripe Connection Status
+@api.route("/mentor/stripe-status", methods=["GET"])
+@mentor_required
+def get_stripe_status():
+    mentor_id = get_jwt_identity()
+    mentor = Mentor.query.get(mentor_id)  # Query directly by ID
+
+    if not mentor:
+        return jsonify({"error": "Mentor not found"}), 404
+
+    return jsonify({"isConnected": bool(mentor.stripe_account_id)})
+
+# Connect Stripe - Redirect to Stripe OAuth
+@api.route("/connect-stripe", methods=["GET"])
+@mentor_required
+def connect_stripe():
+    try:
+        # Get the mentor ID from the JWT token
+        mentor_id = get_jwt_identity()
+
+        # Query the mentor directly by ID
+        mentor = Mentor.query.get(mentor_id)
+
+        if not mentor:
+            return jsonify({"error": "Mentor not found"}), 404
+
+        # Create a state token with the mentor_id
+        callback_state = jwt.encode({"mentor_id": mentor_id}, current_app.config["JWT_SECRET_KEY"], algorithm="HS256")
+
+        # Use the dedicated callback URI from env
+        stripe_url = (
+            f"https://connect.stripe.com/oauth/authorize?"
+            f"response_type=code&client_id={STRIPE_CLIENT_ID}&"
+            f"scope=read_write&state={callback_state}&"
+            f"redirect_uri={STRIPE_CALLBACK_URL}"
+        )
+
+        return jsonify({"url": stripe_url})
+    except Exception as e:
+        import traceback
+        print(f"Connect Stripe Error: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+# Handle Stripe OAuth Callback
+@api.route("/stripe/callback", methods=["GET"])
+def stripe_callback():
+    auth_code = request.args.get("code")
+    error = request.args.get("error")
+    state = request.args.get("state")
+
+    if error:
+        logging.error(f"Stripe returned error: {error}")
+        return redirect(f"{os.getenv('FRONTEND_URL')}/mentor-profile?stripe=error&message={error}")
+
+    try:
+        # Log incoming parameters
+        logging.info(f"Stripe callback received - code: {auth_code[:5]}... state: {state[:10]}...")
+
+        # Decode the state to get mentor_id
+        decoded_state = jwt.decode(state, current_app.config["JWT_SECRET_KEY"], algorithms=["HS256"])
+        mentor_id = decoded_state["mentor_id"]
+        logging.info(f"Decoded mentor_id: {mentor_id}")
+
+        # Use the explicit client_secret parameter
+        response = stripe.OAuth.token(
+            grant_type="authorization_code",
+            code=auth_code,
+            client_secret=STRIPE_SECRET_KEY,
+            client_id=STRIPE_CLIENT_ID,
+            redirect_uri=STRIPE_CALLBACK_URL
+        )
+        stripe_account_id = response["stripe_user_id"]
+        logging.info(f"Received stripe_account_id: {stripe_account_id[:5]}...")
+
+        mentor = Mentor.query.get(mentor_id)
+        if mentor:
+            mentor.stripe_account_id = stripe_account_id
+            db.session.commit()
+            logging.info(f"Updated mentor {mentor_id} with Stripe account")
+        else:
+            logging.error(f"Mentor {mentor_id} not found in database")
+
+        # Redirect back to the frontend
+        return redirect(f"{os.getenv('FRONTEND_URL')}/mentor-profile?stripe=success")
+
+    except Exception as e:
+        import traceback
+        full_traceback = traceback.format_exc()
+        logging.error(f"Stripe callback error: {str(e)}")
+        logging.error(f"Full traceback: {full_traceback}")
+
+        # Comprehensive error message capture
+        error_message = str(e)
+        if len(error_message) > 50:  # URL length constraint
+            error_message = "ProcessingError"
+
+        return redirect(f"{os.getenv('FRONTEND_URL')}/mentor-profile?stripe=error&message={error_message}")
