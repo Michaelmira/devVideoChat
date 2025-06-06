@@ -9,7 +9,7 @@ const CustomerDashboard = () => {
 
     useEffect(() => {
         const fetchBookings = async () => {
-            if (store.currentUser?.role !== 'customer') {
+            if (store.currentUserData?.role !== 'customer') {
                 setLoading(false);
                 return;
             }
@@ -29,13 +29,13 @@ const CustomerDashboard = () => {
         } else {
             setLoading(false);
         }
-    }, [store.currentUser, store.token, actions]);
+    }, [store.currentUserData, store.token, actions]);
 
     if (loading) {
         return <div className="container text-center"><h2>Loading Dashboard...</h2></div>;
     }
 
-    if (!store.token || store.currentUser?.role !== 'customer') {
+    if (!store.token || store.currentUserData?.role !== 'customer') {
         return <div className="container"><h2>Please log in as a customer to see your dashboard.</h2></div>;
     }
 

@@ -20,7 +20,7 @@ export const MentorDashboard = () => {
 					setMentorData(store.currentUserData.user_data);
 				}
 
-				if (store.currentUser?.role === 'mentor') {
+				if (store.currentUserData?.role === 'mentor') {
 					const mentorBookings = await actions.getMentorBookings();
 					setBookings(mentorBookings || []);
 				}
@@ -43,7 +43,7 @@ export const MentorDashboard = () => {
 		return <div className="container text-center"><h2>Loading Dashboard...</h2></div>;
 	}
 
-	if (!store.token || store.currentUser?.role !== 'mentor') {
+	if (!store.token || store.currentUserData?.role !== 'mentor') {
 		return <div className="container"><h2>Please log in as a mentor to see your dashboard.</h2></div>;
 	}
 
