@@ -604,33 +604,31 @@ def customer_login():
 @api.route('/customer/edit-self', methods=['PUT'])
 @customer_required
 def handle_customer_edit_by_customer():
-    email = request.json.get("email")
-    first_name = request.json.get("first_name")
-    last_name = request.json.get("last_name")
-    city = request.json.get("city")
-    what_state = request.json.get("what_state",None)
-    country = request.json.get("country",None)
-    phone = request.json.get("phone")
+    customer_id = get_jwt_identity()
+    customer = Customer.query.get(customer_id)
+    if not customer:
+        return jsonify({"msg": "Customer not found"}), 404
+
+    data = request.json
+    if not data:
+        return jsonify({"msg": "No data provided"}), 400
+
+    updatable_fields = ['first_name', 'last_name', 'phone', 'city', 'what_state', 'country', 'about_me']
     
-    if email is None or first_name is None or last_name is None or city is None or what_state is None is None or country is None or phone is None:
-        return jsonify({"msg": "Some fields are missing in your request"}), 400
-   
-    customer = Customer.query.filter_by(id=get_jwt_identity()).first()
-    if customer is None:
-        return jsonify({"msg": "No customer found"}), 404
-    
-    customer.email=email 
-    customer.first_name=first_name   
-    customer.last_name=last_name 
-    customer.city=city    
-    customer.what_state=what_state    
-    customer.country=country    
-    customer.phone=phone
-    db.session.commit()
-    db.session.refresh(customer)
-    
-    response_body = {"msg": "Account succesfully edited!", "customer":customer.serialize()}
-    return jsonify(response_body), 201
+    try:
+        for key, value in data.items():
+            if key in updatable_fields:
+                setattr(customer, key, value)
+        
+        db.session.commit()
+        db.session.refresh(customer)
+        
+        return jsonify({"msg": "Customer profile updated successfully", "customer": customer.serialize()}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error updating customer {customer_id}: {str(e)}")
+        return jsonify({"msg": "An internal error occurred while updating the profile."}), 500
 
 @api.route('/current-customer', methods=['GET'])
 @jwt_required()
@@ -1667,6 +1665,52 @@ def finalize_booking():
         current_app.logger.info(f"=== MENTOR EMAIL DEBUG END (Manual Booking) ===")
         current_app.logger.info(f"Final mentor_email_sent status: {mentor_email_sent}")
 
+        # --- NEW: Send confirmation email to the CUSTOMER ---
+        customer_email_sent = False
+        customer_email_subject = "Your Mentorship Booking is Confirmed!"
+        customer_email_body = f"""
+        <div style='font-family: Arial, sans-serif; color: #333;'>
+            <h2>Booking Confirmed!</h2>
+            <p>Hi {invitee_name},</p>
+            <p>Your booking with <strong>{mentor.first_name} {mentor.last_name}</strong> is confirmed. The mentor has been notified and will send you a calendar invitation shortly.</p>
+            <p><strong>Booking Details:</strong></p>
+            <ul>
+                <li><strong>Mentor:</strong> {mentor.first_name} {mentor.last_name}</li>
+                <li><strong>Time (UTC):</strong> {readable_event_time_utc}</li>
+                <li><strong>Example (US Eastern):</strong> {readable_event_time_et}</li>
+                <li><strong>Meeting Link:</strong> <a href="{google_meet_link}">{google_meet_link}</a></li>
+            </ul>
+            <p>Please keep an eye on your inbox for the calendar invite. If you have any questions, please contact your mentor directly.</p>
+            <p>Thank you for using devMentor!</p>
+        </div>
+        """
+        
+        # Prepare meeting details for the .ics attachment for the customer
+        customer_meeting_details = None
+        if parsed_event_start_time and parsed_event_end_time:
+            customer_meeting_details = {
+                'uid': f"booking-{new_booking.id}-customer",
+                'dtstamp': datetime.utcnow().strftime('%Y%m%dT%H%M%SZ'),
+                'dtstart': parsed_event_start_time.strftime('%Y%m%dT%H%M%SZ'),
+                'dtend': parsed_event_end_time.strftime('%Y%m%dT%H%M%SZ'),
+                'summary': f"Mentorship with {mentor.first_name} {mentor.last_name}",
+                'description': f"Your mentorship session is confirmed. Notes: {invitee_notes if invitee_notes else 'None'}. Meeting Link: {google_meet_link}",
+                'location': google_meet_link
+            }
+
+        try:
+            current_app.logger.info(f"Attempting to send customer confirmation email to: {invitee_email}")
+            send_booking_confirmation_email(
+                recipient_email=invitee_email, 
+                subject=customer_email_subject, 
+                body_html=customer_email_body, 
+                meeting_details=customer_meeting_details
+            )
+            customer_email_sent = True
+            current_app.logger.info(f"✅ Customer confirmation email sent successfully to {invitee_email}")
+        except Exception as e:
+            current_app.logger.error(f"❌ Failed to send customer confirmation email to {invitee_email}: {str(e)}")
+
         # Return success response with updated message and email status
         return jsonify({
             "success": True, 
@@ -2009,3 +2053,42 @@ def reschedule_booking():
     db.session.refresh(booking)
 
     return jsonify({"success": True, "message": "Booking rescheduled successfully"}), 200
+
+@api.route('/booking/cancel/<int:booking_id>', methods=['POST'])
+@jwt_required()
+def cancel_booking(booking_id):
+    booking = Booking.query.get_or_404(booking_id)
+    user_id = get_jwt_identity()
+    role = get_jwt()['role']
+
+    if role == 'customer' and booking.customer_id != user_id:
+        return jsonify({"msg": "You are not authorized to cancel this booking."}), 403
+    elif role == 'mentor' and booking.mentor_id != user_id:
+        return jsonify({"msg": "You are not authorized to cancel this booking."}), 403
+
+    cancellation_reason = request.json.get("reason", "No reason provided.")
+
+    if role == 'customer':
+        booking.status = BookingStatus.CANCELLED_BY_CUSTOMER
+        notify_email = booking.mentor.email
+        cancelled_by_name = booking.customer.first_name
+        other_party_name = booking.mentor.first_name
+    else: # role == 'mentor'
+        booking.status = BookingStatus.CANCELLED_BY_MENTOR
+        notify_email = booking.customer.email
+        cancelled_by_name = booking.mentor.first_name
+        other_party_name = booking.customer.first_name
+    
+    db.session.commit()
+
+    # Send cancellation email
+    subject = f"Booking Cancelled: Session with {cancelled_by_name}"
+    body = f"""
+    <p>Hi {other_party_name},</p>
+    <p>Your upcoming session with {cancelled_by_name} has been cancelled.</p>
+    <p><strong>Reason:</strong> {cancellation_reason}</p>
+    <p>Please contact them if you need to reschedule.</p>
+    """
+    send_email(notify_email, subject, body)
+
+    return jsonify({"msg": "Booking cancelled successfully."}), 200

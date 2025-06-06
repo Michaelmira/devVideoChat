@@ -205,26 +205,31 @@ class Booking(db.Model):
     paid_at = db.Column(DateTime(timezone=True), nullable=True) # When payment was successfully processed
     scheduled_at = db.Column(DateTime(timezone=True), nullable=True) # When Calendly event was confirmed
 
-    # Original Calendly selection details (from onDateAndTimeSelected)
-    calendly_event_uri = db.Column(Text, nullable=True) # e.g., "https://api.calendly.com/scheduled_events/GBGBDCAADAEDCRZ2"
-    calendly_invitee_uri = db.Column(Text, nullable=True) # e.g., "https://api.calendly.com/scheduled_events/GBGBDCAADAEDCRZ2/invitees/AAAAAAAAAAAAAAAA"
-    calendly_event_start_time = db.Column(DateTime(timezone=True), nullable=True)
-    calendly_event_end_time = db.Column(DateTime(timezone=True), nullable=True)
+    # Calendly specific fields
+    calendly_event_uri = db.Column(db.String(255), nullable=True)
+    calendly_invitee_uri = db.Column(db.String(255), nullable=True)
+    
+    calendly_event_start_time = db.Column(db.DateTime, nullable=True)
+    calendly_event_end_time = db.Column(db.DateTime, nullable=True)
 
-    # Invitee details provided in the second form
-    invitee_name = db.Column(db.String(200), nullable=True)
-    invitee_email = db.Column(db.String(120), nullable=True)
-    invitee_notes = db.Column(Text, nullable=True)
+    invitee_name = db.Column(db.String(255), nullable=True)
+    invitee_email = db.Column(db.String(255), nullable=True)
+    invitee_notes = db.Column(db.Text, nullable=True)
 
-    # Payment details
-    stripe_payment_intent_id = db.Column(db.String(255), nullable=True, index=True)
+    # Stripe specific fields
+    stripe_payment_intent_id = db.Column(db.String(255), unique=True, nullable=True)
     amount_paid = db.Column(Numeric(10,2), nullable=True)
-    currency = db.Column(db.String(10), default="usd")
+    currency = db.Column(db.String(10), nullable=True, default='usd')
+    
+    # Financials
     platform_fee = db.Column(Numeric(10,2), nullable=True)
     mentor_payout_amount = db.Column(Numeric(10,2), nullable=True)
-
+    
     status = db.Column(Enum(BookingStatus), default=BookingStatus.PENDING_PAYMENT, nullable=False)
     google_meet_link = db.Column(db.String(255), nullable=True)
+
+    # NEW field for tracking reminders
+    reminder_sent_at = db.Column(db.DateTime, nullable=True)
 
     # Relationships
     mentor = relationship("Mentor", backref=db.backref("bookings", lazy=True))

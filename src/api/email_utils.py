@@ -10,7 +10,7 @@ load_dotenv()
 GMAIL_USER = os.getenv("GMAIL")
 GMAIL_PASSWORD = os.getenv("GMAIL_PASSWORD")
 
-def send_booking_confirmation_email(recipient_email, subject, body_html, meeting_details=None):
+def send_email(recipient_email, subject, body_html, attachments=None):
     if not GMAIL_USER or not GMAIL_PASSWORD:
         print("Gmail credentials not configured. Skipping email.")
         return False
@@ -22,7 +22,25 @@ def send_booking_confirmation_email(recipient_email, subject, body_html, meeting
 
     msg.attach(MIMEText(body_html, 'html'))
 
-    # Basic iCalendar (ICS) data
+    if attachments:
+        for attachment in attachments:
+            part = MIMEApplication(attachment['content'], Name=attachment['filename'])
+            part['Content-Disposition'] = f'attachment; filename="{attachment["filename"]}"'
+            part.add_header('Content-Type', attachment['content_type'])
+            msg.attach(part)
+
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp_server:
+            smtp_server.login(GMAIL_USER, GMAIL_PASSWORD)
+            smtp_server.sendmail(GMAIL_USER, recipient_email, msg.as_string())
+        print(f"Email sent successfully to {recipient_email}")
+        return True
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        return False
+
+def send_booking_confirmation_email(recipient_email, subject, body_html, meeting_details=None):
+    attachments = []
     if meeting_details:
         ics_content = f"""BEGIN:VCALENDAR
 VERSION:2.0
@@ -47,22 +65,13 @@ END:VALARM
 END:VEVENT
 END:VCALENDAR"""
         
-        # Attach ICS file
-        part = MIMEApplication(ics_content.encode('utf-8'), Name="event.ics")
-        part['Content-Disposition'] = 'attachment; filename="event.ics"'
-        part.add_header('Content-Type', 'text/calendar; method=REQUEST; charset=UTF-8')
-        msg.attach(part)
+        attachments.append({
+            'content': ics_content.encode('utf-8'),
+            'filename': 'event.ics',
+            'content_type': 'text/calendar; method=REQUEST; charset=UTF-8'
+        })
 
-
-    try:
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp_server:
-            smtp_server.login(GMAIL_USER, GMAIL_PASSWORD)
-            smtp_server.sendmail(GMAIL_USER, recipient_email, msg.as_string())
-        print(f"Email sent successfully to {recipient_email}")
-        return True
-    except Exception as e:
-        print(f"Error sending email: {e}")
-        return False
+    return send_email(recipient_email, subject, body_html, attachments=attachments)
 
 if __name__ == '__main__':
     # Example usage (for testing this module directly)
