@@ -1,7 +1,7 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { Context } from '../store/appContext';
 
-const Dashboard = () => {
+const CustomerDashboard = () => {
     const { store, actions } = useContext(Context);
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -9,19 +9,15 @@ const Dashboard = () => {
 
     useEffect(() => {
         const fetchBookings = async () => {
+            if (store.currentUser?.role !== 'customer') {
+                setLoading(false);
+                return;
+            }
             try {
-                let userBookings = [];
-                // The store.currentUser object will hold role and user_data
-                if (store.currentUser?.role === 'mentor') {
-                    // Assuming an action exists to get mentor bookings
-                    userBookings = await actions.getMentorBookings();
-                } else if (store.currentUser?.role === 'customer') {
-                    // Assuming an action exists to get customer bookings
-                    userBookings = await actions.getCustomerBookings();
-                }
+                const userBookings = await actions.getCustomerBookings();
                 setBookings(userBookings || []);
             } catch (err) {
-                setError('Failed to fetch bookings. Please try again later.');
+                setError('Failed to fetch your bookings. Please try again later.');
                 console.error(err);
             } finally {
                 setLoading(false);
@@ -39,8 +35,8 @@ const Dashboard = () => {
         return <div className="container text-center"><h2>Loading Dashboard...</h2></div>;
     }
 
-    if (!store.token) {
-        return <div className="container"><h2>Please log in to see your dashboard.</h2></div>;
+    if (!store.token || store.currentUser?.role !== 'customer') {
+        return <div className="container"><h2>Please log in as a customer to see your dashboard.</h2></div>;
     }
 
     if (error) {
@@ -50,21 +46,17 @@ const Dashboard = () => {
     return (
         <div className="container mt-5">
             <h1>Your Dashboard</h1>
-            <h2 className="mb-4">Upcoming Bookings</h2>
+            <h2 className="mb-4">Your Booked Sessions</h2>
             {bookings.length > 0 ? (
                 <div className="list-group">
                     {bookings.map(booking => (
                         <div key={booking.id} className="list-group-item list-group-item-action flex-column align-items-start mb-3">
                             <div className="d-flex w-100 justify-content-between">
-                                <h5 className="mb-1">
-                                    {store.currentUser.role === 'mentor'
-                                        ? `Session with ${booking.customer_name}`
-                                        : `Session with ${booking.mentor_name}`}
-                                </h5>
+                                <h5 className="mb-1">{`Session with ${booking.mentor_name}`}</h5>
                                 <small>Status: <span className="badge bg-success">{booking.status}</span></small>
                             </div>
                             <p className="mb-1">
-                                <strong>Date & Time:</strong> {new Date(booking.scheduled_at).toLocaleString()}
+                                <strong>Date & Time:</strong> {booking.scheduled_at ? new Date(booking.scheduled_at).toLocaleString() : 'Not scheduled'}
                             </p>
                             <small>Booking ID: {booking.id}</small>
                         </div>
@@ -79,4 +71,4 @@ const Dashboard = () => {
     );
 };
 
-export default Dashboard; 
+export default CustomerDashboard; 

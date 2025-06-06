@@ -6,20 +6,80 @@ import { MentorAvailability } from "../component/MentorAvailability";
 export const MentorDashboard = () => {
 	const { store, actions } = useContext(Context);
 	const [mentorData, setMentorData] = useState(store.currentUserData?.user_data);
+	const [bookings, setBookings] = useState([]);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState(null);
 
 	useEffect(() => {
-		if (!store.currentUserData?.user_data) {
-			actions.getCurrentUser().then(data => {
-				if (data && data.user_data) setMentorData(data.user_data);
-			});
+		const fetchMentorData = async () => {
+			try {
+				if (!store.currentUserData?.user_data) {
+					const data = await actions.getCurrentUser();
+					if (data && data.user_data) setMentorData(data.user_data);
+				} else {
+					setMentorData(store.currentUserData.user_data);
+				}
+
+				if (store.currentUser?.role === 'mentor') {
+					const mentorBookings = await actions.getMentorBookings();
+					setBookings(mentorBookings || []);
+				}
+			} catch (err) {
+				setError('Failed to fetch dashboard data.');
+				console.error(err);
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		if (store.token) {
+			fetchMentorData();
 		} else {
-			setMentorData(store.currentUserData.user_data);
+			setLoading(false);
 		}
-	}, [store.currentUserData]);
+	}, [store.currentUserData, store.token, actions]);
+
+	if (loading) {
+		return <div className="container text-center"><h2>Loading Dashboard...</h2></div>;
+	}
+
+	if (!store.token || store.currentUser?.role !== 'mentor') {
+		return <div className="container"><h2>Please log in as a mentor to see your dashboard.</h2></div>;
+	}
+
+	if (error) {
+		return <div className="container alert alert-danger"><h2>Error</h2><p>{error}</p></div>;
+	}
 
 	return (
 		<div className="container mt-5">
-			<h1 className="text-center mb-5">MENTOR DASHBOARD</h1>
+			<h1 className="text-center mb-4">MENTOR DASHBOARD</h1>
+
+			<div className="card mb-5">
+				<div className="card-header">
+					<h2 className="h4 mb-0">Upcoming Bookings</h2>
+				</div>
+				<div className="card-body">
+					{bookings.length > 0 ? (
+						<div className="list-group">
+							{bookings.map(booking => (
+								<div key={booking.id} className="list-group-item">
+									<div className="d-flex w-100 justify-content-between">
+										<h5 className="mb-1">{`Session with ${booking.customer_name}`}</h5>
+										<span className={`badge bg-success`}>{booking.status}</span>
+									</div>
+									<p className="mb-1">
+										<strong>Date & Time:</strong> {booking.scheduled_at ? new Date(booking.scheduled_at).toLocaleString() : 'Not Scheduled'}
+									</p>
+									<small>Booking ID: {booking.id}</small>
+								</div>
+							))}
+						</div>
+					) : (
+						<div className="alert alert-info mb-0">You have no upcoming bookings.</div>
+					)}
+				</div>
+			</div>
 
 			<div className="row">
 				<div className="col-md-6 mb-4">
