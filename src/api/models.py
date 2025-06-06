@@ -232,6 +232,27 @@ class Booking(db.Model):
     def __repr__(self):
         return f'<Booking {self.id} - Mentor: {self.mentor_id} Customer: {self.customer_id} Status: {self.status.value}>'
 
+    def serialize_for_mentor(self):
+        return {
+            "id": self.id,
+            "customer_name": self.customer.first_name + " " + self.customer.last_name if self.customer else "N/A",
+            "scheduled_at": self.scheduled_at.isoformat() if self.scheduled_at else None,
+            "status": self.status.value,
+            "amount_paid": str(self.amount_paid),
+            "mentor_payout_amount": str(self.mentor_payout_amount),
+            "google_meet_link": "https://meet.google.com/your-meeting-link" # Placeholder
+        }
+
+    def serialize_for_customer(self):
+        return {
+            "id": self.id,
+            "mentor_name": self.mentor.first_name + " " + self.mentor.last_name if self.mentor else "N/A",
+            "scheduled_at": self.scheduled_at.isoformat() if self.scheduled_at else None,
+            "status": self.status.value,
+            "amount_paid": str(self.amount_paid),
+            "google_meet_link": "https://meet.google.com/your-meeting-link" # Placeholder
+        }
+
     def serialize(self):
         return {
             "id": self.id,

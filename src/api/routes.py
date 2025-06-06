@@ -623,6 +623,22 @@ def delete_customer(cust_id):
     db.session.commit()
     return jsonify({"msg": "customer successfully deleted"}), 200
 
+@customer_required
+def get_current_customer():
+    
+    customer = Customer.query.get(get_jwt_identity())
+    if customer is None:
+        return jsonify({"msg": "No customer found"}), 404
+    
+    return jsonify(customer.serialize()), 200
+
+@api.route('/customer/bookings', methods=['GET'])
+@customer_required
+def get_customer_bookings():
+    customer_id = get_jwt_identity()
+    bookings = Booking.query.filter_by(customer_id=customer_id).all()
+    # You might want a different serializer for the customer view
+    return jsonify([b.serialize_for_customer() for b in bookings]), 200
 
 @api.route('/create-payment-intent', methods=['POST'])
 @jwt_required()

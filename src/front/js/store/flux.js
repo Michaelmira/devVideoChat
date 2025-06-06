@@ -1085,6 +1085,61 @@ const getState = ({ getStore, getActions, setStore }) => {
                     return { success: false, message: "Network error occurred while fetching booking details" };
                 }
             },
+            getMentorBookings: async () => {
+                const store = getStore();
+                const token = store.token;
+                if (!token) {
+                    console.error("No token available for fetching mentor bookings.");
+                    return [];
+                }
+
+                try {
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/mentor/bookings`, {
+                        method: "GET",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${token}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch mentor bookings with status: ${response.status}`);
+                    }
+                    const data = await response.json();
+                    return data;
+                } catch (error) {
+                    console.error("Error in getMentorBookings:", error);
+                    return []; // Return empty array on error
+                }
+            },
+
+            getCustomerBookings: async () => {
+                const store = getStore();
+                const token = store.token;
+                if (!token) {
+                    console.error("No token available for fetching customer bookings.");
+                    return [];
+                }
+
+                try {
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/customer/bookings`, {
+                        method: "GET",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${token}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch customer bookings with status: ${response.status}`);
+                    }
+                    const data = await response.json();
+                    return data;
+                } catch (error) {
+                    console.error("Error in getCustomerBookings:", error);
+                    return []; // Return empty array on error
+                }
+            },
         }
     };
 };
