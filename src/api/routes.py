@@ -362,70 +362,24 @@ def mentor_by_id():
 @api.route('/mentor/edit-self', methods={'PUT'})
 @mentor_required
 def mentor_edit_self():
-    email = request.json.get("email")
-    is_active = request.json.get("is_active")
-    first_name = request.json.get("first_name")
-    last_name = request.json.get("last_name")
-    nick_name = request.json.get("nick_name")
-    phone = request.json.get("phone")
-    city = request.json.get("city")
-    what_state = request.json.get("what_state")
-    country = request.json.get("country")
-    years_exp = request.json.get("years_exp")
-    skills = request.json.get("skills")
-    days = request.json.get("days")
-    price = request.json.get("price")
-    about_me = request.json.get("about_me")
-    calendly_url = request.json.get("calendly_url")
-    
-    profile_photo = request.json.get("profile_photo")
-    position_x = profile_photo.get("position_x")
-    position_y = profile_photo.get("position_y")
-    scale = profile_photo.get("scale")
-
-    print("position_x", position_x)
-    print("position_y", position_y)
-    print("Scale", scale)
-    
-    if email is None or first_name is None or last_name is None or city is None or what_state is None or country is None:
-        return jsonify({"msg": "Some fields are missing in your request"}), 400
-    
-    mentor =  Mentor.query.filter_by(id=get_jwt_identity()).first()
-    if mentor is None:
-        return jsonify({"msg": "No mentor found"}), 404
-    
-    mentor_img=MentorImage.query.filter_by(mentor_id=mentor.id).first()
-    if mentor_img:
-        if position_x:
-            mentor_img.position_x=position_x
-        if position_y:
-            mentor_img.position_y=position_y
-        if scale:
-            mentor_img.scale=scale
-    
-    mentor.email=email
-    mentor.is_active=is_active
-    mentor.first_name=first_name
-    mentor.last_name=last_name
-    mentor.nick_name=nick_name
-    mentor.phone=phone
-    mentor.city=city    
-    mentor.what_state=what_state
-    mentor.country=country
-    mentor.years_exp=years_exp
-    mentor.skills=skills
-    mentor.days=days
-    mentor.price=price
-    mentor.about_me=about_me
-    mentor.calendly_url=calendly_url
-
+    mentor_id = get_jwt_identity()
+    mentor = Mentor.query.get(mentor_id)
+    changes = request.json
+    for key, value in changes.items():
+        if key == 'password':
+            setattr(mentor, key, generate_password_hash(value))
+            continue
+        if(hasattr(mentor, key)):
+            setattr(mentor, key, value)
     db.session.commit()
-    db.session.refresh(mentor)
+    return jsonify({"msg": "user updated", "user": mentor.serialize()}), 200
 
-    response_body = {"msg": "Mentor Account sucessfully edited",
-    "mentor":mentor.serialize()
-    }
-    return jsonify(response_body, 201)
+@api.route('/mentor/bookings', methods=['GET'])
+@mentor_required
+def get_mentor_bookings():
+    mentor_id = get_jwt_identity()
+    bookings = Booking.query.filter_by(mentor_id=mentor_id).all()
+    return jsonify([b.serialize_for_mentor() for b in bookings]), 200
 
 @api.route('/mentor/upload-photo', methods =['POST'])
 @mentor_required
@@ -1250,63 +1204,27 @@ def get_valid_calendly_access_token(mentor_id):
 @api.route('/bookings/<int:booking_id>/calendly-details', methods=['PUT'])
 @jwt_required()
 def update_booking_calendly_details(booking_id):
-    """Update a booking with Calendly event details after final scheduling"""
-    current_customer_id = get_jwt_identity()
-    
-    # Get the booking and verify ownership
     booking = Booking.query.get(booking_id)
     if not booking:
-        return jsonify({"msg": "Booking not found"}), 404
-    
-    if booking.customer_id != current_customer_id:
-        return jsonify({"msg": "Unauthorized - not your booking"}), 403
-    
-    data = request.get_json()
-    calendly_event_uri = data.get('calendly_event_uri')
-    calendly_invitee_uri = data.get('calendly_invitee_uri')
-    calendly_event_start_time_str = data.get('calendly_event_start_time')
-    calendly_event_end_time_str = data.get('calendly_event_end_time')
-    invitee_name = data.get('invitee_name')
-    invitee_email = data.get('invitee_email')
-    invitee_notes = data.get('invitee_notes')
-    
-    if not calendly_event_uri:
-        return jsonify({"msg": "Missing required Calendly event URI"}), 400
-    
-    try:
-        # Update the booking with Calendly details
-        booking.calendly_event_uri = calendly_event_uri
-        if calendly_invitee_uri:
-            booking.calendly_invitee_uri = calendly_invitee_uri
-        if calendly_event_start_time_str:
-            booking.calendly_event_start_time = dt.fromisoformat(calendly_event_start_time_str.replace('Z', '+00:00'))
-        if calendly_event_end_time_str:
-            booking.calendly_event_end_time = dt.fromisoformat(calendly_event_end_time_str.replace('Z', '+00:00'))
-        if invitee_name:
-            booking.invitee_name = invitee_name
-        if invitee_email:
-            booking.invitee_email = invitee_email
-        if invitee_notes:
-            booking.invitee_notes = invitee_notes
+        return jsonify({"success": False, "message": "Booking not found"}), 404
 
-        # Update status to confirmed since Calendly event is now scheduled
-        booking.status = BookingStatus.CONFIRMED
-        booking.scheduled_at = datetime.utcnow()
-        
-        db.session.commit()
-        
-        current_app.logger.info(f"Successfully updated booking {booking_id} with Calendly details")
-        
-        return jsonify({
-            "success": True,
-            "message": "Booking updated with Calendly details",
-            "booking": booking.serialize()
-        }), 200
-        
-    except Exception as e:
-        db.session.rollback()
-        current_app.logger.error(f"Error updating booking {booking_id} with Calendly details: {str(e)}")
-        return jsonify({"msg": "Failed to update booking"}), 500
+    # Optional: Check if the current user is the customer who made the booking
+    # current_user_id = get_jwt_identity()
+    # if booking.customer_id != current_user_id:
+    #     return jsonify({"success": False, "message": "Unauthorized"}), 403
+
+    data = request.json
+    join_url = data.get('join_url')
+    
+    if join_url:
+        booking.meeting_link = join_url
+
+    # You can also update other fields if they are sent
+    # e.g., booking.status = BookingStatus.CONFIRMED
+
+    db.session.commit()
+
+    return jsonify({"success": True, "message": "Booking updated successfully", "booking": booking.serialize()})
 
 @api.route('/bookings/<int:booking_id>', methods=['GET'])
 @jwt_required()
@@ -1451,7 +1369,8 @@ def sync_booking_with_calendly_details():
 
         booking.status = BookingStatus.CONFIRMED
         booking.scheduled_at = datetime.utcnow()
-        
+        booking.meeting_link = join_url # Save the meeting link
+
         db.session.commit()
         current_app.logger.info(f"Booking {booking_id} successfully synced with detailed Calendly info.")
         return jsonify({"success": True, "message": "Booking synced with Calendly details.", "booking": booking.serialize()}), 200

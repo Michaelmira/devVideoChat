@@ -11,6 +11,7 @@ const getState = ({ getStore, getActions, setStore }) => {
             customerId: sessionStorage.getItem("customerId") || null,
             mentorId: sessionStorage.getItem("mentorId") || null,
             customerSessions: [],
+            mentorBookings: [],
             messages: [],
             token: sessionStorage.getItem("token") || null,
             calendlyURL: null, // To store the mentor's Calendly URL
@@ -1003,16 +1004,15 @@ const getState = ({ getStore, getActions, setStore }) => {
 
                     const data = await response.json();
 
-                    if (response.ok && data.success) {
-                        // console.log("Successfully fetched Calendly details and updated booking:", data); // Keep concise or remove
-                        return { success: true, booking: data.booking };
+                    if (response.ok) {
+                        return { success: true, ...data };
                     } else {
-                        console.error("Backend failed to fetch Calendly details or update booking:", data);
-                        return { success: false, message: data.message || data.msg || "Failed to sync Calendly details with booking." };
+                        console.error("Failed to sync Calendly details:", data);
+                        return { success: false, message: data.message || "Failed to sync Calendly details" };
                     }
                 } catch (error) {
-                    console.error("Error in fetchCalendlyDetailsAndUpdateBooking action:", error);
-                    return { success: false, message: "Network error during Calendly sync." };
+                    console.error("Error in fetchCalendlyDetailsAndUpdateBooking:", error);
+                    return { success: false, message: "Network error occurred while fetching booking details" };
                 }
             },
             finalizeBooking: async (bookingData) => {
@@ -1085,7 +1085,39 @@ const getState = ({ getStore, getActions, setStore }) => {
                     console.error("Network error fetching booking details:", error);
                     return { success: false, message: "Network error occurred while fetching booking details" };
                 }
-            }
+            },
+            getMentorBookings: async () => {
+                const store = getStore();
+                const token = sessionStorage.getItem('token');
+
+                if (!token) {
+                    console.error("No token found in sessionStorage");
+                    return;
+                }
+
+                try {
+                    const response = await fetch(
+                        `${process.env.BACKEND_URL}/api/mentor/bookings`, {
+                        method: "GET",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${token}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const bookings = await response.json();
+                        setStore({ ...store, mentorBookings: bookings });
+                        return true;
+                    } else {
+                        console.error("Failed to fetch mentor bookings with status:", response.status);
+                        return false;
+                    }
+                } catch (error) {
+                    console.error("Error fetching mentor bookings:", error);
+                    return false;
+                }
+            },
 
         }
     };
