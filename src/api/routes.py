@@ -1815,20 +1815,20 @@ def stripe_callback():
 
     try:
         # Log incoming parameters
-        logging.info(f"Stripe callback received - code: {auth_code[:5]}... state: {state[:10]}...")
+        logging.info(f"Stripe callback received - code: {auth_code[:5] if auth_code else 'None'}... state: {state[:10] if state else 'None'}...")
+        if not auth_code or not state:
+            return redirect(f"{os.getenv('FRONTEND_URL')}/mentor-profile?stripe=error&message=InvalidCallback")
 
         # Decode the state to get mentor_id
         decoded_state = jwt.decode(state, current_app.config["JWT_SECRET_KEY"], algorithms=["HS256"])
         mentor_id = decoded_state["mentor_id"]
         logging.info(f"Decoded mentor_id: {mentor_id}")
 
-        # Use the explicit client_secret parameter
+        # Exchange the authorization code for an access token
+        # The `stripe.api_key` set at the module level is used for authentication.
         response = stripe.OAuth.token(
             grant_type="authorization_code",
             code=auth_code,
-            client_secret=STRIPE_SECRET_KEY,
-            client_id=STRIPE_CLIENT_ID,
-            redirect_uri=STRIPE_CALLBACK_URL
         )
         stripe_account_id = response["stripe_user_id"]
         logging.info(f"Received stripe_account_id: {stripe_account_id[:5]}...")
@@ -1844,15 +1844,18 @@ def stripe_callback():
         # Redirect back to the frontend
         return redirect(f"{os.getenv('FRONTEND_URL')}/mentor-profile?stripe=success")
 
+    except jwt.InvalidTokenError:
+        logging.error("Stripe callback error: Invalid state token.")
+        return redirect(f"{os.getenv('FRONTEND_URL')}/mentor-profile?stripe=error&message=InvalidState")
+    except stripe.oauth_error.InvalidGrantError as e:
+        logging.error(f"Stripe OAuth Invalid Grant Error: {str(e)}")
+        # This specific error indicates a key mismatch or expired code.
+        return redirect(f"{os.getenv('FRONTEND_URL')}/mentor-profile?stripe=error&message=StripeConnectionFailed")
     except Exception as e:
         import traceback
         full_traceback = traceback.format_exc()
         logging.error(f"Stripe callback error: {str(e)}")
         logging.error(f"Full traceback: {full_traceback}")
 
-        # Comprehensive error message capture
-        error_message = str(e)
-        if len(error_message) > 50:  # URL length constraint
-            error_message = "ProcessingError"
-
-        return redirect(f"{os.getenv('FRONTEND_URL')}/mentor-profile?stripe=error&message={error_message}")
+        # Keep a generic error for other issues
+        return redirect(f"{os.getenv('FRONTEND_URL')}/mentor-profile?stripe=error&message=ProcessingError")
