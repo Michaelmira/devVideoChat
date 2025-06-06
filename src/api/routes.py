@@ -316,15 +316,19 @@ def mentor_by_id():
 def mentor_edit_self():
     mentor_id = get_jwt_identity()
     mentor = Mentor.query.get(mentor_id)
+    if mentor is None:
+        return jsonify({"msg": "No mentor found"}), 404
+        
     changes = request.json
     for key, value in changes.items():
-        if key == 'password':
-            setattr(mentor, key, generate_password_hash(value))
+        # Prevent certain fields from being updated
+        if key in ['id', 'email']:
             continue
-        if(hasattr(mentor, key)):
+        if hasattr(mentor, key):
             setattr(mentor, key, value)
+            
     db.session.commit()
-    return jsonify({"msg": "user updated", "user": mentor.serialize()}), 200
+    return jsonify({"msg": "User updated successfully", "user": mentor.serialize()}), 200
 
 @api.route('/mentor/bookings', methods=['GET'])
 @mentor_required

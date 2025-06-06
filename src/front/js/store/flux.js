@@ -257,6 +257,8 @@ const getState = ({ getStore, getActions, setStore }) => {
                 }
                 );
                 if (response.ok) {
+                    const responseBody = await response.json();
+                    setStore({ ...getStore(), mentor: responseBody })
                     console.log("Mentor information updated successfully");
                     return true;
                 } else {
