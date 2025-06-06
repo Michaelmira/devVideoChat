@@ -224,6 +224,7 @@ class Booking(db.Model):
     mentor_payout_amount = db.Column(Numeric(10,2), nullable=True)
 
     status = db.Column(Enum(BookingStatus), default=BookingStatus.PENDING_PAYMENT, nullable=False)
+    google_meet_link = db.Column(db.String(255), nullable=True)
 
     # Relationships
     mentor = relationship("Mentor", backref=db.backref("bookings", lazy=True))
@@ -240,7 +241,7 @@ class Booking(db.Model):
             "status": self.status.value,
             "amount_paid": str(self.amount_paid),
             "mentor_payout_amount": str(self.mentor_payout_amount),
-            "google_meet_link": "https://meet.google.com/your-meeting-link" # Placeholder
+            "google_meet_link": self.google_meet_link
         }
 
     def serialize_for_customer(self):
@@ -250,7 +251,7 @@ class Booking(db.Model):
             "scheduled_at": self.calendly_event_start_time.isoformat() if self.calendly_event_start_time else None,
             "status": self.status.value,
             "amount_paid": str(self.amount_paid),
-            "google_meet_link": "https://meet.google.com/your-meeting-link" # Placeholder
+            "google_meet_link": self.google_meet_link
         }
 
     def serialize(self):
@@ -279,6 +280,7 @@ class Booking(db.Model):
             "mentor_payout_amount": str(self.mentor_payout_amount) if self.mentor_payout_amount is not None else None,
             
             "status": self.status.value,
+            "google_meet_link": self.google_meet_link,
             
             # Optional: include serialized mentor/customer details
             "mentor": self.mentor.serialize() if self.mentor else None, 

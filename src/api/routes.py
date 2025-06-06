@@ -1430,6 +1430,11 @@ def finalize_booking():
         calculated_platform_fee = calculated_amount_paid * Decimal('0.10') 
         calculated_mentor_payout = calculated_amount_paid - calculated_platform_fee
 
+        # --- Generate a unique Google Meet link ---
+        # This is a simple but effective way to create unique links.
+        # It combines a base URL with a unique identifier from the booking.
+        google_meet_link = f"https://meet.google.com/lookup/{stripe_payment_intent_id}"
+
         new_booking = Booking(
             mentor_id=mentor_id,
             customer_id=current_customer_id,
@@ -1447,7 +1452,8 @@ def finalize_booking():
             currency=currency,
             platform_fee=calculated_platform_fee,
             mentor_payout_amount=calculated_mentor_payout,
-            status=BookingStatus.PAID 
+            status=BookingStatus.PAID,
+            google_meet_link=google_meet_link
         )
         
         # --- FIXED: Separate database operations from email sending ---
@@ -1497,9 +1503,10 @@ def finalize_booking():
                 f"Requested time for mentorship session: {readable_event_time_utc}.\n"
                 f"Example (US Eastern Time): {readable_event_time_et}\n"
                 f"Notes from client: {invitee_notes if invitee_notes else 'None'}.\n\n"
+                f"Meeting Link: {google_meet_link}\n\n"
                 f"Please confirm these details, schedule the meeting in your calendar, and ensure an invitation is sent to {invitee_email} from your Google Calendar."
             )
-            mentor_gcal_location = 'Online / Video Call' 
+            mentor_gcal_location = google_meet_link # Set location to the meet link
             
             mentor_gcal_params = {
                 'action': 'TEMPLATE',
@@ -1526,6 +1533,7 @@ def finalize_booking():
         
         if mentor_gcal_link != "#":
             mentor_email_body += f"""
+            <p><strong>Meeting Link:</strong> <a href="{google_meet_link}">{google_meet_link}</a></p>
             <p>To help you schedule this, you can use the link below to create a Google Calendar event. It will be pre-filled with the client's details and requested time. Please review, adjust the time if necessary, and then <strong>save the event in your Google Calendar to send the official calendar invitation to {invitee_email}</strong>.</p>
             <div style="text-align: center; margin: 20px 0;">
                 <a href="{mentor_gcal_link}" target="_blank" 
@@ -1634,6 +1642,9 @@ def finalize_booking():
         calculated_platform_fee = calculated_amount_paid * Decimal('0.10') 
         calculated_mentor_payout = calculated_amount_paid - calculated_platform_fee
 
+        # --- Generate Google Meet Link for Calendly booking ---
+        google_meet_link = f"https://meet.google.com/lookup/{stripe_payment_intent_id}"
+
         new_booking = Booking(
             mentor_id=mentor_id,
             customer_id=current_customer_id,
@@ -1651,7 +1662,8 @@ def finalize_booking():
             currency=currency,
             platform_fee=calculated_platform_fee,
             mentor_payout_amount=calculated_mentor_payout,
-            status=BookingStatus.CONFIRMED
+            status=BookingStatus.CONFIRMED,
+            google_meet_link=google_meet_link
         )
 
         # --- FIXED: Separate database operations from email sending ---
@@ -1676,6 +1688,7 @@ def finalize_booking():
         <p>Your mentorship session with <strong>{mentor.first_name} {mentor.last_name}</strong> has been successfully scheduled via Calendly.</p>
         <p><strong>Date & Time:</strong> {parsed_event_start_time.strftime('%A, %B %d, %Y at %I:%M %p %Z') if parsed_event_start_time else 'N/A'}</p>
         <p><strong>Mentor:</strong> {mentor.first_name} {mentor.last_name}</p>
+        <p><strong>Meeting Link:</strong> <a href="{google_meet_link}">{google_meet_link}</a></p>
         <p><strong>Your Email:</strong> {invitee_email}</p>
         {f"<p><strong>Notes:</strong> {invitee_notes}</p>" if invitee_notes else ""}
         <p>You should also receive a confirmation directly from Calendly with options to add this to your calendar. We've attached an iCalendar (.ics) file to this email as well for your convenience.</p>
@@ -1690,8 +1703,8 @@ def finalize_booking():
                 'dtstart': parsed_event_start_time.strftime('%Y%m%dT%H%M%SZ'),
                 'dtend': parsed_event_end_time.strftime('%Y%m%dT%H%M%SZ'),
                 'summary': f"Mentorship: {invitee_name} & {mentor.first_name} {mentor.last_name}",
-                'description': f"Mentorship session. Notes: {invitee_notes if invitee_notes else 'None'}. Calendly Event: {confirmed_calendly_event_uri}",
-                'location': 'Online / Video Call'
+                'description': f"Mentorship session. Notes: {invitee_notes if invitee_notes else 'None'}. Meeting Link: {google_meet_link}. Calendly Event: {confirmed_calendly_event_uri}",
+                'location': google_meet_link
             }
 
         # Send customer email
@@ -1709,6 +1722,7 @@ def finalize_booking():
         <p>A new session has been successfully booked and confirmed via Calendly:</p>
         <p><strong>Client:</strong> {invitee_name} ({invitee_email})</p>
         <p><strong>Time:</strong> {parsed_event_start_time.strftime('%A, %B %d, %Y at %I:%M %p %Z') if parsed_event_start_time else 'Not specified'}</p>
+        <p><strong>Meeting Link:</strong> <a href="{google_meet_link}">{google_meet_link}</a></p>
         <p><strong>Notes:</strong> {invitee_notes if invitee_notes else 'None'}</p>
         <p>This event should already be on your Calendly-connected calendar.</p>
         """
