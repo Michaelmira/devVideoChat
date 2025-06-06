@@ -249,21 +249,20 @@ const getState = ({ getStore, getActions, setStore }) => {
                 const response = await fetch(
                     process.env.BACKEND_URL + "/api/mentor/edit-self", {
                     method: "PUT",
-                    body: JSON.stringify(mentor),
                     headers: {
+                        Authorization: "Bearer " + token,
                         "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`
-                    }
+                    },
+                    body: JSON.stringify(mentor),
                 }
                 );
-                if (response.status !== 200) {
-                    console.log("Error updating mentor information");
-                    return false
-                };
-                const responseBody = await response.json();
-                setStore({ ...getStore(), mentor: responseBody })
-                console.log(responseBody)
-                return true;
+                if (response.ok) {
+                    console.log("Mentor information updated successfully");
+                    return true;
+                } else {
+                    console.error("Failed to update mentor information");
+                    return false;
+                }
             },
 
             addMentorImage: async (images, positionX, positionY, scale) => {
