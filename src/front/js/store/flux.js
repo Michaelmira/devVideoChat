@@ -1071,11 +1071,13 @@ const getState = ({ getStore, getActions, setStore }) => {
                     const data = await response.json();
 
                     if (response.ok) {
-                        console.log("Booking finalized successfully:", data);
-                        return { success: true, ...data };
+                        // After successfully finalizing, we should refresh the user's data
+                        // to ensure all booking lists are up-to-date.
+                        await getActions().getCurrentUser();
+                        return { success: true, booking: data };
                     } else {
-                        console.error("Failed to finalize booking:", data);
-                        return { success: false, message: data.msg || data.message || "Failed to finalize booking" };
+                        const error = await response.json();
+                        return { success: false, error: error.msg || "Failed to finalize booking" };
                     }
 
                 } catch (error) {
