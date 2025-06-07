@@ -1,25 +1,38 @@
+import smtplib
+from email.message import EmailMessage
 import os
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
 
 def send_email(to_email, subject, html_content):
     """
-    Sends an email using SendGrid.
+    Sends an email using Gmail's SMTP server.
     """
-    message = Mail(
-        from_email=os.environ.get('SENDGRID_FROM_EMAIL'),
-        to_emails=to_email,
-        subject=subject,
-        html_content=html_content)
+    MAIL_SERVER = "smtp.gmail.com"
+    MAIL_PORT = 465  # SSL PORT
+    MAIL_USERNAME = os.getenv("GMAIL")
+    MAIL_PASSWORD = os.getenv("GMAIL_PASSWORD")
+
+    if not MAIL_USERNAME or not MAIL_PASSWORD:
+        print("ERROR: Gmail credentials (GMAIL, GMAIL_PASSWORD) not found in .env file.")
+        return False
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = MAIL_USERNAME
+    msg["To"] = to_email
+    msg.add_alternative(html_content, subtype='html')
+
     try:
-        sendgrid_client = SendGridAPIClient(os.environ.get('SENDGRID_API_KEY'))
-        response = sendgrid_client.send(message)
-        print(response.status_code)
-        print(response.body)
-        print(response.headers)
+        print(f"Attempting to send email from {MAIL_USERNAME} to {to_email}...")
+        with smtplib.SMTP_SSL(MAIL_SERVER, MAIL_PORT) as server:
+            server.login(MAIL_USERNAME, MAIL_PASSWORD)
+            server.send_message(msg)
+        print("Email sent successfully!")
         return True
+    except smtplib.SMTPException as e:
+        print(f"ERROR: Failed to send email using smtplib: {e}")
+        return False
     except Exception as e:
-        print(e)
+        print(f"ERROR: An unexpected error occurred while sending email: {e}")
         return False
 
 def send_verification_email_code(to_email, code):
