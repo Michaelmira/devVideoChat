@@ -20,34 +20,22 @@ export const CustomerAuthModal = ({ initialTab, show, onHide }) => {
 
   useEffect(() => {
     if (modalRef.current && window.bootstrap) {
-      bsModalRef.current = new window.bootstrap.Modal(modalRef.current, {
-        keyboard: !showForgotPs && !showVerifyCode,
-        backdrop: (showForgotPs || showVerifyCode) ? 'static' : true,
-      });
-
+      bsModalRef.current = new window.bootstrap.Modal(modalRef.current, {});
       modalRef.current.addEventListener('hidden.bs.modal', () => {
         if (onHide) onHide();
         setShowForgotPs(false);
         setShowVerifyCode(false);
       });
-
-      if (show) {
-        setActiveTab(initialTab);
-        bsModalRef.current.show();
-      }
     }
-
     return () => {
       try {
-        if (bsModalRef.current?.dispose) {
-          bsModalRef.current.dispose();
-        }
+        if (bsModalRef.current?.dispose) bsModalRef.current.dispose();
       } catch (error) {
         console.error('Error disposing modal:', error);
       }
       bsModalRef.current = null;
     };
-  }, [showForgotPs, showVerifyCode]);
+  }, [onHide]);
 
   useEffect(() => {
     if (bsModalRef.current) {
@@ -61,10 +49,13 @@ export const CustomerAuthModal = ({ initialTab, show, onHide }) => {
   }, [show, initialTab]);
 
   useEffect(() => {
-    if (!showForgotPs) {  // When forgot password modal closes
-      setActiveTab('login');  // Switch to login tab
+    const modal = bsModalRef.current;
+    if (modal && modal._config) {
+      const isSubModalActive = showForgotPs || showVerifyCode;
+      modal._config.keyboard = !isSubModalActive;
+      modal._config.backdrop = isSubModalActive ? 'static' : true;
     }
-  }, [showForgotPs]);
+  }, [showForgotPs, showVerifyCode]);
 
   const handleClose = () => {
     if (bsModalRef.current) {
@@ -79,6 +70,7 @@ export const CustomerAuthModal = ({ initialTab, show, onHide }) => {
 
   const handleForgotPsReturn = () => {
     setShowForgotPs(false);
+    setActiveTab('login');
   };
 
   const handleSwitchLogin = () => {
