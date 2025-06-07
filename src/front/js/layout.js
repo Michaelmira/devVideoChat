@@ -20,7 +20,7 @@ import { BookingDetailsPage } from "./pages/BookingDetailsPage";
 import { BookingConfirmedPage } from "./pages/BookingConfirmedPage";
 import CustomerDashboard from "./pages/CustomerDashboard";
 import CustomerProfile from "./pages/CustomerProfile";
-import { VerifyEmail } from "./pages/VerifyEmail";
+
 import { VerifyCode } from "./pages/VerifyCode";
 
 
@@ -61,7 +61,7 @@ const Layout = () => {
                     <Navbar />
                     <Routes>
                         <Route element={<Home />} path="/" />
-                        <Route element={<VerifyEmail />} path="/verify-email" />
+                       
                         <Route element={<VerifyCode />} path="/verify-code" />
                         <Route element={<CustomerProfile />} path="/customer-profile" />
                         <Route element={<MentorProfile />} path="/mentor-profile" />
