@@ -254,14 +254,14 @@ class Booking(db.Model):
         }
 
     def serialize_for_customer(self):
-        return {
-            "id": self.id,
-            "mentor_name": self.mentor.first_name + " " + self.mentor.last_name if self.mentor else "N/A",
-            "scheduled_at": self.calendly_event_start_time.isoformat() if self.calendly_event_start_time else None,
-            "status": self.status.value,
-            "amount_paid": str(self.amount_paid),
-            "google_meet_link": self.google_meet_link
-        }
+    return {
+        "id": self.id,
+        "mentor_name": self.mentor.first_name + " " + self.mentor.last_name if self.mentor else "N/A",
+        "scheduled_at": self.calendly_event_start_time.isoformat() if self.calendly_event_start_time else None,
+        "status": self.status.value,
+        "amount_paid": str(self.amount_paid),
+        "google_meet_link": self.google_meet_link
+    }
 
     def serialize(self):
         return {
