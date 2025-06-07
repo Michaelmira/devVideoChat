@@ -4,7 +4,7 @@ import React, { useEffect, useContext, useState, useRef } from "react";
 import { Context } from "../store/appContext";
 import { MapPin, Mail, Phone, Calendar, Clock, DollarSign, Award, BookOpen } from 'lucide-react';
 import { useParams, Link, useNavigate } from "react-router-dom";
-import CalendlyAvailability from "../component/CalendlyAvailability";
+import { CalendlyAvailability } from "../component/CalendlyAvailability";
 import CalendlyAvailability2 from "../component/CalendlyAvailability2"; // Import the new component
 import { StripePaymentComponent } from "../component/StripePaymentComponent";
 import './MentorDetails.css'; // Create and import a CSS file for custom styles

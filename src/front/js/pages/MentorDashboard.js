@@ -1,6 +1,6 @@
 import React, { useContext, useState, useEffect } from "react";
 import { Context } from "../store/appContext";
-import CalendlyAvailability from "../component/CalendlyAvailability";
+import { CalendlyAvailability } from "../component/CalendlyAvailability";
 import { MentorAvailability } from "../component/MentorAvailability";
 
 export const MentorDashboard = () => {

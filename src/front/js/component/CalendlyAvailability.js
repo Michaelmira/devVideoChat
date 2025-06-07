@@ -9,7 +9,7 @@ import { VerifyCodeModal } from '../auth/VerifyCodeModal';
 
 import { PaymentForm } from './PaymentForm';
 
- export const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCancel }) => {
+export const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCancel }) => {
   const { store, actions } = useContext(Context);
   const { theid } = useParams();
   const [isLoading, setIsLoading] = useState(true);
