@@ -433,9 +433,12 @@ const getState = ({ getStore, getActions, setStore }) => {
                         })
                     });
                     const data = await response.json();
-                    if (response.status !== 200) {
+
+                    // BETTER FIX: Use response.ok which handles all 2xx status codes
+                    if (!response.ok) {
                         return { success: false, message: data.msg || "Login failed" };
                     }
+
                     setStore({
                         isCustomerLoggedIn: true,
                         customerId: data.customer_id,
