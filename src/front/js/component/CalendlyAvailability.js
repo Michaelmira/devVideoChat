@@ -9,7 +9,7 @@ import { VerifyCodeModal } from '../auth/VerifyCodeModal';
 
 import { PaymentForm } from './PaymentForm';
 
-const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCancel }) => {
+ export const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCancel }) => {
   const { store, actions } = useContext(Context);
   const { theid } = useParams();
   const [isLoading, setIsLoading] = useState(true);
@@ -245,7 +245,7 @@ const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCancel }) 
               onClose={handleCancel}
               switchToLogin={handleVerificationComplete}
             />
-            
+
             <div className="text-center mt-3">
               <button
                 className="btn btn-secondary"
@@ -361,5 +361,3 @@ const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCancel }) 
     </div>
   );
 };
-
-export default CalendlyAvailability;
