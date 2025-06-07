@@ -1442,6 +1442,57 @@ def sync_booking_with_calendly_details():
         db.session.commit()
         current_app.logger.info(f"Booking {booking_id} successfully synced with detailed Calendly info including Google Meet link: {google_meet_link}")
         
+        # --- NEW: Send confirmation emails after successful sync ---
+        customer_email_sent = False
+        mentor_email_sent = False
+
+        # Prepare customer email
+        customer_email_subject = f"Your Mentorship Session with {mentor.first_name} {mentor.last_name} is Confirmed!"
+        customer_email_body = f"""
+        <h1>Session Confirmed!</h1>
+        <p>Hi {booking.invitee_name},</p>
+        <p>Your mentorship session with <strong>{mentor.first_name} {mentor.last_name}</strong> has been successfully scheduled.</p>
+        <p><strong>Date & Time:</strong> {booking.calendly_event_start_time.strftime('%A, %B %d, %Y at %I:%M %p %Z') if booking.calendly_event_start_time else 'N/A'}</p>
+        <p><strong>Meeting Link:</strong> <a href="{booking.google_meet_link}">{booking.google_meet_link}</a></p>
+        <p>You should also receive a confirmation directly from Calendly. For your convenience, we've attached a calendar invite to this email.</p>
+        """
+        
+        meeting_details_ics = None
+        if booking.calendly_event_start_time and booking.calendly_event_end_time:
+            meeting_details_ics = {
+                'uid': f"{booking.id}-{booking.stripe_payment_intent_id}",
+                'dtstamp': datetime.utcnow().strftime('%Y%m%dT%H%M%SZ'),
+                'dtstart': booking.calendly_event_start_time.strftime('%Y%m%dT%H%M%SZ'),
+                'dtend': booking.calendly_event_end_time.strftime('%Y%m%dT%H%M%SZ'),
+                'summary': f"Mentorship: {booking.invitee_name} & {mentor.first_name} {mentor.last_name}",
+                'description': f"Your session is confirmed. Notes: {booking.invitee_notes or 'None'}. Meeting Link: {booking.google_meet_link}",
+                'location': booking.google_meet_link
+            }
+        
+        try:
+            send_booking_confirmation_email(booking.invitee_email, customer_email_subject, customer_email_body, meeting_details=meeting_details_ics)
+            customer_email_sent = True
+        except Exception as e:
+            current_app.logger.error(f"Failed to send customer confirmation email for booking {booking_id}: {str(e)}")
+
+        # Prepare and send mentor email
+        mentor_email_subject = f"New Confirmed Booking: {booking.invitee_name}"
+        mentor_email_body = f"""
+        <p>Hi {mentor.first_name},</p>
+        <p>A new session has been confirmed via Calendly:</p>
+        <p><strong>Client:</strong> {booking.invitee_name} ({booking.invitee_email})</p>
+        <p><strong>Time:</strong> {booking.calendly_event_start_time.strftime('%A, %B %d, %Y at %I:%M %p %Z') if booking.calendly_event_start_time else 'N/A'}</p>
+        <p><strong>Meeting Link:</strong> <a href="{booking.google_meet_link}">{booking.google_meet_link}</a></p>
+        <p>This event should already be on your calendar.</p>
+        """
+        try:
+            send_email(mentor.email, mentor_email_subject, mentor_email_body)
+            mentor_email_sent = True
+        except Exception as e:
+            current_app.logger.error(f"Failed to send mentor notification email for booking {booking_id}: {str(e)}")
+
+        current_app.logger.info(f"Email notifications sent for booking {booking.id}. Customer: {customer_email_sent}, Mentor: {mentor_email_sent}")
+
         return jsonify({
             "success": True, 
             "message": "Booking synced with Calendly details including Google Meet link.", 
@@ -1449,7 +1500,7 @@ def sync_booking_with_calendly_details():
         }), 200
 
     except requests.exceptions.HTTPError as e:
-        current_app.logger.error(f"Calendly API HTTPError during sync for booking {booking_id}: {e.response.text if e.response else str(e)}")
+        current_app.logger.error(f"Calendly API error: {e}")
         error_detail = "Could not fetch details from Calendly."
         if e.response is not None:
             try: 
