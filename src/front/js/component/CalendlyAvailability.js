@@ -5,6 +5,7 @@ import { Context } from "../store/appContext";
 import { useParams } from 'react-router-dom';
 import { CustomerLogin } from '../auth/CustomerLogin';
 import { CustomerSignup } from '../auth/CustomerSignup';
+import { VerifyCodeModal } from '../auth/VerifyCodeModal';
 import { PaymentForm } from './PaymentForm';
 
 const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCancel }) => {
@@ -18,7 +19,9 @@ const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCancel }) 
   const [showCalendly, setShowCalendly] = useState(true);
   const [showAuthForm, setShowAuthForm] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [showVerifyCode, setShowVerifyCode] = useState(false);
   const [activeAuthTab, setActiveAuthTab] = useState('login');
+  const [emailForVerification, setEmailForVerification] = useState("");
 
   // Calendar container reference
   const calendlyContainerRef = useRef(null);
@@ -114,6 +117,18 @@ const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCancel }) 
     setShowPaymentForm(true);
   };
 
+  const handleSignupSuccess = (email) => {
+    setEmailForVerification(email);
+    setShowAuthForm(false);
+    setShowVerifyCode(true);
+  };
+
+  const handleVerificationComplete = () => {
+    setShowVerifyCode(false);
+    setActiveAuthTab('login'); // Switch back to login tab
+    setShowAuthForm(true); // Show auth form again for login
+  };
+
   const handleSwitchTab = (tab) => {
     setActiveAuthTab(tab);
   };
@@ -183,7 +198,9 @@ const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCancel }) 
     // Reset the booking flow
     setShowAuthForm(false);
     setShowPaymentForm(false);
+    setShowVerifyCode(false);
     setShowCalendly(true);
+    setEmailForVerification("");
 
     // Call parent component's cancel callback if provided
     if (onCancel) {
@@ -217,8 +234,30 @@ const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCancel }) 
           </div>
         </>
       );
+    } else if (showVerifyCode) {
+      // Step 2: Email verification
+      return (
+        <div className="card border-0 shadow p-4">
+          <div className="card-body">
+            <VerifyCodeModal
+              email={emailForVerification}
+              onClose={handleCancel}
+              switchToLogin={handleVerificationComplete}
+            />
+            
+            <div className="text-center mt-3">
+              <button
+                className="btn btn-secondary"
+                onClick={handleCancel}
+              >
+                Back to Calendar
+              </button>
+            </div>
+          </div>
+        </div>
+      );
     } else if (showAuthForm) {
-      // Step 2: Authentication form
+      // Step 3: Authentication form
       return (
         <div className="card border-0 shadow p-4">
           <div className="card-body">
@@ -255,6 +294,7 @@ const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCancel }) 
               ) : (
                 <CustomerSignup
                   switchToLogin={() => handleSwitchTab('login')}
+                  onSignupSuccess={handleSignupSuccess}
                 />
               )}
             </div>
@@ -271,7 +311,7 @@ const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCancel }) 
         </div>
       );
     } else if (showPaymentForm) {
-      // Step 3: Payment form
+      // Step 4: Payment form
       return (
         <div className="card border-0 shadow p-4">
           <div className="card-body">
