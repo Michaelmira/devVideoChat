@@ -43,11 +43,3 @@ def setup_commands(app):
         # Clear existing data
         db.session.commit()
         print("Test data inserted successfully.")
-
-    @app.cli.command("send-reminders")
-    def send_reminders_command():
-        """Runs the email reminder script."""
-        from .cron_jobs import send_reminders
-        print("Sending booking reminders...")
-        send_reminders()
-        print("Finished sending reminders.")

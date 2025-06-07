@@ -23,6 +23,8 @@ class Customer(db.Model):
     last_active = db.Column(db.DateTime(timezone=True), unique=False)
     date_joined = db.Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
     about_me = db.Column(db.String(2500), unique=False)
+    is_verified = db.Column(db.Boolean(), default=False, nullable=False)
+    verification_token = db.Column(db.String(120), unique=True, nullable=True)
 
     profile_photo = db.relationship("CustomerImage", back_populates="customer", uselist=False)
     # sessions = db.relationship("Session", back_populates="customer", lazy="dynamic")
@@ -42,6 +44,7 @@ class Customer(db.Model):
             "date_joined": self.date_joined,
             "profile_photo": self.profile_photo.serialize() if self.profile_photo else None,
             "about_me": self.about_me,
+            "is_verified": self.is_verified,
             # "sessions": [session.id for session in self.sessions]
         }
     
@@ -92,6 +95,8 @@ class Mentor(db.Model):
     price = db.Column(db.Numeric(10,2), nullable=True)
     date_joined = db.Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
     google_oauth_credentials = db.Column(db.Text, nullable=True)
+    is_verified = db.Column(db.Boolean(), default=False, nullable=False)
+    verification_token = db.Column(db.String(120), unique=True, nullable=True)
     # confirmed_sessions = db.relationship("Session", back_populates="mentor")
     
 
@@ -108,6 +113,7 @@ class Mentor(db.Model):
             "id": self.id,
             "email": self.email,
             "is_active": self.is_active,
+            "is_verified": self.is_verified,
             "last_active": self.last_active,
             "first_name": self.first_name,
             "last_name": self.last_name,
@@ -227,9 +233,6 @@ class Booking(db.Model):
     
     status = db.Column(Enum(BookingStatus), default=BookingStatus.PENDING_PAYMENT, nullable=False)
     google_meet_link = db.Column(db.String(255), nullable=True)
-
-    # NEW field for tracking reminders
-    reminder_sent_at = db.Column(db.DateTime, nullable=True)
 
     # Relationships
     mentor = relationship("Mentor", backref=db.backref("bookings", lazy=True))

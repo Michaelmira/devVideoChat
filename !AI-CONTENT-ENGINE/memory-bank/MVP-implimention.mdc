@@ -60,17 +60,8 @@ alwaysApply: true
   - Booking history
 
 ### 5. Email Notifications
-- **Status:** ✅ DONE
-- Booking confirmation emails (mentor + client)
-- Reminder emails (24hrs + 1hr before meeting)
-- Cancellation notifications
-- Include meeting links and details
-
-### 6. Basic Profile Management
-- **Status:** ✅ DONE
-- Edit profile information
-- Update availability/calendar settings
-- Basic account settings
+- **Status:** ✅ DONE (Handled by Calendly)
+- **Details:** Booking confirmations, reminders, and cancellations are managed directly through Calendly's robust notification system, simplifying the MVP.
 
 ---
 
@@ -78,25 +69,31 @@ alwaysApply: true
 
 ### Phase 1: Essential User Experience (Week 1-2)
 
-#### D. Social Logins
+#### A. Email Verification on Signup
+- **Priority:** HIGH
+- Send a verification email upon user registration.
+- Users must click a link in the email to verify their account before logging in.
+- Include a developer bypass code (`999000`) for faster testing.
+
+#### B. Social Logins
 - **Priority:** MEDIUM
 - Add Google and GitHub login/signup buttons for both mentors and clients.
 
-#### E. Cancellation System
+#### C. Cancellation System
 - **Priority:** HIGH
 - Client-initiated cancellations (with refund policy)
 - Mentor-initiated cancellations (with rescheduling)
 - Automated calendar updates
 - Refund processing workflow
 
-#### F. Payment & Financial Management
+#### D. Payment & Financial Management
 - **Priority:** HIGH
 - Transaction history for users
 - Basic payout system for mentors
 - Payment failure handling
 - Receipt generation
 
-#### G. Basic Admin Panel
+#### E. Basic Admin Panel
 - **Priority:** MEDIUM
 - Monitor bookings and transactions
 - Basic mentor approval workflow
@@ -105,20 +102,20 @@ alwaysApply: true
 
 ### Phase 2: Operational Essentials (Week 2-3)
 
-#### H. Error Handling & Edge Cases
+#### F. Error Handling & Edge Cases
 - **Priority:** HIGH
 - Calendly API failure handling
 - Payment processing errors
 - Double booking prevention
 - Network connectivity issues
 
-#### I. Mobile Responsiveness
+#### G. Mobile Responsiveness
 - **Priority:** MEDIUM
 - Ensure all pages work on mobile
 - Touch-friendly calendar interface
 - Mobile payment flow optimization
 
-#### J. Basic SEO & Performance
+#### H. Basic SEO & Performance
 - **Priority:** LOW-MEDIUM
 - Meta tags and descriptions
 - Page loading optimization
@@ -126,20 +123,20 @@ alwaysApply: true
 
 ### Phase 3: Polish & Launch Prep (Week 3-4)
 
-#### K. Error Handling & Edge Cases
+#### I. Error Handling & Edge Cases
 - **Priority:** HIGH
 - Calendly API failure handling
 - Payment processing errors
 - Double booking prevention
 - Network connectivity issues
 
-#### L. Mobile Responsiveness
+#### J. Mobile Responsiveness
 - **Priority:** MEDIUM
 - Ensure all pages work on mobile
 - Touch-friendly calendar interface
 - Mobile payment flow optimization
 
-#### M. Basic SEO & Performance
+#### K. Basic SEO & Performance
 - **Priority:** LOW-MEDIUM
 - Meta tags and descriptions
 - Page loading optimization
@@ -268,6 +265,10 @@ CREATE TABLE cancellations (
 This plan focuses on completing the essential user journey while maintaining the quality of your existing foundation. The MVP should be achievable within 3-4 weeks with focused development.
 
 This plan focuses on completing the essential user journey while maintaining the quality of your existing foundation. The MVP should be achievable within 3-4 weeks with focused development.
+
+
+
+
 
 
 This plan focuses on completing the essential user journey while maintaining the quality of your existing foundation. The MVP should be achievable within 3-4 weeks with focused development.

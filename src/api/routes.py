@@ -20,6 +20,7 @@ from cloudinary.api import delete_resources_by_tag
 from api.models import db, Mentor, Customer, MentorImage, PortfolioPhoto, Booking, BookingStatus
 from api.utils import generate_sitemap, APIException
 from api.decorators import mentor_required, customer_required
+from api.send_email import send_email
 
 import pytz
 from enum import Enum as PyEnum
@@ -33,8 +34,8 @@ from google.oauth2.credentials import Credentials
 import requests # For making HTTP requests to Calendly
 import secrets # For generating secure state tokens for OAuth
 
-from .email_utils import send_email, send_booking_confirmation_email
 from datetime import datetime as dt
+from decimal import Decimal
 
 from dotenv import load_dotenv
 
@@ -103,6 +104,7 @@ def mentor_signup():
     if existingMentorPhone:
         return jsonify({"msg": "An account associated with this number already exists. Please try a different phone number."}), 409
 
+    token = secrets.token_urlsafe(16)
     mentor = Mentor(
         email=email, 
         password=generate_password_hash(password), 
@@ -111,13 +113,20 @@ def mentor_signup():
         city=city, 
         what_state=what_state, 
         country=country, 
-        phone=phone
+        phone=phone,
+        verification_token=token
     )
     db.session.add(mentor)
     db.session.commit()
+    
+    # Send verification email
+    verification_link = f"{os.getenv('FRONTEND_URL')}/verify-email?token={token}"
+    email_html = f"<p>Welcome to devMentor! Please click the link to verify your email address: <a href='{verification_link}'>{verification_link}</a></p>"
+    send_email(email, email_html, "devMentor - Verify Your Email")
+
     db.session.refresh(mentor)
     response_body = {
-        "msg": "Mentor Account successfully created!",
+        "msg": "Mentor Account successfully created! Please check your email to verify your account.",
         "mentor":mentor.serialize()
     }
     return jsonify(response_body), 201
@@ -137,6 +146,9 @@ def mentor_login():
     if not check_password_hash(mentor.password, password):
         return jsonify({"msg": "Incorrect password, please try again."}), 401
 
+    if not mentor.is_verified:
+        return jsonify({"msg": "Please verify your email address before logging in."}), 403
+
     access_token = create_access_token(
         identity=mentor.id, 
         additional_claims={"role": "mentor"},
@@ -146,6 +158,43 @@ def mentor_login():
         "mentor_id": mentor.id,
         "mentor_data": mentor.serialize()
     }), 200
+
+@api.route('/verify-email', methods=['POST'])
+def verify_email():
+    token = request.json.get("token", None)
+    if not token:
+        return jsonify({"msg": "Missing verification token."}), 400
+
+    # Handle developer bypass code
+    if token == "999000":
+        # This is a simplified bypass. In a real app, you might want to log this
+        # or have a more secure way to identify a developer user to verify.
+        # For now, we'll assume the frontend knows which user to verify
+        # or we could require an email in the bypass request.
+        # Let's require an email for the bypass.
+        email = request.json.get("email", None)
+        if not email:
+             return jsonify({"msg": "Email is required for developer bypass."}), 400
+        user = Mentor.query.filter_by(email=email).first() or Customer.query.filter_by(email=email).first()
+        if user:
+            user.is_verified = True
+            user.verification_token = None
+            db.session.commit()
+            return jsonify({"msg": "Email verified successfully with bypass."}), 200
+        else:
+            return jsonify({"msg": "User not found for bypass."}), 404
+
+
+    user = Mentor.query.filter_by(verification_token=token).first() or Customer.query.filter_by(verification_token=token).first()
+
+    if user is None:
+        return jsonify({"msg": "Invalid verification token."}), 404
+
+    user.is_verified = True
+    user.verification_token = None
+    db.session.commit()
+
+    return jsonify({"msg": "Email verified successfully!"}), 200
 
 @api.route("/forgot-password", methods=["POST"])
 def forgot_password():
@@ -563,17 +612,25 @@ def customer_signup():
     if existingCustomerPhone:
         return jsonify({"msg": "An account associated with this phone number already exists. Please try a different phone number."}), 409
     
+    token = secrets.token_urlsafe(16)
     customer = Customer(
         email=email, 
         password=generate_password_hash(password),
         first_name=first_name, 
         last_name=last_name, 
         phone=phone,
+        verification_token=token
     ) 
     db.session.add(customer)
     db.session.commit()
+
+    # Send verification email
+    verification_link = f"{os.getenv('FRONTEND_URL')}/verify-email?token={token}"
+    email_html = f"<p>Welcome to devMentor! Please click the link to verify your email address: <a href='{verification_link}'>{verification_link}</a></p>"
+    send_email(email, email_html, "devMentor - Verify Your Email")
+
     db.session.refresh(customer)
-    response_body = {"msg": "Account succesfully created!", "customer":customer.serialize()}
+    response_body = {"msg": "Account succesfully created! Please check your email to verify your account.", "customer":customer.serialize()}
     return jsonify(response_body), 201
 
 @api.route('/customer/login', methods=['POST'])
@@ -588,11 +645,14 @@ def customer_login():
         return jsonify({"msg": "no such user"}), 404
     if not check_password_hash(customer.password, password):
         return jsonify({"msg": "Bad email or password"}), 401
+    
+    if not customer.is_verified:
+        return jsonify({"msg": "Please verify your email address before logging in."}), 403
 
     access_token = create_access_token(
         identity=customer.id,
         additional_claims = {"role": "customer"} 
-        )
+    )
     return jsonify({
         "access_token":access_token,
         "customer_id": customer.id,
@@ -1279,7 +1339,7 @@ def get_booking_by_id(booking_id):
         current_app.logger.error(f"Error retrieving booking {booking_id}: {str(e)}")
         return jsonify({"msg": "Failed to retrieve booking"}), 500
 
-@api.route('/booking/calendly-sync', methods=['POST'])
+@api.route('/sync_booking_with_calendly_details', methods=['POST'])
 @jwt_required()
 def sync_booking_with_calendly_details():
     current_customer_id = get_jwt_identity()
@@ -1442,57 +1502,6 @@ def sync_booking_with_calendly_details():
         db.session.commit()
         current_app.logger.info(f"Booking {booking_id} successfully synced with detailed Calendly info including Google Meet link: {google_meet_link}")
         
-        # --- NEW: Send confirmation emails after successful sync ---
-        customer_email_sent = False
-        mentor_email_sent = False
-
-        # Prepare customer email
-        customer_email_subject = f"Your Mentorship Session with {mentor.first_name} {mentor.last_name} is Confirmed!"
-        customer_email_body = f"""
-        <h1>Session Confirmed!</h1>
-        <p>Hi {booking.invitee_name},</p>
-        <p>Your mentorship session with <strong>{mentor.first_name} {mentor.last_name}</strong> has been successfully scheduled.</p>
-        <p><strong>Date & Time:</strong> {booking.calendly_event_start_time.strftime('%A, %B %d, %Y at %I:%M %p %Z') if booking.calendly_event_start_time else 'N/A'}</p>
-        <p><strong>Meeting Link:</strong> <a href="{booking.google_meet_link}">{booking.google_meet_link}</a></p>
-        <p>You should also receive a confirmation directly from Calendly. For your convenience, we've attached a calendar invite to this email.</p>
-        """
-        
-        meeting_details_ics = None
-        if booking.calendly_event_start_time and booking.calendly_event_end_time:
-            meeting_details_ics = {
-                'uid': f"{booking.id}-{booking.stripe_payment_intent_id}",
-                'dtstamp': datetime.utcnow().strftime('%Y%m%dT%H%M%SZ'),
-                'dtstart': booking.calendly_event_start_time.strftime('%Y%m%dT%H%M%SZ'),
-                'dtend': booking.calendly_event_end_time.strftime('%Y%m%dT%H%M%SZ'),
-                'summary': f"Mentorship: {booking.invitee_name} & {mentor.first_name} {mentor.last_name}",
-                'description': f"Your session is confirmed. Notes: {booking.invitee_notes or 'None'}. Meeting Link: {booking.google_meet_link}",
-                'location': booking.google_meet_link
-            }
-        
-        try:
-            send_booking_confirmation_email(booking.invitee_email, customer_email_subject, customer_email_body, meeting_details=meeting_details_ics)
-            customer_email_sent = True
-        except Exception as e:
-            current_app.logger.error(f"Failed to send customer confirmation email for booking {booking_id}: {str(e)}")
-
-        # Prepare and send mentor email
-        mentor_email_subject = f"New Confirmed Booking: {booking.invitee_name}"
-        mentor_email_body = f"""
-        <p>Hi {mentor.first_name},</p>
-        <p>A new session has been confirmed via Calendly:</p>
-        <p><strong>Client:</strong> {booking.invitee_name} ({booking.invitee_email})</p>
-        <p><strong>Time:</strong> {booking.calendly_event_start_time.strftime('%A, %B %d, %Y at %I:%M %p %Z') if booking.calendly_event_start_time else 'N/A'}</p>
-        <p><strong>Meeting Link:</strong> <a href="{booking.google_meet_link}">{booking.google_meet_link}</a></p>
-        <p>This event should already be on your calendar.</p>
-        """
-        try:
-            send_email(mentor.email, mentor_email_subject, mentor_email_body)
-            mentor_email_sent = True
-        except Exception as e:
-            current_app.logger.error(f"Failed to send mentor notification email for booking {booking_id}: {str(e)}")
-
-        current_app.logger.info(f"Email notifications sent for booking {booking.id}. Customer: {customer_email_sent}, Mentor: {mentor_email_sent}")
-
         return jsonify({
             "success": True, 
             "message": "Booking synced with Calendly details including Google Meet link.", 
@@ -1501,22 +1510,17 @@ def sync_booking_with_calendly_details():
 
     except requests.exceptions.HTTPError as e:
         current_app.logger.error(f"Calendly API error: {e}")
-        error_detail = "Could not fetch details from Calendly."
+        error_details = "Unknown Calendly API error."
         if e.response is not None:
-            try: 
-                error_detail = e.response.json().get("message", error_detail)
-            except: 
-                pass
-        return jsonify({"success": False, "message": f"Calendly API error: {error_detail}"}), e.response.status_code if e.response is not None else 502
+            error_details = e.response.json()
+        return jsonify({"msg": "Failed to schedule with Calendly due to an API error.", "details": error_details}), 502
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Error syncing Calendly details for booking {booking_id}: {str(e)}")
-        import traceback
-        current_app.logger.error(traceback.format_exc())
-        return jsonify({"success": False, "message": "Internal server error during Calendly sync."}), 500
+        current_app.logger.error(f"Unexpected error finalizing booking: {str(e)}")
+        return jsonify({"msg": "An unexpected server error occurred while finalizing your booking."}), 500
 
 @api.route('/finalize-booking', methods=['POST'])
-@jwt_required() # Customer must be logged in to finalize a booking
+@jwt_required()
 def finalize_booking():
     data = request.get_json()
     current_customer_id = get_jwt_identity()
@@ -1597,179 +1601,11 @@ def finalize_booking():
             current_app.logger.error(f"Error creating manual booking: {str(e)}")
             return jsonify({"msg": "Failed to create booking"}), 500
 
-        # --- Email sending AFTER successful database commit ---
-        # Only mentor email will be sent in this manual flow
-        mentor_email_sent = False
-        
-        # Prepare mentor email
-        mentor_email_subject = f"Action Required: New Mentorship Booking Request from {invitee_name}"
-        
-        # Mentor's Google Calendar link
-        mentor_gcal_link = "#"
-        
-        # Timezone conversion for mentor email
-        readable_event_time_utc = "Not specified by client system"
-        readable_event_time_et = "Not specified, cannot convert"
-        if parsed_event_start_time:
-            readable_event_time_utc = parsed_event_start_time.strftime('%Y-%m-%d %H:%M %Z')
-            try:
-                eastern_tz = pytz.timezone('America/New_York')
-                time_in_eastern = parsed_event_start_time.astimezone(eastern_tz)
-                readable_event_time_et = time_in_eastern.strftime('%Y-%m-%d %I:%M %p %Z') # e.g., 2025-05-31 03:14 PM EDT
-            except Exception as e:
-                current_app.logger.error(f"Could not convert time to Eastern for mentor email: {e}")
-                readable_event_time_et = "Time conversion error"
-
-            # Default end time to 1 hour after start if not available for mentor link
-            mentor_event_end_time_for_link = parsed_event_end_time if parsed_event_end_time else parsed_event_start_time + timedelta(hours=1)
-            current_app.logger.info(f"[Mentor GCal Link] Raw parsed_event_start_time: {parsed_event_start_time}, Calculated mentor_event_end_time_for_link: {mentor_event_end_time_for_link}")
-            
-            gcal_start_str_mentor = parsed_event_start_time.strftime('%Y%m%dT%H%M%SZ')
-            gcal_end_str_mentor = mentor_event_end_time_for_link.strftime('%Y%m%dT%H%M%SZ')
-            current_app.logger.info(f"[Mentor GCal Link] Formatted gcal_start_str_mentor: {gcal_start_str_mentor}, Formatted gcal_end_str_mentor: {gcal_end_str_mentor}")
-            
-            mentor_gcal_event_text = f"Mentorship: {invitee_name} with {mentor.first_name} {mentor.last_name}"
-            mentor_gcal_event_details = (
-                f"Client: {invitee_name} ({invitee_email}).\n"
-                f"Requested time for mentorship session: {readable_event_time_utc}.\n"
-                f"Example (US Eastern Time): {readable_event_time_et}\n"
-                f"Notes from client: {invitee_notes if invitee_notes else 'None'}.\n\n"
-                f"Meeting Link: {google_meet_link}\n\n"
-                f"Please confirm these details, schedule the meeting in your calendar, and ensure an invitation is sent to {invitee_email} from your Google Calendar."
-            )
-            mentor_gcal_location = google_meet_link # Set location to the meet link
-            
-            mentor_gcal_params = {
-                'action': 'TEMPLATE',
-                'text': mentor_gcal_event_text,
-                'dates': f'{gcal_start_str_mentor}/{gcal_end_str_mentor}',
-                'details': mentor_gcal_event_details,
-                'location': mentor_gcal_location,
-                'add': invitee_email # Add customer as attendee
-            }
-            mentor_gcal_link = f"https://www.google.com/calendar/render?{urlencode(mentor_gcal_params)}"
-            current_app.logger.info(f"[Mentor GCal Link] Generated Google Calendar Link: {mentor_gcal_link}")
-
-        mentor_email_body = f"""
-        <div style='font-family: Arial, sans-serif; color: #333;'>
-            <h2>Action Required: New Mentorship Booking Request</h2>
-            <p>Hi {mentor.first_name},</p>
-            <p>You have received a new mentorship booking request that requires your manual attention and calendar scheduling:</p>
-            <p><strong>Client Name:</strong> {invitee_name}</p>
-            <p><strong>Client Email:</strong> {invitee_email}</p>
-            <p><strong>Requested Time (UTC):</strong> {readable_event_time_utc}</p>
-            <p><strong>Example (US Eastern Time):</strong> {readable_event_time_et}</p>
-            <p><strong>Client Notes:</strong> {invitee_notes if invitee_notes else 'None'}</p>
-            <p>Since the Calendly link was not used for this booking, please schedule this session manually.</p>"""
-        
-        if mentor_gcal_link != "#":
-            mentor_email_body += f"""
-            <p><strong>Meeting Link:</strong> <a href="{google_meet_link}">{google_meet_link}</a></p>
-            <p>To help you schedule this, you can use the link below to create a Google Calendar event. It will be pre-filled with the client's details and requested time. Please review, adjust the time if necessary, and then <strong>save the event in your Google Calendar to send the official calendar invitation to {invitee_email}</strong>.</p>
-            <div style="text-align: center; margin: 20px 0;">
-                <a href="{mentor_gcal_link}" target="_blank" 
-                   style="background-color: #007bff; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-size: 16px; display: inline-block;">
-                    Schedule in Google Calendar
-                </a>
-            </div>"""
-        else:
-            mentor_email_body += "<p>Please schedule this meeting manually in your calendar and send an invitation to the client.</p>"
-
-        mentor_email_body += f"""
-            <p>Thank you,<br>The devMentor Team</p>
-        </div>
-        """
-
-        # Send mentor email - Enhanced debugging
-        current_app.logger.info(f"=== MENTOR EMAIL DEBUG START (Manual Booking) ===")
-        current_app.logger.info(f"Mentor object: {mentor}")
-        current_app.logger.info(f"Mentor ID: {mentor.id if mentor else 'None'}")
-        current_app.logger.info(f"Mentor email: '{mentor.email}' (type: {type(mentor.email)})")
-        current_app.logger.info(f"Mentor first_name: '{mentor.first_name}'")
-        current_app.logger.info(f"Mentor email subject: '{mentor_email_subject}'")
-        current_app.logger.info(f"Mentor email body length: {len(mentor_email_body)} characters")
-        
-        if not mentor.email:
-            current_app.logger.error("MENTOR EMAIL IS MISSING OR EMPTY!")
-            mentor_email_sent = False
-        elif not mentor_email_subject:
-            current_app.logger.error("MENTOR EMAIL SUBJECT IS MISSING!")
-            mentor_email_sent = False  
-        elif not mentor_email_body:
-            current_app.logger.error("MENTOR EMAIL BODY IS MISSING!")
-            mentor_email_sent = False
-        else:
-            try:
-                current_app.logger.info(f"Attempting to send mentor email to: {mentor.email}")
-                send_booking_confirmation_email(mentor.email, mentor_email_subject, mentor_email_body)
-                mentor_email_sent = True
-                current_app.logger.info(f"✅ Mentor notification email sent successfully to {mentor.email}")
-            except Exception as e:
-                current_app.logger.error(f"❌ Failed to send mentor notification email to {mentor.email}: {str(e)}")
-                current_app.logger.error(f"Exception type: {type(e).__name__}")
-                import traceback
-                current_app.logger.error(f"Full traceback: {traceback.format_exc()}")
-                mentor_email_sent = False
-        
-        current_app.logger.info(f"=== MENTOR EMAIL DEBUG END (Manual Booking) ===")
-        current_app.logger.info(f"Final mentor_email_sent status: {mentor_email_sent}")
-
-        # --- NEW: Send confirmation email to the CUSTOMER ---
-        customer_email_sent = False
-        customer_email_subject = "Your Mentorship Booking is Confirmed!"
-        customer_email_body = f"""
-        <div style='font-family: Arial, sans-serif; color: #333;'>
-            <h2>Booking Confirmed!</h2>
-            <p>Hi {invitee_name},</p>
-            <p>Your booking with <strong>{mentor.first_name} {mentor.last_name}</strong> is confirmed. The mentor has been notified and will send you a calendar invitation shortly.</p>
-            <p><strong>Booking Details:</strong></p>
-            <ul>
-                <li><strong>Mentor:</strong> {mentor.first_name} {mentor.last_name}</li>
-                <li><strong>Time (UTC):</strong> {readable_event_time_utc}</li>
-                <li><strong>Example (US Eastern):</strong> {readable_event_time_et}</li>
-                <li><strong>Meeting Link:</strong> <a href="{google_meet_link}">{google_meet_link}</a></li>
-            </ul>
-            <p>Please keep an eye on your inbox for the calendar invite. If you have any questions, please contact your mentor directly.</p>
-            <p>Thank you for using devMentor!</p>
-        </div>
-        """
-        
-        # Prepare meeting details for the .ics attachment for the customer
-        customer_meeting_details = None
-        if parsed_event_start_time and parsed_event_end_time:
-            customer_meeting_details = {
-                'uid': f"booking-{new_booking.id}-customer",
-                'dtstamp': datetime.utcnow().strftime('%Y%m%dT%H%M%SZ'),
-                'dtstart': parsed_event_start_time.strftime('%Y%m%dT%H%M%SZ'),
-                'dtend': parsed_event_end_time.strftime('%Y%m%dT%H%M%SZ'),
-                'summary': f"Mentorship with {mentor.first_name} {mentor.last_name}",
-                'description': f"Your mentorship session is confirmed. Notes: {invitee_notes if invitee_notes else 'None'}. Meeting Link: {google_meet_link}",
-                'location': google_meet_link
-            }
-
-        try:
-            current_app.logger.info(f"Attempting to send customer confirmation email to: {invitee_email}")
-            send_booking_confirmation_email(
-                recipient_email=invitee_email, 
-                subject=customer_email_subject, 
-                body_html=customer_email_body, 
-                meeting_details=customer_meeting_details
-            )
-            customer_email_sent = True
-            current_app.logger.info(f"✅ Customer confirmation email sent successfully to {invitee_email}")
-        except Exception as e:
-            current_app.logger.error(f"❌ Failed to send customer confirmation email to {invitee_email}: {str(e)}")
-
-        # Return success response with updated message and email status
         return jsonify({
             "success": True, 
             "message": "Your booking request has been sent to the mentor. They will contact you with a calendar invitation shortly.",
             "bookingDetails": new_booking.serialize(),
-            "requires_manual_confirmation": True, # This flag is still relevant
-            "email_status": {
-                "customer_notified": False, # Customer is NOT notified by the system
-                "mentor_notified": mentor_email_sent
-            }
+            "requires_manual_confirmation": True
         }), 201
 
     # --- Original Calendly integration code (when URI is provided) --- 
@@ -1853,99 +1689,10 @@ def finalize_booking():
             current_app.logger.error(f"Error creating Calendly booking: {str(e)}")
             return jsonify({"msg": "Failed to create booking"}), 500
 
-        # --- Email sending AFTER successful database commit ---
-        customer_email_sent = False
-        mentor_email_sent = False
-
-        # Prepare customer email
-        email_subject = f"Your Mentorship Session with {mentor.first_name} {mentor.last_name} is Confirmed!"
-        email_body_html = f"""
-        <h1>Session Confirmed!</h1>
-        <p>Hi {invitee_name},</p>
-        <p>Your mentorship session with <strong>{mentor.first_name} {mentor.last_name}</strong> has been successfully scheduled via Calendly.</p>
-        <p><strong>Date & Time:</strong> {parsed_event_start_time.strftime('%A, %B %d, %Y at %I:%M %p %Z') if parsed_event_start_time else 'N/A'}</p>
-        <p><strong>Mentor:</strong> {mentor.first_name} {mentor.last_name}</p>
-        <p><strong>Meeting Link:</strong> <a href="{google_meet_link}">{google_meet_link}</a></p>
-        <p><strong>Your Email:</strong> {invitee_email}</p>
-        {f"<p><strong>Notes:</strong> {invitee_notes}</p>" if invitee_notes else ""}
-        <p>You should also receive a confirmation directly from Calendly with options to add this to your calendar. We've attached an iCalendar (.ics) file to this email as well for your convenience.</p>
-        <p>We look forward to your session!</p>
-        """
-        
-        meeting_details_ics = None
-        if parsed_event_start_time and parsed_event_end_time:
-            meeting_details_ics = {
-                'uid': f"{new_booking.id}-{stripe_payment_intent_id}",
-                'dtstamp': datetime.utcnow().strftime('%Y%m%dT%H%M%SZ'),
-                'dtstart': parsed_event_start_time.strftime('%Y%m%dT%H%M%SZ'),
-                'dtend': parsed_event_end_time.strftime('%Y%m%dT%H%M%SZ'),
-                'summary': f"Mentorship: {invitee_name} & {mentor.first_name} {mentor.last_name}",
-                'description': f"Mentorship session. Notes: {invitee_notes if invitee_notes else 'None'}. Meeting Link: {google_meet_link}. Calendly Event: {confirmed_calendly_event_uri}",
-                'location': google_meet_link
-            }
-
-        # Send customer email
-        try:
-            send_booking_confirmation_email(invitee_email, email_subject, email_body_html, meeting_details=meeting_details_ics)
-            customer_email_sent = True
-            current_app.logger.info(f"Customer confirmation email sent to {invitee_email}")
-        except Exception as e:
-            current_app.logger.error(f"Failed to send customer confirmation email: {str(e)}")
-
-        # Prepare and send mentor email
-        mentor_email_subject_confirmed = f"New Confirmed Booking: {invitee_name} for {parsed_event_start_time.strftime('%Y-%m-%d %H:%M') if parsed_event_start_time else 'N/A'}"
-        mentor_email_body_confirmed = f"""
-        <p>Hi {mentor.first_name},</p>
-        <p>A new session has been successfully booked and confirmed via Calendly:</p>
-        <p><strong>Client:</strong> {invitee_name} ({invitee_email})</p>
-        <p><strong>Time:</strong> {parsed_event_start_time.strftime('%A, %B %d, %Y at %I:%M %p %Z') if parsed_event_start_time else 'Not specified'}</p>
-        <p><strong>Meeting Link:</strong> <a href="{google_meet_link}">{google_meet_link}</a></p>
-        <p><strong>Notes:</strong> {invitee_notes if invitee_notes else 'None'}</p>
-        <p>This event should already be on your Calendly-connected calendar.</p>
-        """
-
-        # Send mentor email - Enhanced debugging  
-        current_app.logger.info(f"=== MENTOR EMAIL DEBUG START ===")
-        current_app.logger.info(f"Mentor object: {mentor}")
-        current_app.logger.info(f"Mentor ID: {mentor.id if mentor else 'None'}")
-        current_app.logger.info(f"Mentor email: '{mentor.email}' (type: {type(mentor.email)})")
-        current_app.logger.info(f"Mentor first_name: '{mentor.first_name}'")
-        current_app.logger.info(f"Mentor email subject: '{mentor_email_subject_confirmed}'")
-        current_app.logger.info(f"Mentor email body length: {len(mentor_email_body_confirmed)} characters")
-        
-        if not mentor.email:
-            current_app.logger.error("MENTOR EMAIL IS MISSING OR EMPTY!")
-            mentor_email_sent = False
-        elif not mentor_email_subject_confirmed:
-            current_app.logger.error("MENTOR EMAIL SUBJECT IS MISSING!")
-            mentor_email_sent = False  
-        elif not mentor_email_body_confirmed:
-            current_app.logger.error("MENTOR EMAIL BODY IS MISSING!")
-            mentor_email_sent = False
-        else:
-            try:
-                current_app.logger.info(f"Attempting to send mentor email to: {mentor.email}")
-                send_booking_confirmation_email(mentor.email, mentor_email_subject_confirmed, mentor_email_body_confirmed)
-                mentor_email_sent = True
-                current_app.logger.info(f"✅ Mentor notification email sent successfully to {mentor.email}")
-            except Exception as e:
-                current_app.logger.error(f"❌ Failed to send mentor notification email to {mentor.email}: {str(e)}")
-                current_app.logger.error(f"Exception type: {type(e).__name__}")
-                import traceback
-                current_app.logger.error(f"Full traceback: {traceback.format_exc()}")
-                mentor_email_sent = False
-        
-        current_app.logger.info(f"=== MENTOR EMAIL DEBUG END ===")
-        current_app.logger.info(f"Final mentor_email_sent status: {mentor_email_sent}")
-
         return jsonify({
             "success": True, 
             "message": "Booking successfully scheduled with Calendly!", 
-            "bookingDetails": new_booking.serialize(),
-            "email_status": {
-                "customer_notified": customer_email_sent,
-                "mentor_notified": mentor_email_sent
-            }
+            "bookingDetails": new_booking.serialize()
         }), 201
 
     except requests.exceptions.HTTPError as e:
@@ -2102,42 +1849,3 @@ def reschedule_booking():
     db.session.refresh(booking)
 
     return jsonify({"success": True, "message": "Booking rescheduled successfully"}), 200
-
-@api.route('/booking/cancel/<int:booking_id>', methods=['POST'])
-@jwt_required()
-def cancel_booking(booking_id):
-    booking = Booking.query.get_or_404(booking_id)
-    user_id = get_jwt_identity()
-    role = get_jwt()['role']
-
-    if role == 'customer' and booking.customer_id != user_id:
-        return jsonify({"msg": "You are not authorized to cancel this booking."}), 403
-    elif role == 'mentor' and booking.mentor_id != user_id:
-        return jsonify({"msg": "You are not authorized to cancel this booking."}), 403
-
-    cancellation_reason = request.json.get("reason", "No reason provided.")
-
-    if role == 'customer':
-        booking.status = BookingStatus.CANCELLED_BY_CUSTOMER
-        notify_email = booking.mentor.email
-        cancelled_by_name = booking.customer.first_name
-        other_party_name = booking.mentor.first_name
-    else: # role == 'mentor'
-        booking.status = BookingStatus.CANCELLED_BY_MENTOR
-        notify_email = booking.customer.email
-        cancelled_by_name = booking.mentor.first_name
-        other_party_name = booking.customer.first_name
-    
-    db.session.commit()
-
-    # Send cancellation email
-    subject = f"Booking Cancelled: Session with {cancelled_by_name}"
-    body = f"""
-    <p>Hi {other_party_name},</p>
-    <p>Your upcoming session with {cancelled_by_name} has been cancelled.</p>
-    <p><strong>Reason:</strong> {cancellation_reason}</p>
-    <p>Please contact them if you need to reschedule.</p>
-    """
-    send_email(notify_email, subject, body)
-
-    return jsonify({"msg": "Booking cancelled successfully."}), 200
