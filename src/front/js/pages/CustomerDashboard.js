@@ -31,6 +31,17 @@ const CustomerDashboard = () => {
         }
     }, [store.currentUserData, store.token, actions]);
 
+    // Helper function to get the correct date/time to display
+    const getBookingDateTime = (booking) => {
+        // Use calendly_event_start_time if available (actual meeting time)
+        // Otherwise fall back to scheduled_at (booking creation time)
+        const dateToUse = booking.calendly_event_start_time || booking.scheduled_at;
+        
+        if (!dateToUse) return 'Not scheduled';
+        
+        return new Date(dateToUse).toLocaleString();
+    };
+
     if (loading) {
         return <div className="container text-center"><h2>Loading Dashboard...</h2></div>;
     }
@@ -56,7 +67,7 @@ const CustomerDashboard = () => {
                                 <small>Status: <span className="badge bg-success">{booking.status}</span></small>
                             </div>
                             <p className="mb-1">
-                                <strong>Date & Time:</strong> {booking.scheduled_at ? new Date(booking.scheduled_at).toLocaleString() : 'Not scheduled'}
+                                <strong>Date & Time:</strong> {getBookingDateTime(booking)}
                             </p>
                             <p className="mb-1">
                                 <strong>Meeting Link:</strong>
@@ -79,4 +90,4 @@ const CustomerDashboard = () => {
     );
 };
 
-export default CustomerDashboard; 
+export default CustomerDashboard;
