@@ -21,8 +21,6 @@ import { BookingConfirmedPage } from "./pages/BookingConfirmedPage";
 import CustomerDashboard from "./pages/CustomerDashboard";
 import CustomerProfile from "./pages/CustomerProfile";
 
-import { VerifyCode } from "./pages/VerifyCode";
-
 
 //create your first component
 const Layout = () => {
@@ -61,16 +59,9 @@ const Layout = () => {
                     <Navbar />
                     <Routes>
                         <Route element={<Home />} path="/" />
-                       
-                        <Route element={<VerifyCode />} path="/verify-code" />
                         <Route element={<CustomerProfile />} path="/customer-profile" />
                         <Route element={<MentorProfile />} path="/mentor-profile" />
                         <Route element={<BookingDetailsPage />} path="/booking-details" />
-                        <Route element={<Single />} path="/single/:theid" />
-                        <Route element={<MentorList />} path="/mentor-list" />
-                        <Route element={<MentorDashboard />} path="/mentor-dashboard" />
-                        <Route element={<CustomerDashboard />} path="/customer-dashboard" />
-                        <Route element={<MentorDetails />} path="/mentor-details/:theid" />
                         <Route element={<BookingConfirmedPage />} path="/booking-confirmed/:bookingId" />
                         <Route element={<h1>Not found!</h1>} path="*" />
                     </Routes>

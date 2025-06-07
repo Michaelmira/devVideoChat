@@ -8,7 +8,7 @@ import 'react-phone-input-2/lib/style.css'
 import { ValidateEmail, ValidateFirstName, ValidateLastName, ValidatePassword, ValidatePhone, } from "../component/Validators";
 
 
-export const CustomerSignup = ({ switchToLogin }) => {
+export const CustomerSignup = ({ switchToLogin, onSignupSuccess }) => {
     const { actions } = useContext(Context);
     const navigate = useNavigate();
     const [email, setEmail] = useState("");
@@ -42,7 +42,7 @@ export const CustomerSignup = ({ switchToLogin }) => {
                 });
 
                 if (result.success) {
-                    navigate('/verify-code', { state: { email: email } });
+                    onSignupSuccess(email);
                 } else {
                     alert(result.message || "An error occurred during signup");
                 }

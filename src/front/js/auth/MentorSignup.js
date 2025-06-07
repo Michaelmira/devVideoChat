@@ -1,7 +1,6 @@
 // MentorSignup.js
 
 import React, { useContext, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Context } from "../store/appContext";
 import PhoneInput from 'react-phone-input-2'
 import { ValidateEmail, ValidateFirstName, ValidateLastName, ValidatePassword, ValidateCity, ValidatePhone, ValidateWhatState, ValidateCountry } from "../component/Validators";
@@ -10,9 +9,8 @@ import CreatableSelect from "react-select/creatable";
 import { stateOptions, countryOptions } from "../store/data";
 
 
-export const MentorSignup = ({ switchToLogin }) => {
+export const MentorSignup = ({ switchToLogin, onSignupSuccess }) => {
     const { actions } = useContext(Context);
-    const navigate = useNavigate();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -49,7 +47,7 @@ export const MentorSignup = ({ switchToLogin }) => {
             };
             const result = await actions.signUpMentor(formData);
             if (result.success) {
-                navigate('/verify-code', { state: { email: formData.email } });
+                onSignupSuccess(formData.email);
             } else {
                 alert(result.message || "Signup failed. Please try again.");
             }

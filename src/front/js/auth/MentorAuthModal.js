@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MentorLogin } from "./MentorLogin.js";
 import { MentorSignup } from "./MentorSignup.js";
 import { ForgotPsModal } from './ForgotPsModal.js';
+import { VerifyCodeModal } from './VerifyCodeModal.js';
 import { useNavigate } from 'react-router-dom';
 import "../../styles/auth.css";
 
@@ -9,6 +10,8 @@ import "../../styles/auth.css";
 export const MentorAuthModal = ({ initialTab, show, onHide }) => {
     const [activeTab, setActiveTab] = useState(initialTab);
     const [showForgotPs, setShowForgotPs] = useState(false);
+    const [showVerifyCode, setShowVerifyCode] = useState(false);
+    const [emailForVerification, setEmailForVerification] = useState("");
     const modalRef = useRef(null);
     const bsModalRef = useRef(null);
     const navigate = useNavigate();
@@ -16,13 +19,14 @@ export const MentorAuthModal = ({ initialTab, show, onHide }) => {
     useEffect(() => {
         if (modalRef.current && window.bootstrap) {
             bsModalRef.current = new window.bootstrap.Modal(modalRef.current, {
-                keyboard: !showForgotPs,
-                backdrop: showForgotPs ? 'static' : true,
+                keyboard: !showForgotPs && !showVerifyCode,
+                backdrop: (showForgotPs || showVerifyCode) ? 'static' : true,
             });
 
             modalRef.current.addEventListener('hidden.bs.modal', () => {
                 if (onHide) onHide();
                 setShowForgotPs(false);
+                setShowVerifyCode(false);
             });
 
             if (show) {
@@ -41,7 +45,7 @@ export const MentorAuthModal = ({ initialTab, show, onHide }) => {
             }
             bsModalRef.current = null;
         };
-    }, [showForgotPs]);
+    }, [showForgotPs, showVerifyCode]);
 
 
     useEffect(() => {
@@ -65,6 +69,11 @@ export const MentorAuthModal = ({ initialTab, show, onHide }) => {
         if (bsModalRef.current) {
             bsModalRef.current.hide();
         }
+    };
+
+    const handleSignupSuccess = (email) => {
+        setEmailForVerification(email);
+        setShowVerifyCode(true);
     };
 
     const handleForgotPsReturn = () => {
@@ -101,7 +110,7 @@ export const MentorAuthModal = ({ initialTab, show, onHide }) => {
                         boxShadow: '0 0 30px rgba(0, 0, 0, 0.7)',
                     }}
                 >
-                    {!showForgotPs ? (
+                    {!showForgotPs && !showVerifyCode ? (
                         <>
                             <div className="modal-header border-0 p-0">
                                 <div className="d-flex w-100 position-relative">
@@ -143,14 +152,20 @@ export const MentorAuthModal = ({ initialTab, show, onHide }) => {
                                         onForgotPs={() => setShowForgotPs(true)}
                                     />
                                 ) : (
-                                    <MentorSignup switchToLogin={handleSwitchLogin} />
+                                    <MentorSignup switchToLogin={handleSwitchLogin} onSignupSuccess={handleSignupSuccess} />
                                 )}
                             </div>
                         </>
-                    ) : (
+                    ) : showForgotPs ? (
                         <ForgotPsModal
                             onClose={handleClose}
                             switchToLogin={handleForgotPsReturn}
+                        />
+                    ) : (
+                        <VerifyCodeModal
+                            email={emailForVerification}
+                            onClose={handleClose}
+                            switchToLogin={handleSwitchLogin}
                         />
                     )}
                 </div>

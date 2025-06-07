@@ -205,6 +205,7 @@ class Booking(db.Model):
     mentor_id = db.Column(db.Integer, ForeignKey('mentor.id'), nullable=False)
     customer_id = db.Column(db.Integer, ForeignKey('customer.id'), nullable=False)
     
+
     # Timestamps
     created_at = db.Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
     updated_at = db.Column(DateTime(timezone=True), default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
