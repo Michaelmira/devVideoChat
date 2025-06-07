@@ -101,22 +101,18 @@ export const MentorDetails = () => {
                         console.log("Booking successfully tracked by backend. ID:", bookingResult.id);
                         setBookingId(bookingResult.id);
 
-                        // NOW, SYNC THE BOOKING DETAILS WITH CALENDLY
-                        actions.syncBookingDetails({
-                            bookingId: bookingResult.id,
-                            calendlyEventUri: calendlyEventDetails.eventUri,
-                            calendlyInviteeUri: calendlyEventDetails.inviteeUri,
-                            mentorId: mentor.id
-                        }).then(syncResult => {
+                        actions.fetchCalendlyDetailsAndUpdateBooking(
+                            bookingResult.id,
+                            calendlyEventDetails.eventUri,
+                            calendlyEventDetails.inviteeUri,
+                            mentor.id
+                        ).then(syncResult => {
                             if (syncResult.success) {
                                 console.log("Booking details successfully synced with Calendly.");
                             } else {
-                                console.error("Failed to sync booking details:", syncResult.error);
-                                // Optionally alert the user that there might be a delay in seeing the meeting link
-                                alert("Your payment was successful, but we encountered an issue syncing the final meeting details. Please check your dashboard shortly or contact support.");
+                                console.error("Failed to sync booking details:", syncResult.message);
                             }
                         });
-
                     } else {
                         console.warn("Payment was successful, but backend booking tracking did not yield a booking ID.");
                         setBookingId(null);
