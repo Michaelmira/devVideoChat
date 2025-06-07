@@ -59,8 +59,12 @@ const Layout = () => {
                     <Navbar />
                     <Routes>
                         <Route element={<Home />} path="/" />
+                        <Route element={<MentorList />} path="/mentors" />
+                        <Route element={<MentorDetails />} path="/mentor/:id" />
                         <Route element={<CustomerProfile />} path="/customer-profile" />
+                        <Route element={<CustomerDashboard />} path="/customer-dashboard" />
                         <Route element={<MentorProfile />} path="/mentor-profile" />
+                        <Route element={<MentorDashboard />} path="/mentor-dashboard" />
                         <Route element={<BookingDetailsPage />} path="/booking-details" />
                         <Route element={<BookingConfirmedPage />} path="/booking-confirmed/:bookingId" />
                         <Route element={<h1>Not found!</h1>} path="*" />
