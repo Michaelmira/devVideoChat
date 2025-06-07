@@ -82,12 +82,13 @@ export const CustomerAuthModal = ({ initialTab, show, onHide }) => {
   };
 
   const handleSwitchLogin = () => {
+    setShowVerifyCode(false);
     setActiveTab('login');
-  }
+  };
 
   const handleSwitchSignUp = () => {
     setActiveTab('signup');
-  }
+  };
 
   const handleTabChange = (tab) => {
     console.log('Changing tab to:', tab);

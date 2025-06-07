@@ -15,7 +15,7 @@ export const VerifyCodeModal = ({ email, onClose, switchToLogin }) => {
         setError('');
         const result = await actions.verifyCode(email, code);
         if (result.success) {
-            alert("Verification Successful! You can now log in.");
+            // alert("Verification Successful! You can now log in.");
             switchToLogin();
         } else {
             setError(result.error || 'An unknown error occurred.');

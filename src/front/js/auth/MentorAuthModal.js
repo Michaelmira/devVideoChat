@@ -83,6 +83,7 @@ export const MentorAuthModal = ({ initialTab, show, onHide }) => {
 
 
     const handleSwitchLogin = () => {
+        setShowVerifyCode(false);
         setActiveTab('login');
     }
 
