@@ -59,8 +59,8 @@ const Layout = () => {
                     <Navbar />
                     <Routes>
                         <Route element={<Home />} path="/" />
-                        <Route element={<MentorList />} path="/mentor-list" />
-                        <Route element={<MentorDetails />} path="/mentor/:id" />
+                        <Route element={<MentorList />} path="/mentors" />
+                        <Route element={<MentorDetails />} path="/mentor-details/:id" />
                         <Route element={<CustomerProfile />} path="/customer-profile" />
                         <Route element={<CustomerDashboard />} path="/customer-dashboard" />
                         <Route element={<MentorProfile />} path="/mentor-profile" />
