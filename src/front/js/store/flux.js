@@ -131,30 +131,37 @@ const getState = ({ getStore, getActions, setStore }) => {
 
             },
             logInMentor: async (mentor) => {
-                const response = await fetch(process.env.BACKEND_URL + "/api/mentor/login", {
-                    method: "POST",
-                    body: JSON.stringify({
-                        email: mentor.email.toLowerCase(),
-                        password: mentor.password
-                    }),
-                    headers: {
-                        "Content-Type": "application/json"
+                try {
+                    const response = await fetch(process.env.BACKEND_URL + "/api/mentor/login", {
+                        method: "POST",
+                        body: JSON.stringify({
+                            email: mentor.email.toLowerCase(),
+                            password: mentor.password
+                        }),
+                        headers: {
+                            "Content-Type": "application/json"
+                        }
+                    });
+                    const data = await response.json();
+                    if (response.status !== 200) {
+                        return { success: false, message: data.msg || "Login failed" };
                     }
-                });
-                if (response.status !== 200) return false;
 
-                const data = await response.json();
-                setStore({
-                    token: data.access_token,
-                    isMentorLoggedIn: true,
-                    mentorId: data.mentor_id,
-                    currentUserData: data.mentor_data,
-                });
-                sessionStorage.setItem("token", data.access_token);
-                sessionStorage.setItem("isMentorLoggedIn", true);
-                sessionStorage.setItem("mentorId", data.mentor_id);
-                sessionStorage.setItem("currentUserData", JSON.stringify(data.mentor_data));
-                return true;
+                    setStore({
+                        token: data.access_token,
+                        isMentorLoggedIn: true,
+                        mentorId: data.mentor_id,
+                        currentUserData: data.mentor_data,
+                    });
+                    sessionStorage.setItem("token", data.access_token);
+                    sessionStorage.setItem("isMentorLoggedIn", "true");
+                    sessionStorage.setItem("mentorId", data.mentor_id);
+                    sessionStorage.setItem("currentUserData", JSON.stringify(data.mentor_data));
+                    return { success: true };
+                } catch (error) {
+                    console.error("Login error:", error);
+                    return { success: false, message: "An unexpected error occurred." };
+                }
             },
 
             getMentors: async () => {
@@ -416,30 +423,33 @@ const getState = ({ getStore, getActions, setStore }) => {
             },
 
             logInCustomer: async (customer) => {
-                const response = await fetch(`${process.env.BACKEND_URL}/api/customer/login`, {
-                    method: "POST",
-                    body: JSON.stringify({
-                        email: customer.email.toLowerCase(),
-                        password: customer.password
-                    }),
-                    headers: { "Content-Type": "application/json" }
-                });
-                if (response.ok) {
+                try {
+                    const response = await fetch(process.env.BACKEND_URL + "/api/customer/login", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            email: customer.email.toLowerCase(),
+                            password: customer.password
+                        })
+                    });
                     const data = await response.json();
+                    if (response.status !== 200) {
+                        return { success: false, message: data.msg || "Login failed" };
+                    }
                     setStore({
-                        token: data.access_token,
+                        isCustomerLoggedIn: true,
                         customerId: data.customer_id,
+                        token: data.access_token,
                         currentUserData: data.customer_data,
-                        isCustomerLoggedIn: true
                     });
                     sessionStorage.setItem("token", data.access_token);
+                    sessionStorage.setItem("isCustomerLoggedIn", "true");
                     sessionStorage.setItem("customerId", data.customer_id);
                     sessionStorage.setItem("currentUserData", JSON.stringify(data.customer_data));
-                    sessionStorage.setItem("isCustomerLoggedIn", true);
-                    return true;
-                } else {
-                    console.error("Login failed with status:", response.status);
-                    return false;
+                    return { success: true };
+                } catch (error) {
+                    console.error("Login error:", error);
+                    return { success: false, message: "An unexpected error occurred." };
                 }
             },
 
@@ -1199,9 +1209,29 @@ const getState = ({ getStore, getActions, setStore }) => {
                     }
                 } catch (error) {
                     console.error("Error syncing booking details:", error);
-                    return { success: false, error: "An unexpected error occurred during sync." };
+                    return { success: false, error: error.message };
                 }
             },
+
+            verifyEmail: async (token) => {
+                try {
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/verify-email`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ token: token })
+                    });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.msg || "Email verification failed");
+                    }
+                    return { success: true, message: data.msg };
+                } catch (error) {
+                    console.error("Error verifying email:", error);
+                    return { success: false, error: error.message };
+                }
+            }
         }
     };
 };
