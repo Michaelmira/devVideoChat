@@ -1022,6 +1022,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                     return { success: false, message: "Network error occurred while updating booking" };
                 }
             },
+
             fetchCalendlyDetailsAndUpdateBooking: async (bookingId, eventUri, inviteeUri, mentorId) => {
                 try {
                     const token = sessionStorage.getItem("token");
@@ -1029,8 +1030,9 @@ const getState = ({ getStore, getActions, setStore }) => {
                         console.error("No token found for fetchCalendlyDetailsAndUpdateBooking");
                         return { success: false, message: "Authentication required." };
                     }
-
-                    const response = await fetch(`${process.env.BACKEND_URL}/api/booking/calendly-sync`, {
+            
+                    // FIXED: Use the correct endpoint that exists in your routes.py
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/sync_booking_with_calendly_details`, {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
@@ -1043,9 +1045,9 @@ const getState = ({ getStore, getActions, setStore }) => {
                             mentorId: mentorId
                         })
                     });
-
+            
                     const data = await response.json();
-
+            
                     if (response.ok) {
                         return { success: true, ...data };
                     } else {
@@ -1057,6 +1059,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                     return { success: false, message: "Network error occurred while fetching booking details" };
                 }
             },
+
             finalizeBooking: async (bookingData) => {
                 try {
                     const token = sessionStorage.getItem("token");
