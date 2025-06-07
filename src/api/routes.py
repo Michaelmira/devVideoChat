@@ -1340,6 +1340,7 @@ def get_booking_by_id(booking_id):
 @api.route('/sync_booking_with_calendly_details', methods=['POST'])
 @jwt_required()
 def sync_booking_with_calendly_details():
+    
     current_customer_id = get_jwt_identity()
     data = request.get_json()
 
@@ -1469,11 +1470,32 @@ def sync_booking_with_calendly_details():
                 google_meet_link = f"https://meet.google.com/lookup/{booking.stripe_payment_intent_id}"
                 current_app.logger.info(f"Generated fallback Google Meet link: {google_meet_link}")
 
-        # Update booking with all the details including Google Meet link
+        # ===== FIXED: Update booking with proper timezone conversion =====
         if start_time_str:
-            booking.calendly_event_start_time = dt.fromisoformat(start_time_str.replace('Z', '+00:00'))
+            # Parse as UTC datetime with timezone info
+            utc_start_time = dt.fromisoformat(start_time_str.replace('Z', '+00:00'))
+            
+            # Convert UTC to Pacific Time (or user's timezone)
+            import pytz
+            pacific_tz = pytz.timezone('America/Los_Angeles')  # Pacific Time
+            pacific_start_time = utc_start_time.astimezone(pacific_tz)
+            
+            # Store as naive datetime in Pacific Time (what the user expects to see)
+            booking.calendly_event_start_time = pacific_start_time.replace(tzinfo=None)
+            current_app.logger.info(f"Converted start time from UTC {start_time_str} to Pacific {pacific_start_time.replace(tzinfo=None)}")
+            
         if end_time_str:
-            booking.calendly_event_end_time = dt.fromisoformat(end_time_str.replace('Z', '+00:00'))
+            # Parse as UTC datetime with timezone info
+            utc_end_time = dt.fromisoformat(end_time_str.replace('Z', '+00:00'))
+            
+            # Convert UTC to Pacific Time (or user's timezone)
+            import pytz
+            pacific_tz = pytz.timezone('America/Los_Angeles')  # Pacific Time
+            pacific_end_time = utc_end_time.astimezone(pacific_tz)
+            
+            # Store as naive datetime in Pacific Time (what the user expects to see)
+            booking.calendly_event_end_time = pacific_end_time.replace(tzinfo=None)
+            current_app.logger.info(f"Converted end time from UTC {end_time_str} to Pacific {pacific_end_time.replace(tzinfo=None)}")
         
         booking.invitee_name = invitee_data.get('name', booking.invitee_name)
         booking.invitee_email = invitee_data.get('email', booking.invitee_email)
@@ -1516,7 +1538,6 @@ def sync_booking_with_calendly_details():
         db.session.rollback()
         current_app.logger.error(f"Unexpected error finalizing booking: {str(e)}")
         return jsonify({"msg": "An unexpected server error occurred while finalizing your booking."}), 500
-
 @api.route('/finalize-booking', methods=['POST'])
 @jwt_required()
 def finalize_booking():
