@@ -12,8 +12,11 @@ export const MentorList = () => {
     const navigate = useNavigate()
 
     useEffect(() => {
-        actions.getMentors();
-    }, [])
+        const fetchMentors = async () => {
+            await actions.getMentors();
+        };
+        fetchMentors();
+    }, [actions]);
 
     const handleNavigateToInstantSession = (mentorId) => {
         navigate(`/create-instant-session/${mentorId}`); // Navigate to new page with mentor ID
