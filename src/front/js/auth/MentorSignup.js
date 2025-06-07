@@ -1,6 +1,7 @@
 // MentorSignup.js
 
 import React, { useContext, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Context } from "../store/appContext";
 import PhoneInput from 'react-phone-input-2'
 import { ValidateEmail, ValidateFirstName, ValidateLastName, ValidatePassword, ValidateCity, ValidatePhone, ValidateWhatState, ValidateCountry } from "../component/Validators";
@@ -11,6 +12,7 @@ import { stateOptions, countryOptions } from "../store/data";
 
 export const MentorSignup = ({ switchToLogin }) => {
     const { actions } = useContext(Context);
+    const navigate = useNavigate();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -42,16 +44,14 @@ export const MentorSignup = ({ switchToLogin }) => {
         let isPhoneValid = ValidatePhone(phone, countryCode, setInvalidItems);
 
         if (isEmailValid && isFirstNameValid && isLastNameValid && isPasswordValid && isCityValid && isWhatStateValid && isCountryValid && isPhoneValid) {
-
-            const result = await actions.signUpMentor({
+            const formData = {
                 email, password, first_name, last_name, phone, city, what_state, country
-            });
-
+            };
+            const result = await actions.signUpMentor(formData);
             if (result.success) {
-                alert(result.message || "Account successfully created! Please log in.");
-                switchToLogin();
+                navigate('/verify-code', { state: { email: formData.email } });
             } else {
-                alert(result.message || "An error occurred during signup. Please try again at another time.");
+                alert(result.message || "Signup failed. Please try again.");
             }
         }
     }

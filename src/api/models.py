@@ -24,7 +24,7 @@ class Customer(db.Model):
     date_joined = db.Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
     about_me = db.Column(db.String(2500), unique=False)
     is_verified = db.Column(db.Boolean(), default=False, nullable=False)
-    verification_token = db.Column(db.String(120), unique=True, nullable=True)
+    verification_code = db.Column(db.String(6), nullable=True)
 
     profile_photo = db.relationship("CustomerImage", back_populates="customer", uselist=False)
     # sessions = db.relationship("Session", back_populates="customer", lazy="dynamic")
@@ -96,7 +96,7 @@ class Mentor(db.Model):
     date_joined = db.Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
     google_oauth_credentials = db.Column(db.Text, nullable=True)
     is_verified = db.Column(db.Boolean(), default=False, nullable=False)
-    verification_token = db.Column(db.String(120), unique=True, nullable=True)
+    verification_code = db.Column(db.String(6), nullable=True)
     # confirmed_sessions = db.relationship("Session", back_populates="mentor")
     
 

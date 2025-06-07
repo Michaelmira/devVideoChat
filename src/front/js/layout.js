@@ -21,8 +21,7 @@ import { BookingConfirmedPage } from "./pages/BookingConfirmedPage";
 import CustomerDashboard from "./pages/CustomerDashboard";
 import CustomerProfile from "./pages/CustomerProfile";
 import { VerifyEmail } from "./pages/VerifyEmail";
-import { Signup } from "./pages/Signup";
-import { Login } from "./pages/Login";
+import { VerifyCode } from "./pages/VerifyCode";
 
 
 //create your first component
@@ -62,18 +61,17 @@ const Layout = () => {
                     <Navbar />
                     <Routes>
                         <Route element={<Home />} path="/" />
-                        <Route element={<MentorProfile />} path="/mentor-profile" />
+                        <Route element={<VerifyEmail />} path="/verify-email" />
+                        <Route element={<VerifyCode />} path="/verify-code" />
                         <Route element={<CustomerProfile />} path="/customer-profile" />
+                        <Route element={<MentorProfile />} path="/mentor-profile" />
+                        <Route element={<BookingDetailsPage />} path="/booking-details" />
                         <Route element={<Single />} path="/single/:theid" />
                         <Route element={<MentorList />} path="/mentor-list" />
                         <Route element={<MentorDashboard />} path="/mentor-dashboard" />
                         <Route element={<CustomerDashboard />} path="/customer-dashboard" />
                         <Route element={<MentorDetails />} path="/mentor-details/:theid" />
-                        <Route element={<BookingDetailsPage />} path="/booking-details" />
                         <Route element={<BookingConfirmedPage />} path="/booking-confirmed/:bookingId" />
-                        <Route element={<VerifyEmail />} path="/verify-email" />
-                        <Route element={<Signup />} path="/signup" />
-                        <Route element={<Login />} path="/login" />
                         <Route element={<h1>Not found!</h1>} path="*" />
                     </Routes>
                     <Footer />

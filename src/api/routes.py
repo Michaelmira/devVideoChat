@@ -20,7 +20,7 @@ from cloudinary.api import delete_resources_by_tag
 from api.models import db, Mentor, Customer, MentorImage, PortfolioPhoto, Booking, BookingStatus
 from api.utils import generate_sitemap, APIException
 from api.decorators import mentor_required, customer_required
-from api.send_email import send_email
+from api.send_email import send_email, send_verification_email_code
 
 import pytz
 from enum import Enum as PyEnum
@@ -56,7 +56,11 @@ api = Blueprint('api', __name__)
 # Allow CORS requests to this API
 CORS(api)
 
+import random
+import string
 
+def generate_verification_code():
+    return "".join(random.choices(string.digits, k=6))
 
 @api.route('/current/user')
 @jwt_required()
@@ -104,7 +108,7 @@ def mentor_signup():
     if existingMentorPhone:
         return jsonify({"msg": "An account associated with this number already exists. Please try a different phone number."}), 409
 
-    token = secrets.token_urlsafe(16)
+    verification_code = generate_verification_code()
     mentor = Mentor(
         email=email, 
         password=generate_password_hash(password), 
@@ -114,15 +118,14 @@ def mentor_signup():
         what_state=what_state, 
         country=country, 
         phone=phone,
-        verification_token=token
+        is_verified=False,
+        verification_code=verification_code
     )
     db.session.add(mentor)
     db.session.commit()
     
     # Send verification email
-    verification_link = f"{os.getenv('FRONTEND_URL')}/verify-email?token={token}"
-    email_html = f"<p>Welcome to devMentor! Please click the link to verify your email address: <a href='{verification_link}'>{verification_link}</a></p>"
-    send_email(email, email_html, "devMentor - Verify Your Email")
+    send_verification_email_code(email, verification_code)
 
     db.session.refresh(mentor)
     response_body = {
@@ -159,42 +162,38 @@ def mentor_login():
         "mentor_data": mentor.serialize()
     }), 200
 
-@api.route('/verify-email', methods=['POST'])
-def verify_email():
-    token = request.json.get("token", None)
-    if not token:
-        return jsonify({"msg": "Missing verification token."}), 400
+@api.route('/verify-code', methods=['POST'])
+def verify_code():
+    data = request.get_json()
+    email = data.get('email')
+    code = data.get('code')
 
-    # Handle developer bypass code
-    if token == "999000":
-        # This is a simplified bypass. In a real app, you might want to log this
-        # or have a more secure way to identify a developer user to verify.
-        # For now, we'll assume the frontend knows which user to verify
-        # or we could require an email in the bypass request.
-        # Let's require an email for the bypass.
-        email = request.json.get("email", None)
-        if not email:
-             return jsonify({"msg": "Email is required for developer bypass."}), 400
-        user = Mentor.query.filter_by(email=email).first() or Customer.query.filter_by(email=email).first()
-        if user:
-            user.is_verified = True
-            user.verification_token = None
-            db.session.commit()
-            return jsonify({"msg": "Email verified successfully with bypass."}), 200
-        else:
-            return jsonify({"msg": "User not found for bypass."}), 404
+    if not email or not code:
+        return jsonify({"msg": "Email and code are required"}), 400
 
+    mentor = Mentor.query.filter_by(email=email).first()
+    customer = Customer.query.filter_by(email=email).first()
 
-    user = Mentor.query.filter_by(verification_token=token).first() or Customer.query.filter_by(verification_token=token).first()
+    user = mentor or customer
+    user_type = 'mentor' if mentor else 'customer'
 
-    if user is None:
-        return jsonify({"msg": "Invalid verification token."}), 404
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+    
+    # Developer bypass code
+    if code == "999000":
+        user.is_verified = True
+        user.verification_code = None
+        db.session.commit()
+        return jsonify({"msg": "Email verified successfully"}), 200
 
-    user.is_verified = True
-    user.verification_token = None
-    db.session.commit()
-
-    return jsonify({"msg": "Email verified successfully!"}), 200
+    if user.verification_code == code:
+        user.is_verified = True
+        user.verification_code = None
+        db.session.commit()
+        return jsonify({"msg": "Email verified successfully"}), 200
+    else:
+        return jsonify({"msg": "Invalid verification code"}), 400
 
 @api.route("/forgot-password", methods=["POST"])
 def forgot_password():
@@ -612,22 +611,21 @@ def customer_signup():
     if existingCustomerPhone:
         return jsonify({"msg": "An account associated with this phone number already exists. Please try a different phone number."}), 409
     
-    token = secrets.token_urlsafe(16)
+    verification_code = generate_verification_code()
     customer = Customer(
         email=email, 
         password=generate_password_hash(password),
         first_name=first_name, 
         last_name=last_name, 
         phone=phone,
-        verification_token=token
+        is_verified=False,
+        verification_code=verification_code
     ) 
     db.session.add(customer)
     db.session.commit()
 
     # Send verification email
-    verification_link = f"{os.getenv('FRONTEND_URL')}/verify-email?token={token}"
-    email_html = f"<p>Welcome to devMentor! Please click the link to verify your email address: <a href='{verification_link}'>{verification_link}</a></p>"
-    send_email(email, email_html, "devMentor - Verify Your Email")
+    send_verification_email_code(email, verification_code)
 
     db.session.refresh(customer)
     response_body = {"msg": "Account succesfully created! Please check your email to verify your account.", "customer":customer.serialize()}

@@ -1,6 +1,7 @@
 // Customer Signup.js
 
 import React, { useContext, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Context } from "../store/appContext";
 import PhoneInput from 'react-phone-input-2'
 import 'react-phone-input-2/lib/style.css'
@@ -9,6 +10,7 @@ import { ValidateEmail, ValidateFirstName, ValidateLastName, ValidatePassword, V
 
 export const CustomerSignup = ({ switchToLogin }) => {
     const { actions } = useContext(Context);
+    const navigate = useNavigate();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -40,8 +42,7 @@ export const CustomerSignup = ({ switchToLogin }) => {
                 });
 
                 if (result.success) {
-                    alert(result.message || "Account successfully created! Please log in.");
-                    switchToLogin();
+                    navigate('/verify-code', { state: { email: email } });
                 } else {
                     alert(result.message || "An error occurred during signup");
                 }

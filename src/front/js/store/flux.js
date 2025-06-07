@@ -1231,6 +1231,26 @@ const getState = ({ getStore, getActions, setStore }) => {
                     console.error("Error verifying email:", error);
                     return { success: false, error: error.message };
                 }
+            },
+
+            verifyCode: async (email, code) => {
+                try {
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/verify-code`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ email: email, code: code })
+                    });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.msg || "Code verification failed");
+                    }
+                    return { success: true, message: data.msg };
+                } catch (error) {
+                    console.error("Error verifying code:", error);
+                    return { success: false, error: error.message };
+                }
             }
         }
     };
