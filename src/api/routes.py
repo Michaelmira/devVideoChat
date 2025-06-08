@@ -36,6 +36,8 @@ import secrets # For generating secure state tokens for OAuth
 
 from datetime import datetime as dt
 from decimal import Decimal
+import time
+
 
 from dotenv import load_dotenv
 
@@ -2389,4 +2391,387 @@ def verify_github_auth():
         current_app.logger.error(f"GitHub token verification error: {str(e)}")
         return jsonify({"error": "Server error"}), 500
 
+# MVP GOOGLE AND GITHUB SIGNUP AND LOGIN 
+# MVP GOOGLE AND GITHUB SIGNUP AND LOGIN 
+# MVP GOOGLE AND GITHUB SIGNUP AND LOGIN 
+# MVP GOOGLE AND GITHUB SIGNUP AND LOGIN 
 
+@api.route('/auth/mvp/google/initiate', methods=['POST'])
+def mvp_google_oauth_initiate():
+    """Initiate Google OAuth flow for MVP booking"""
+    data = request.get_json()
+    mentor_id = data.get('mentor_id')
+    
+    if not mentor_id:
+        return jsonify({"error": "Mentor ID is required"}), 400
+    
+    # Create signed state parameter with mentor_id for MVP flow
+    state_data = {
+        'user_type': 'customer',
+        'flow_type': 'mvp_booking',
+        'mentor_id': mentor_id,
+        'timestamp': int(time.time()),
+        'nonce': secrets.token_urlsafe(16)
+    }
+    
+    state = create_mvp_signed_state(state_data)
+    
+    # Google OAuth URL
+    google_auth_url = "https://accounts.google.com/o/oauth2/auth"
+    params = {
+        'client_id': GOOGLE_CLIENT_ID,
+        'redirect_uri': f"{os.getenv('BACKEND_URL')}/api/auth/mvp/google/callback",
+        'scope': 'openid email profile',
+        'response_type': 'code',
+        'state': state,
+        'access_type': 'offline',
+        'prompt': 'consent'
+    }
+
+      # ADD THIS DEBUG LINE:
+    current_app.logger.info(f"MVP Google redirect URI being sent: {params['redirect_uri']}")
+    current_app.logger.info(f"MVP Google client ID being used: {GOOGLE_CLIENT_ID}")
+    
+    auth_url = f"{google_auth_url}?{urlencode(params)}"
+    current_app.logger.info(f"Generated MVP Google OAuth URL for mentor {mentor_id}")
+    return jsonify({"auth_url": auth_url}), 200
+
+@api.route('/auth/mvp/google/callback', methods=['GET'])
+def mvp_google_oauth_callback():
+    """Handle Google OAuth callback for MVP booking"""
+    code = request.args.get('code')
+    state = request.args.get('state')
+    error = request.args.get('error')
+    
+    if error:
+        current_app.logger.error(f"MVP Google OAuth error: {error}")
+        return redirect(f"{FRONTEND_URL}/mentor-details/1?mvp_auth_error=oauth_denied")
+    
+    if not code or not state:
+        current_app.logger.error("Missing code or state parameter in MVP Google OAuth")
+        return redirect(f"{FRONTEND_URL}/mentor-details/1?mvp_auth_error=missing_params")
+    
+    # Verify and decode state
+    payload, error_msg = verify_mvp_signed_state(state)
+    if error_msg:
+        current_app.logger.error(f"MVP Google state verification failed: {error_msg}")
+        return redirect(f"{FRONTEND_URL}/mentor-details/1?mvp_auth_error=state_verification_failed")
+    
+    mentor_id = payload['mentor_id']
+    current_app.logger.info(f"Processing MVP Google OAuth callback for mentor {mentor_id}")
+    
+    try:
+        # Exchange code for tokens (same as regular Google OAuth)
+        token_url = "https://oauth2.googleapis.com/token"
+        token_data = {
+            'client_id': GOOGLE_CLIENT_ID,
+            'client_secret': GOOGLE_CLIENT_SECRET,
+            'code': code,
+            'grant_type': 'authorization_code',
+            'redirect_uri': f"{os.getenv('BACKEND_URL')}/api/auth/mvp/google/callback",
+        }
+        
+        current_app.logger.info("Exchanging authorization code for access token (MVP)")
+        token_response = requests.post(token_url, data=token_data, timeout=30)
+        token_response.raise_for_status()
+        tokens = token_response.json()
+        
+        # Get user info from Google
+        user_info_url = f"https://www.googleapis.com/oauth2/v2/userinfo?access_token={tokens['access_token']}"
+        user_response = requests.get(user_info_url, timeout=30)
+        user_response.raise_for_status()
+        google_user = user_response.json()
+        
+        current_app.logger.info(f"Retrieved Google user info for MVP: {google_user.get('email', 'unknown')}")
+        
+        # Extract user data
+        email = google_user.get('email')
+        first_name = google_user.get('given_name', '')
+        last_name = google_user.get('family_name', '')
+        
+        if not email:
+            current_app.logger.error("No email received from Google (MVP)")
+            return redirect(f"{FRONTEND_URL}/mentor-details/{mentor_id}?mvp_auth_error=no_email")
+        
+        # Check if customer already exists
+        existing_customer = Customer.query.filter_by(email=email).first()
+        
+        if existing_customer:
+            # Customer exists, log them in
+            current_app.logger.info(f"Existing MVP customer found, logging in: {email}")
+            access_token = create_access_token(
+                identity=existing_customer.id,
+                additional_claims={"role": "customer"}
+            )
+            
+            # Redirect back to mentor-details page with success
+            success_url = f"{FRONTEND_URL}/mentor-details/{mentor_id}?mvp_google_auth=success&token={access_token}&user_id={existing_customer.id}&user_type=customer"
+            return redirect(success_url)
+        
+        else:
+            # Create new customer
+            current_app.logger.info(f"Creating new MVP customer account for: {email}")
+            new_customer = Customer(
+                email=email,
+                password=generate_password_hash(secrets.token_urlsafe(32)),  # Random password
+                first_name=first_name or 'User',
+                last_name=last_name or 'Google',
+                phone="000-000-0000",  # Placeholder
+                is_verified=True,  # Auto-verify Google users
+                verification_code=None
+            )
+            
+            db.session.add(new_customer)
+            db.session.commit()
+            db.session.refresh(new_customer)
+            
+            current_app.logger.info(f"Successfully created MVP customer account with ID: {new_customer.id}")
+            
+            # Create access token for new customer
+            access_token = create_access_token(
+                identity=new_customer.id,
+                additional_claims={"role": "customer"}
+            )
+            
+            # Redirect back to mentor-details page with success and new user flag
+            success_url = f"{FRONTEND_URL}/mentor-details/{mentor_id}?mvp_google_auth=success&new_user=true&token={access_token}&user_id={new_customer.id}&user_type=customer"
+            return redirect(success_url)
+    
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error(f"HTTP request error during MVP Google OAuth: {str(e)}")
+        return redirect(f"{FRONTEND_URL}/mentor-details/{mentor_id}?mvp_auth_error=network_error")
+    except Exception as e:
+        current_app.logger.error(f"Unexpected error during MVP Google OAuth: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return redirect(f"{FRONTEND_URL}/mentor-details/{mentor_id}?mvp_auth_error=server_error")
+
+@api.route('/auth/mvp/github/initiate', methods=['POST'])
+def mvp_github_oauth_initiate():
+    """Initiate GitHub OAuth flow for MVP booking"""
+    data = request.get_json()
+    mentor_id = data.get('mentor_id')
+    
+    if not mentor_id:
+        return jsonify({"error": "Mentor ID is required"}), 400
+    
+    # Create signed state parameter with mentor_id for MVP flow
+    state_data = {
+        'user_type': 'customer',
+        'flow_type': 'mvp_booking',
+        'mentor_id': mentor_id,
+        'timestamp': int(time.time()),
+        'nonce': secrets.token_urlsafe(16)
+    }
+    
+    state = create_mvp_signed_state(state_data)
+    
+    # GitHub OAuth URL
+    github_auth_url = "https://github.com/login/oauth/authorize"
+    params = {
+        'client_id': GITHUB_CLIENT_ID,
+        'redirect_uri': f"{os.getenv('BACKEND_URL')}/api/auth/mvp/github/callback",
+        'scope': 'user:email',
+        'state': state,
+        'allow_signup': 'true'
+    }
+    
+    auth_url = f"{github_auth_url}?{urlencode(params)}"
+    current_app.logger.info(f"Generated MVP GitHub OAuth URL for mentor {mentor_id}")
+    return jsonify({"auth_url": auth_url}), 200
+
+@api.route('/auth/mvp/github/callback', methods=['GET'])
+def mvp_github_oauth_callback():
+    """Handle GitHub OAuth callback for MVP booking"""
+    code = request.args.get('code')
+    state = request.args.get('state')
+    error = request.args.get('error')
+    error_description = request.args.get('error_description')
+    
+    if error:
+        current_app.logger.error(f"MVP GitHub OAuth error: {error} - {error_description}")
+        return redirect(f"{FRONTEND_URL}/mentor-details/1?mvp_auth_error=oauth_denied")
+    
+    if not code or not state:
+        current_app.logger.error("Missing code or state parameter from GitHub (MVP)")
+        return redirect(f"{FRONTEND_URL}/mentor-details/1?mvp_auth_error=missing_params")
+    
+    # Verify and decode state
+    payload, error_msg = verify_mvp_signed_state(state)
+    if error_msg:
+        current_app.logger.error(f"MVP GitHub state verification failed: {error_msg}")
+        return redirect(f"{FRONTEND_URL}/mentor-details/1?mvp_auth_error=state_verification_failed")
+    
+    mentor_id = payload['mentor_id']
+    current_app.logger.info(f"Processing MVP GitHub OAuth callback for mentor {mentor_id}")
+    
+    try:
+        # Exchange code for access token
+        token_url = "https://github.com/login/oauth/access_token"
+        token_data = {
+            'client_id': GITHUB_CLIENT_ID,
+            'client_secret': GITHUB_CLIENT_SECRET,
+            'code': code,
+        }
+        
+        headers = {
+            'Accept': 'application/json'
+        }
+        
+        current_app.logger.info("Exchanging GitHub authorization code for access token (MVP)")
+        token_response = requests.post(token_url, data=token_data, headers=headers, timeout=30)
+        token_response.raise_for_status()
+        token_data = token_response.json()
+        
+        access_token = token_data.get('access_token')
+        if not access_token:
+            current_app.logger.error("No access token received from GitHub (MVP)")
+            return redirect(f"{FRONTEND_URL}/mentor-details/{mentor_id}?mvp_auth_error=no_token")
+        
+        # Get user info from GitHub
+        user_headers = {
+            'Authorization': f'token {access_token}',
+            'Accept': 'application/vnd.github.v3+json'
+        }
+        
+        # Get basic user info
+        user_response = requests.get('https://api.github.com/user', headers=user_headers, timeout=30)
+        user_response.raise_for_status()
+        github_user = user_response.json()
+        
+        # Get user email
+        email_response = requests.get('https://api.github.com/user/emails', headers=user_headers, timeout=30)
+        email_response.raise_for_status()
+        emails = email_response.json()
+        
+        # Find primary email
+        primary_email = None
+        for email_data in emails:
+            if email_data.get('primary', False):
+                primary_email = email_data.get('email')
+                break
+        
+        if not primary_email and emails:
+            primary_email = emails[0].get('email')
+        
+        current_app.logger.info(f"Retrieved GitHub user info for MVP: {primary_email or 'unknown'}")
+        
+        # Extract user data
+        email = primary_email
+        name = github_user.get('name', '')
+        login = github_user.get('login', '')
+        
+        # Parse first and last name
+        if name:
+            name_parts = name.strip().split(' ', 1)
+            first_name = name_parts[0]
+            last_name = name_parts[1] if len(name_parts) > 1 else ''
+        else:
+            first_name = login or 'User'
+            last_name = 'GitHub'
+        
+        if not email:
+            current_app.logger.error("No email received from GitHub (MVP)")
+            return redirect(f"{FRONTEND_URL}/mentor-details/{mentor_id}?mvp_auth_error=no_email")
+        
+        # Check if customer already exists
+        existing_customer = Customer.query.filter_by(email=email).first()
+        
+        if existing_customer:
+            # Customer exists, log them in
+            current_app.logger.info(f"Existing MVP customer found, logging in: {email}")
+            access_token = create_access_token(
+                identity=existing_customer.id,
+                additional_claims={"role": "customer"}
+            )
+            
+            # Redirect back to mentor-details page with success
+            success_url = f"{FRONTEND_URL}/mentor-details/{mentor_id}?mvp_github_auth=success&token={access_token}&user_id={existing_customer.id}&user_type=customer"
+            return redirect(success_url)
+        
+        else:
+            # Create new customer
+            current_app.logger.info(f"Creating new MVP customer account for: {email}")
+            new_customer = Customer(
+                email=email,
+                password=generate_password_hash(secrets.token_urlsafe(32)),  # Random password
+                first_name=first_name,
+                last_name=last_name,
+                phone="000-000-0000",  # Placeholder
+                is_verified=True,  # Auto-verify GitHub users
+                verification_code=None
+            )
+            
+            db.session.add(new_customer)
+            db.session.commit()
+            db.session.refresh(new_customer)
+            
+            current_app.logger.info(f"Successfully created MVP customer account with ID: {new_customer.id}")
+            
+            # Create access token for new customer
+            access_token = create_access_token(
+                identity=new_customer.id,
+                additional_claims={"role": "customer"}
+            )
+            
+            # Redirect back to mentor-details page with success and new user flag
+            success_url = f"{FRONTEND_URL}/mentor-details/{mentor_id}?mvp_github_auth=success&new_user=true&token={access_token}&user_id={new_customer.id}&user_type=customer"
+            return redirect(success_url)
+    
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error(f"HTTP request error during MVP GitHub OAuth: {str(e)}")
+        return redirect(f"{FRONTEND_URL}/mentor-details/{mentor_id}?mvp_auth_error=network_error")
+    except Exception as e:
+        current_app.logger.error(f"Unexpected error during MVP GitHub OAuth: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return redirect(f"{FRONTEND_URL}/mentor-details/{mentor_id}?mvp_auth_error=server_error")
+
+# Helper functions for MVP OAuth state management
+def create_mvp_signed_state(state_data):
+    """Create a signed state parameter for MVP OAuth that doesn't rely on sessions"""
+    import time
+    import hmac
+    import hashlib
+    
+    # Convert to JSON and base64 encode
+    payload_json = json.dumps(state_data)
+    payload_b64 = base64.urlsafe_b64encode(payload_json.encode()).decode()
+    
+    # Create HMAC signature
+    secret_key = os.getenv('FLASK_APP_KEY').encode()
+    signature = hmac.new(secret_key, payload_b64.encode(), hashlib.sha256).hexdigest()
+    
+    # Combine payload and signature
+    return f"{payload_b64}.{signature}"
+
+def verify_mvp_signed_state(state_param):
+    """Verify and decode the signed state parameter for MVP OAuth"""
+    import time
+    import hmac
+    import hashlib
+    
+    try:
+        # Split payload and signature
+        payload_b64, signature = state_param.split('.')
+        
+        # Verify signature
+        secret_key = os.getenv('FLASK_APP_KEY').encode()
+        expected_signature = hmac.new(secret_key, payload_b64.encode(), hashlib.sha256).hexdigest()
+        
+        if not hmac.compare_digest(signature, expected_signature):
+            return None, "Invalid signature"
+        
+        # Decode payload
+        payload_json = base64.urlsafe_b64decode(payload_b64.encode()).decode()
+        payload = json.loads(payload_json)
+        
+        # Check timestamp (valid for 10 minutes)
+        current_time = int(time.time())
+        if current_time - payload['timestamp'] > 600:  # 10 minutes
+            return None, "State expired"
+        
+        return payload, None
+        
+    except Exception as e:
+        return None, f"Invalid state format: {str(e)}"

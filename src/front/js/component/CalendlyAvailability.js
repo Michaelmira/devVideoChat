@@ -1,4 +1,4 @@
-// CalendlyAvailability.js - Updated for inline flow without navigation
+// CalendlyAvailability.js - Updated with MVP OAuth buttons
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { InlineWidget, useCalendlyEventListener } from 'react-calendly';
 import { Context } from "../store/appContext";
@@ -6,6 +6,8 @@ import { useParams } from 'react-router-dom';
 import { CustomerLogin } from '../auth/CustomerLogin';
 import { CustomerSignup } from '../auth/CustomerSignup';
 import { VerifyCodeModal } from '../auth/VerifyCodeModal';
+import { MVPGoogleOAuthButton } from '../auth/MVPGoogelOAuthButton';
+import { MVPGitHubOAuthButton } from '../auth/MVPGitHubOAuthButton';
 
 import { PaymentForm } from './PaymentForm';
 
@@ -26,6 +28,56 @@ export const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCan
 
   // Calendar container reference
   const calendlyContainerRef = useRef(null);
+
+  // Check for OAuth redirect on component mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const mvpGoogleAuth = urlParams.get('mvp_google_auth');
+    const mvpGithubAuth = urlParams.get('mvp_github_auth');
+    const token = urlParams.get('token');
+    const userId = urlParams.get('user_id');
+    const userType = urlParams.get('user_type');
+    
+    // If we're returning from OAuth, process it directly here
+    if ((mvpGoogleAuth === 'success' || mvpGithubAuth === 'success') && token && userId && userType === 'customer') {
+      console.log("Detected OAuth redirect, processing authentication");
+      console.log("OAuth params:", { mvpGoogleAuth, mvpGithubAuth, token: !!token, userId });
+      
+      // Hide Calendly and show auth form first
+      setShowCalendly(false);
+      setShowAuthForm(true);
+      
+      // Process the OAuth verification directly
+      const processOAuth = async () => {
+        try {
+          const authAction = mvpGoogleAuth === 'success' ? 'verifyMVPGoogleAuth' : 'verifyMVPGitHubAuth';
+          const result = await actions[authAction]({
+            token,
+            user_id: userId,
+            user_type: userType
+          });
+
+          if (result.success) {
+            console.log("OAuth verification successful, proceeding to payment");
+            // Clean URL
+            window.history.replaceState({}, '', window.location.pathname);
+            // Move to payment
+            setShowAuthForm(false);
+            setShowPaymentForm(true);
+          } else {
+            console.error("OAuth verification failed:", result.message);
+            alert(result.message || "Authentication failed. Please try again.");
+          }
+        } catch (error) {
+          console.error("OAuth processing error:", error);
+          alert("An error occurred during authentication. Please try again.");
+        }
+      };
+      
+      // Small delay to ensure component is ready
+      setTimeout(processOAuth, 100);
+    }
+  }, [actions]);
 
   useEffect(() => {
     // If mentor object is directly passed, use it
@@ -133,6 +185,38 @@ export const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCan
   const handleSwitchTab = (tab) => {
     setActiveAuthTab(tab);
   };
+
+  // MVP OAuth success handlers
+  const handleMVPOAuthSuccess = (result) => {
+    // OAuth was successful, proceed to payment
+    console.log("MVP OAuth success, proceeding to payment step");
+    setShowAuthForm(false);
+    setShowPaymentForm(true);
+  };
+
+  // Effect to handle OAuth redirect and auto-progression
+  useEffect(() => {
+    // If we're showing auth form but user is now logged in (from OAuth), proceed to payment
+    if (showAuthForm && store.token && store.currentUserData) {
+      console.log("User is now logged in via OAuth, proceeding to payment");
+      setShowAuthForm(false);
+      setShowPaymentForm(true);
+    }
+  }, [store.token, store.currentUserData, showAuthForm]);
+
+  // Effect to scroll to payment when payment form is shown (NEW - just the scroll feature)
+  useEffect(() => {
+    if (showPaymentForm) {
+      setTimeout(() => {
+        if (calendlyContainerRef.current) {
+          calendlyContainerRef.current.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'start' 
+          });
+        }
+      }, 100);
+    }
+  }, [showPaymentForm]);
 
   const handlePaymentSuccess = (paymentIntent) => {
     // console.log("handlePaymentSuccess called with:", { // Can be removed, data logged below
@@ -258,11 +342,33 @@ export const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCan
         </div>
       );
     } else if (showAuthForm) {
-      // Step 3: Authentication form
+      // Step 3: Authentication form with MVP OAuth buttons
       return (
         <div className="card border-0 shadow p-4">
           <div className="card-body">
             <h4 className="text-center mb-4">Authentication Required</h4>
+
+            {/* MVP OAuth Buttons */}
+            <div className="mb-4">
+              <MVPGoogleOAuthButton 
+                mentor={currentMentor}
+                onSuccess={handleMVPOAuthSuccess}
+                buttonText={activeAuthTab === 'login' ? 'Login with Google' : 'Sign up with Google'}
+              />
+              
+              <MVPGitHubOAuthButton 
+                mentor={currentMentor}
+                onSuccess={handleMVPOAuthSuccess}
+                buttonText={activeAuthTab === 'login' ? 'Login with GitHub' : 'Sign up with GitHub'}
+              />
+              
+              {/* Divider */}
+              <div className="d-flex align-items-center my-3">
+                <hr className="flex-grow-1" style={{ borderColor: '#6c757d' }} />
+                <span className="px-3 text-secondary">or</span>
+                <hr className="flex-grow-1" style={{ borderColor: '#6c757d' }} />
+              </div>
+            </div>
 
             {/* Auth tabs */}
             <ul className="nav nav-tabs mb-4">

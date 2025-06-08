@@ -1506,6 +1506,179 @@ const getState = ({ getStore, getActions, setStore }) => {
             },
 
 
+            // MVP Google OAuth Actions
+            initiateMVPGoogleAuth: async (mentorId) => {
+                try {
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/auth/mvp/google/initiate`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            mentor_id: mentorId
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        return {
+                            success: true,
+                            auth_url: data.auth_url
+                        };
+                    } else {
+                        return {
+                            success: false,
+                            message: data.error || "Failed to initiate Google authentication"
+                        };
+                    }
+                } catch (error) {
+                    console.error("Error initiating MVP Google auth:", error);
+                    return {
+                        success: false,
+                        message: "Network error occurred while initiating Google authentication"
+                    };
+                }
+            },
+
+            verifyMVPGoogleAuth: async (authData) => {
+                try {
+                    // Use the same verification endpoint as regular Google OAuth since JWT verification is the same
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/auth/google/verify`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(authData)
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        // Store user data in session storage and update store (same as regular OAuth)
+                        const userType = data.role;
+                        const userData = data[`${userType}_data`];
+                        const userId = data[`${userType}_id`];
+
+                        // Update store for customer
+                        setStore({
+                            token: data.access_token,
+                            isCustomerLoggedIn: true,
+                            customerId: userId,
+                            currentUserData: userData,
+                        });
+                        sessionStorage.setItem("token", data.access_token);
+                        sessionStorage.setItem("isCustomerLoggedIn", "true");
+                        sessionStorage.setItem("customerId", userId);
+                        sessionStorage.setItem("currentUserData", JSON.stringify(userData));
+
+                        return {
+                            success: true,
+                            userType: userType,
+                            userData: userData
+                        };
+                    } else {
+                        return {
+                            success: false,
+                            message: data.error || "Google authentication verification failed"
+                        };
+                    }
+                } catch (error) {
+                    console.error("Error verifying MVP Google auth:", error);
+                    return {
+                        success: false,
+                        message: "Network error occurred during Google authentication verification"
+                    };
+                }
+            },
+
+            // MVP GitHub OAuth Actions
+            initiateMVPGitHubAuth: async (mentorId) => {
+                try {
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/auth/mvp/github/initiate`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            mentor_id: mentorId
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        return {
+                            success: true,
+                            auth_url: data.auth_url
+                        };
+                    } else {
+                        return {
+                            success: false,
+                            message: data.error || "Failed to initiate GitHub authentication"
+                        };
+                    }
+                } catch (error) {
+                    console.error("Error initiating MVP GitHub auth:", error);
+                    return {
+                        success: false,
+                        message: "Network error occurred while initiating GitHub authentication"
+                    };
+                }
+            },
+
+            verifyMVPGitHubAuth: async (authData) => {
+                try {
+                    // Use the same verification endpoint as regular GitHub OAuth since JWT verification is the same
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/auth/github/verify`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(authData)
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        // Store user data in session storage and update store (same as regular OAuth)
+                        const userType = data.role;
+                        const userData = data[`${userType}_data`];
+                        const userId = data[`${userType}_id`];
+
+                        // Update store for customer
+                        setStore({
+                            token: data.access_token,
+                            isCustomerLoggedIn: true,
+                            customerId: userId,
+                            currentUserData: userData,
+                        });
+                        sessionStorage.setItem("token", data.access_token);
+                        sessionStorage.setItem("isCustomerLoggedIn", "true");
+                        sessionStorage.setItem("customerId", userId);
+                        sessionStorage.setItem("currentUserData", JSON.stringify(userData));
+
+                        return {
+                            success: true,
+                            userType: userType,
+                            userData: userData
+                        };
+                    } else {
+                        return {
+                            success: false,
+                            message: data.error || "GitHub authentication verification failed"
+                        };
+                    }
+                } catch (error) {
+                    console.error("Error verifying MVP GitHub auth:", error);
+                    return {
+                        success: false,
+                        message: "Network error occurred during GitHub authentication verification"
+                    };
+                }
+            },
+
+
 
         }
     };
