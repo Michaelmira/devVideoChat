@@ -1272,7 +1272,241 @@ const getState = ({ getStore, getActions, setStore }) => {
                     console.error("Error syncing booking details:", error);
                     return { success: false, error: error.message };
                 }
-            }
+            },
+
+
+            initiateGoogleAuth: async (userType) => {
+                try {
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/auth/google/initiate`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            user_type: userType
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        return {
+                            success: true,
+                            auth_url: data.auth_url
+                        };
+                    } else {
+                        return {
+                            success: false,
+                            message: data.error || "Failed to initiate Google authentication"
+                        };
+                    }
+                } catch (error) {
+                    console.error("Error initiating Google auth:", error);
+                    return {
+                        success: false,
+                        message: "Network error occurred while initiating Google authentication"
+                    };
+                }
+            },
+
+            verifyGoogleAuth: async (authData) => {
+                try {
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/auth/google/verify`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(authData)
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        // Store user data in session storage and update store
+                        const userType = data.role;
+                        const userData = data[`${userType}_data`];
+                        const userId = data[`${userType}_id`];
+
+                        // Clean up any modal artifacts
+                        const modalBackdrops = document.getElementsByClassName('modal-backdrop');
+                        while (modalBackdrops.length > 0) {
+                            modalBackdrops[0].remove();
+                        }
+                        document.body.classList.remove('modal-open');
+                        document.body.style.overflow = '';
+                        document.body.style.paddingRight = '';
+
+                        // Clear any existing modals from the DOM
+                        const modals = document.getElementsByClassName('modal');
+                        Array.from(modals).forEach(modal => {
+                            modal.style.display = 'none';
+                            modal.classList.remove('show');
+                            modal.setAttribute('aria-hidden', 'true');
+                            modal.removeAttribute('aria-modal');
+                        });
+
+                        // Update store based on user type
+                        if (userType === 'mentor') {
+                            setStore({
+                                token: data.access_token,
+                                isMentorLoggedIn: true,
+                                mentorId: userId,
+                                currentUserData: userData,
+                            });
+                            sessionStorage.setItem("token", data.access_token);
+                            sessionStorage.setItem("isMentorLoggedIn", "true");
+                            sessionStorage.setItem("mentorId", userId);
+                            sessionStorage.setItem("currentUserData", JSON.stringify(userData));
+                        } else {
+                            setStore({
+                                token: data.access_token,
+                                isCustomerLoggedIn: true,
+                                customerId: userId,
+                                currentUserData: userData,
+                            });
+                            sessionStorage.setItem("token", data.access_token);
+                            sessionStorage.setItem("isCustomerLoggedIn", "true");
+                            sessionStorage.setItem("customerId", userId);
+                            sessionStorage.setItem("currentUserData", JSON.stringify(userData));
+                        }
+
+                        return {
+                            success: true,
+                            userType: userType,
+                            userData: userData
+                        };
+                    } else {
+                        return {
+                            success: false,
+                            message: data.error || "Authentication verification failed"
+                        };
+                    }
+                } catch (error) {
+                    console.error("Error verifying Google auth:", error);
+                    return {
+                        success: false,
+                        message: "Network error occurred during authentication verification"
+                    };
+                }
+            },
+
+            initiateGitHubAuth: async (userType) => {
+                try {
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/auth/github/initiate`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            user_type: userType
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        return {
+                            success: true,
+                            auth_url: data.auth_url
+                        };
+                    } else {
+                        return {
+                            success: false,
+                            message: data.error || "Failed to initiate GitHub authentication"
+                        };
+                    }
+                } catch (error) {
+                    console.error("Error initiating GitHub auth:", error);
+                    return {
+                        success: false,
+                        message: "Network error occurred while initiating GitHub authentication"
+                    };
+                }
+            },
+
+            verifyGitHubAuth: async (authData) => {
+                try {
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/auth/github/verify`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(authData)
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        // Store user data in session storage and update store
+                        const userType = data.role;
+                        const userData = data[`${userType}_data`];
+                        const userId = data[`${userType}_id`];
+
+                        // Clean up any modal artifacts
+                        const modalBackdrops = document.getElementsByClassName('modal-backdrop');
+                        while (modalBackdrops.length > 0) {
+                            modalBackdrops[0].remove();
+                        }
+                        document.body.classList.remove('modal-open');
+                        document.body.style.overflow = '';
+                        document.body.style.paddingRight = '';
+
+                        // Clear any existing modals from the DOM
+                        const modals = document.getElementsByClassName('modal');
+                        Array.from(modals).forEach(modal => {
+                            modal.style.display = 'none';
+                            modal.classList.remove('show');
+                            modal.setAttribute('aria-hidden', 'true');
+                            modal.removeAttribute('aria-modal');
+                        });
+
+                        // Update store based on user type
+                        if (userType === 'mentor') {
+                            setStore({
+                                token: data.access_token,
+                                isMentorLoggedIn: true,
+                                mentorId: userId,
+                                currentUserData: userData,
+                            });
+                            sessionStorage.setItem("token", data.access_token);
+                            sessionStorage.setItem("isMentorLoggedIn", "true");
+                            sessionStorage.setItem("mentorId", userId);
+                            sessionStorage.setItem("currentUserData", JSON.stringify(userData));
+                        } else {
+                            setStore({
+                                token: data.access_token,
+                                isCustomerLoggedIn: true,
+                                customerId: userId,
+                                currentUserData: userData,
+                            });
+                            sessionStorage.setItem("token", data.access_token);
+                            sessionStorage.setItem("isCustomerLoggedIn", "true");
+                            sessionStorage.setItem("customerId", userId);
+                            sessionStorage.setItem("currentUserData", JSON.stringify(userData));
+                        }
+
+                        return {
+                            success: true,
+                            userType: userType,
+                            userData: userData
+                        };
+                    } else {
+                        return {
+                            success: false,
+                            message: data.error || "GitHub authentication verification failed"
+                        };
+                    }
+                } catch (error) {
+                    console.error("Error verifying GitHub auth:", error);
+                    return {
+                        success: false,
+                        message: "Network error occurred during GitHub authentication verification"
+                    };
+                }
+            },
+
+
+
         }
     };
 };

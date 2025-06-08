@@ -1868,3 +1868,525 @@ def reschedule_booking():
     db.session.refresh(booking)
 
     return jsonify({"success": True, "message": "Booking rescheduled successfully"}), 200
+
+# Replace the Google OAuth routes in routes.py with these improved versions
+
+
+import base64
+
+
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+GOOGLE_REDIRECT_URI = f"{os.getenv('BACKEND_URL')}/api/auth/google/callback"
+
+def create_signed_state(user_type):
+    """Create a signed state parameter that doesn't rely on sessions"""
+    import time
+    import hmac
+    import hashlib
+    
+    # Create payload with user_type and timestamp
+    payload = {
+        'user_type': user_type,
+        'timestamp': int(time.time()),
+        'nonce': secrets.token_urlsafe(16)
+    }
+    
+    # Convert to JSON and base64 encode
+    payload_json = json.dumps(payload)
+    payload_b64 = base64.urlsafe_b64encode(payload_json.encode()).decode()
+    
+    # Create HMAC signature
+    secret_key = os.getenv('FLASK_APP_KEY').encode()
+    signature = hmac.new(secret_key, payload_b64.encode(), hashlib.sha256).hexdigest()
+    
+    # Combine payload and signature
+    return f"{payload_b64}.{signature}"
+
+def verify_signed_state(state_param):
+    """Verify and decode the signed state parameter"""
+    import time
+    import hmac
+    import hashlib
+    
+    try:
+        # Split payload and signature
+        payload_b64, signature = state_param.split('.')
+        
+        # Verify signature
+        secret_key = os.getenv('FLASK_APP_KEY').encode()
+        expected_signature = hmac.new(secret_key, payload_b64.encode(), hashlib.sha256).hexdigest()
+        
+        if not hmac.compare_digest(signature, expected_signature):
+            return None, "Invalid signature"
+        
+        # Decode payload
+        payload_json = base64.urlsafe_b64decode(payload_b64.encode()).decode()
+        payload = json.loads(payload_json)
+        
+        # Check timestamp (valid for 10 minutes)
+        current_time = int(time.time())
+        if current_time - payload['timestamp'] > 600:  # 10 minutes
+            return None, "State expired"
+        
+        return payload, None
+        
+    except Exception as e:
+        return None, f"Invalid state format: {str(e)}"
+
+@api.route('/auth/google/initiate', methods=['POST'])
+def google_oauth_initiate():
+    """Initiate Google OAuth flow"""
+    data = request.get_json()
+    user_type = data.get('user_type')  # 'mentor' or 'customer'
+    
+    if user_type not in ['mentor', 'customer']:
+        return jsonify({"error": "Invalid user type"}), 400
+    
+    # Create signed state parameter
+    state = create_signed_state(user_type)
+    
+    # Google OAuth URL
+    google_auth_url = "https://accounts.google.com/o/oauth2/auth"
+    params = {
+        'client_id': GOOGLE_CLIENT_ID,
+        'redirect_uri': GOOGLE_REDIRECT_URI,
+        'scope': 'openid email profile',
+        'response_type': 'code',
+        'state': state,
+        'access_type': 'offline',
+        'prompt': 'consent'
+    }
+    
+    auth_url = f"{google_auth_url}?{urlencode(params)}"
+    current_app.logger.info(f"Generated Google OAuth URL for {user_type}")
+    return jsonify({"auth_url": auth_url}), 200
+
+@api.route('/auth/google/callback', methods=['GET'])
+def google_oauth_callback():
+    """Handle Google OAuth callback"""
+    code = request.args.get('code')
+    state = request.args.get('state')
+    error = request.args.get('error')
+    
+    if error:
+        current_app.logger.error(f"Google OAuth error: {error}")
+        return redirect(f"{FRONTEND_URL}/?auth_error=oauth_denied")
+    
+    if not code or not state:
+        current_app.logger.error("Missing code or state parameter")
+        return redirect(f"{FRONTEND_URL}/?auth_error=missing_params")
+    
+    # Verify and decode state
+    payload, error_msg = verify_signed_state(state)
+    if error_msg:
+        current_app.logger.error(f"State verification failed: {error_msg}")
+        return redirect(f"{FRONTEND_URL}/?auth_error=state_verification_failed")
+    
+    user_type = payload['user_type']
+    current_app.logger.info(f"Processing Google OAuth callback for {user_type}")
+    
+    try:
+        # Exchange code for tokens
+        token_url = "https://oauth2.googleapis.com/token"
+        token_data = {
+            'client_id': GOOGLE_CLIENT_ID,
+            'client_secret': GOOGLE_CLIENT_SECRET,
+            'code': code,
+            'grant_type': 'authorization_code',
+            'redirect_uri': GOOGLE_REDIRECT_URI,
+        }
+        
+        current_app.logger.info("Exchanging authorization code for access token")
+        token_response = requests.post(token_url, data=token_data, timeout=30)
+        token_response.raise_for_status()
+        tokens = token_response.json()
+        
+        # Get user info from Google
+        user_info_url = f"https://www.googleapis.com/oauth2/v2/userinfo?access_token={tokens['access_token']}"
+        user_response = requests.get(user_info_url, timeout=30)
+        user_response.raise_for_status()
+        google_user = user_response.json()
+        
+        current_app.logger.info(f"Retrieved Google user info for: {google_user.get('email', 'unknown')}")
+        
+        # Extract user data
+        email = google_user.get('email')
+        first_name = google_user.get('given_name', '')
+        last_name = google_user.get('family_name', '')
+        google_id = google_user.get('id')
+        
+        if not email:
+            current_app.logger.error("No email received from Google")
+            return redirect(f"{FRONTEND_URL}/?auth_error=no_email")
+        
+        # Check if user already exists
+        if user_type == 'mentor':
+            existing_user = Mentor.query.filter_by(email=email).first()
+            UserModel = Mentor
+            dashboard_route = "/mentor-dashboard"
+        else:
+            existing_user = Customer.query.filter_by(email=email).first()
+            UserModel = Customer
+            dashboard_route = "/customer-dashboard"
+        
+        if existing_user:
+            # User exists, log them in
+            current_app.logger.info(f"Existing {user_type} found, logging in: {email}")
+            access_token = create_access_token(
+                identity=existing_user.id,
+                additional_claims={"role": user_type}
+            )
+            
+            # Create success URL with token
+            success_url = f"{FRONTEND_URL}{dashboard_route}?google_auth=success&token={access_token}&user_id={existing_user.id}&user_type={user_type}"
+            return redirect(success_url)
+        
+        else:
+            # Create new user
+            current_app.logger.info(f"Creating new {user_type} account for: {email}")
+            if user_type == 'mentor':
+                new_user = Mentor(
+                    email=email,
+                    password=generate_password_hash(secrets.token_urlsafe(32)),  # Random password
+                    first_name=first_name or 'User',
+                    last_name=last_name or 'Google',
+                    phone="000-000-0000",  # Placeholder
+                    city="Not specified",  # Placeholder
+                    what_state="Not specified",  # Placeholder
+                    country="United States of America (USA)",  # Default
+                    is_verified=True,  # Auto-verify Google users
+                    verification_code=None
+                )
+            else:
+                new_user = Customer(
+                    email=email,
+                    password=generate_password_hash(secrets.token_urlsafe(32)),  # Random password
+                    first_name=first_name or 'User',
+                    last_name=last_name or 'Google',
+                    phone="000-000-0000",  # Placeholder
+                    is_verified=True,  # Auto-verify Google users
+                    verification_code=None
+                )
+            
+            db.session.add(new_user)
+            db.session.commit()
+            db.session.refresh(new_user)
+            
+            current_app.logger.info(f"Successfully created {user_type} account with ID: {new_user.id}")
+            
+            # Create access token for new user
+            access_token = create_access_token(
+                identity=new_user.id,
+                additional_claims={"role": user_type}
+            )
+            
+            # Create success URL with token and new user flag
+            success_url = f"{FRONTEND_URL}{dashboard_route}?google_auth=success&new_user=true&token={access_token}&user_id={new_user.id}&user_type={user_type}"
+            return redirect(success_url)
+    
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error(f"HTTP request error during Google OAuth: {str(e)}")
+        return redirect(f"{FRONTEND_URL}/?auth_error=network_error")
+    except Exception as e:
+        current_app.logger.error(f"Unexpected error during Google OAuth: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return redirect(f"{FRONTEND_URL}/?auth_error=server_error")
+
+@api.route('/auth/google/verify', methods=['POST'])
+def verify_google_auth():
+
+    """Verify Google auth token and log user in"""
+    data = request.get_json()
+    token = data.get('token')
+    user_id = data.get('user_id')
+    user_type = data.get('user_type')
+    
+    if not all([token, user_id, user_type]):
+        return jsonify({"error": "Missing required parameters"}), 400
+    
+    try:
+        # Verify the token
+        decoded_token = jwt.decode(token, current_app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
+        token_user_id = decoded_token.get('sub')
+        token_role = decoded_token.get('role')
+        
+        if str(token_user_id) != str(user_id) or token_role != user_type:
+            return jsonify({"error": "Invalid token"}), 401
+        
+        # Get user data
+        if user_type == 'mentor':
+            user = Mentor.query.get(user_id)
+        else:
+            user = Customer.query.get(user_id)
+        
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        
+        current_app.logger.info(f"Successfully verified Google auth for {user_type}: {user.email}")
+        
+        return jsonify({
+            "success": True,
+            "access_token": token,
+            f"{user_type}_id": user.id,
+            f"{user_type}_data": user.serialize(),
+            "role": user_type
+        }), 200
+        
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Invalid token"}), 401
+    except Exception as e:
+        current_app.logger.error(f"Token verification error: {str(e)}")
+        return jsonify({"error": "Server error"}), 500
+
+
+# GitHub OAuth Configuration
+GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID")
+GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET")
+GITHUB_REDIRECT_URI = f"{os.getenv('BACKEND_URL')}/api/authorize/github"
+
+@api.route('/auth/github/initiate', methods=['POST'])
+def github_oauth_initiate():
+    """Initiate GitHub OAuth flow"""
+    data = request.get_json()
+    user_type = data.get('user_type')  # 'mentor' or 'customer'
+    
+    if user_type not in ['mentor', 'customer']:
+        return jsonify({"error": "Invalid user type"}), 400
+    
+    # Create signed state parameter (reusing the same function as Google)
+    state = create_signed_state(user_type)
+    
+    # GitHub OAuth URL
+    github_auth_url = "https://github.com/login/oauth/authorize"
+    params = {
+        'client_id': GITHUB_CLIENT_ID,
+        'redirect_uri': GITHUB_REDIRECT_URI,
+        'scope': 'user:email',
+        'state': state,
+        'allow_signup': 'true'
+    }
+    
+    auth_url = f"{github_auth_url}?{urlencode(params)}"
+    current_app.logger.info(f"Generated GitHub OAuth URL for {user_type}")
+    return jsonify({"auth_url": auth_url}), 200
+
+@api.route('/authorize/github', methods=['GET'])
+def github_oauth_callback():
+    """Handle GitHub OAuth callback"""
+    code = request.args.get('code')
+    state = request.args.get('state')
+    error = request.args.get('error')
+    error_description = request.args.get('error_description')
+    
+    if error:
+        current_app.logger.error(f"GitHub OAuth error: {error} - {error_description}")
+        return redirect(f"{FRONTEND_URL}/?auth_error=oauth_denied")
+    
+    if not code or not state:
+        current_app.logger.error("Missing code or state parameter from GitHub")
+        return redirect(f"{FRONTEND_URL}/?auth_error=missing_params")
+    
+    # Verify and decode state
+    payload, error_msg = verify_signed_state(state)
+    if error_msg:
+        current_app.logger.error(f"GitHub state verification failed: {error_msg}")
+        return redirect(f"{FRONTEND_URL}/?auth_error=state_verification_failed")
+    
+    user_type = payload['user_type']
+    current_app.logger.info(f"Processing GitHub OAuth callback for {user_type}")
+    
+    try:
+        # Exchange code for access token
+        token_url = "https://github.com/login/oauth/access_token"
+        token_data = {
+            'client_id': GITHUB_CLIENT_ID,
+            'client_secret': GITHUB_CLIENT_SECRET,
+            'code': code,
+        }
+        
+        headers = {
+            'Accept': 'application/json'
+        }
+        
+        current_app.logger.info("Exchanging GitHub authorization code for access token")
+        token_response = requests.post(token_url, data=token_data, headers=headers, timeout=30)
+        token_response.raise_for_status()
+        token_data = token_response.json()
+        
+        access_token = token_data.get('access_token')
+        if not access_token:
+            current_app.logger.error("No access token received from GitHub")
+            return redirect(f"{FRONTEND_URL}/?auth_error=no_token")
+        
+        # Get user info from GitHub
+        user_headers = {
+            'Authorization': f'token {access_token}',
+            'Accept': 'application/vnd.github.v3+json'
+        }
+        
+        # Get basic user info
+        user_response = requests.get('https://api.github.com/user', headers=user_headers, timeout=30)
+        user_response.raise_for_status()
+        github_user = user_response.json()
+        
+        # Get user email (GitHub requires separate API call for emails)
+        email_response = requests.get('https://api.github.com/user/emails', headers=user_headers, timeout=30)
+        email_response.raise_for_status()
+        emails = email_response.json()
+        
+        # Find primary email
+        primary_email = None
+        for email_data in emails:
+            if email_data.get('primary', False):
+                primary_email = email_data.get('email')
+                break
+        
+        if not primary_email and emails:
+            # Fallback to first email if no primary found
+            primary_email = emails[0].get('email')
+        
+        current_app.logger.info(f"Retrieved GitHub user info for: {primary_email or 'unknown'}")
+        
+        # Extract user data
+        email = primary_email
+        name = github_user.get('name', '')
+        login = github_user.get('login', '')
+        github_id = github_user.get('id')
+        
+        # Parse first and last name from full name
+        if name:
+            name_parts = name.strip().split(' ', 1)
+            first_name = name_parts[0]
+            last_name = name_parts[1] if len(name_parts) > 1 else ''
+        else:
+            # Use login as first name if no real name provided
+            first_name = login or 'User'
+            last_name = 'GitHub'
+        
+        if not email:
+            current_app.logger.error("No email received from GitHub")
+            return redirect(f"{FRONTEND_URL}/?auth_error=no_email")
+        
+        # Check if user already exists
+        if user_type == 'mentor':
+            existing_user = Mentor.query.filter_by(email=email).first()
+            UserModel = Mentor
+            dashboard_route = "/mentor-dashboard"
+        else:
+            existing_user = Customer.query.filter_by(email=email).first()
+            UserModel = Customer
+            dashboard_route = "/customer-dashboard"
+        
+        if existing_user:
+            # User exists, log them in
+            current_app.logger.info(f"Existing {user_type} found, logging in: {email}")
+            access_token = create_access_token(
+                identity=existing_user.id,
+                additional_claims={"role": user_type}
+            )
+            
+            # Create success URL with token
+            success_url = f"{FRONTEND_URL}{dashboard_route}?github_auth=success&token={access_token}&user_id={existing_user.id}&user_type={user_type}"
+            return redirect(success_url)
+        
+        else:
+            # Create new user
+            current_app.logger.info(f"Creating new {user_type} account for: {email}")
+            if user_type == 'mentor':
+                new_user = Mentor(
+                    email=email,
+                    password=generate_password_hash(secrets.token_urlsafe(32)),  # Random password
+                    first_name=first_name,
+                    last_name=last_name,
+                    phone="000-000-0000",  # Placeholder
+                    city="Not specified",  # Placeholder
+                    what_state="Not specified",  # Placeholder
+                    country="United States of America (USA)",  # Default
+                    is_verified=True,  # Auto-verify GitHub users
+                    verification_code=None
+                )
+            else:
+                new_user = Customer(
+                    email=email,
+                    password=generate_password_hash(secrets.token_urlsafe(32)),  # Random password
+                    first_name=first_name,
+                    last_name=last_name,
+                    phone="000-000-0000",  # Placeholder
+                    is_verified=True,  # Auto-verify GitHub users
+                    verification_code=None
+                )
+            
+            db.session.add(new_user)
+            db.session.commit()
+            db.session.refresh(new_user)
+            
+            current_app.logger.info(f"Successfully created {user_type} account with ID: {new_user.id}")
+            
+            # Create access token for new user
+            access_token = create_access_token(
+                identity=new_user.id,
+                additional_claims={"role": user_type}
+            )
+            
+            # Create success URL with token and new user flag
+            success_url = f"{FRONTEND_URL}{dashboard_route}?github_auth=success&new_user=true&token={access_token}&user_id={new_user.id}&user_type={user_type}"
+            return redirect(success_url)
+    
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error(f"HTTP request error during GitHub OAuth: {str(e)}")
+        return redirect(f"{FRONTEND_URL}/?auth_error=network_error")
+    except Exception as e:
+        current_app.logger.error(f"Unexpected error during GitHub OAuth: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return redirect(f"{FRONTEND_URL}/?auth_error=server_error")
+
+@api.route('/auth/github/verify', methods=['POST'])
+def verify_github_auth():
+    """Verify GitHub auth token and log user in"""
+    data = request.get_json()
+    token = data.get('token')
+    user_id = data.get('user_id')
+    user_type = data.get('user_type')
+    
+    if not all([token, user_id, user_type]):
+        return jsonify({"error": "Missing required parameters"}), 400
+    
+    try:
+        # Verify the token (reusing the same JWT verification as Google)
+        decoded_token = jwt.decode(token, current_app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
+        token_user_id = decoded_token.get('sub')
+        token_role = decoded_token.get('role')
+        
+        if str(token_user_id) != str(user_id) or token_role != user_type:
+            return jsonify({"error": "Invalid token"}), 401
+        
+        # Get user data
+        if user_type == 'mentor':
+            user = Mentor.query.get(user_id)
+        else:
+            user = Customer.query.get(user_id)
+        
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        
+        current_app.logger.info(f"Successfully verified GitHub auth for {user_type}: {user.email}")
+        
+        return jsonify({
+            "success": True,
+            "access_token": token,
+            f"{user_type}_id": user.id,
+            f"{user_type}_data": user.serialize(),
+            "role": user_type
+        }), 200
+        
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Invalid token"}), 401
+    except Exception as e:
+        current_app.logger.error(f"GitHub token verification error: {str(e)}")
+        return jsonify({"error": "Server error"}), 500
+
+

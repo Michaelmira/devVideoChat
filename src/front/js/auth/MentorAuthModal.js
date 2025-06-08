@@ -3,6 +3,8 @@ import { MentorLogin } from "./MentorLogin.js";
 import { MentorSignup } from "./MentorSignup.js";
 import { ForgotPsModal } from './ForgotPsModal.js';
 import { VerifyCodeModal } from './VerifyCodeModal.js';
+import { GoogleOAuthButton } from './GoogleOAuthButtons.js';
+import { GitHubOAuthButton } from './GitHubOAuthButton.js';
 import { useNavigate } from 'react-router-dom';
 import "../../styles/auth.css";
 
@@ -129,7 +131,6 @@ export const MentorAuthModal = ({ initialTab, show, onHide }) => {
         setActiveTab('login');
     };
 
-
     const handleSwitchLogin = () => {
         setShowVerifyCode(false);
         setActiveTab('login');
@@ -143,6 +144,11 @@ export const MentorAuthModal = ({ initialTab, show, onHide }) => {
         setActiveTab(tab);
     };
 
+    const handleGoogleAuthSuccess = () => {
+        console.log('Google auth successful, cleaning up and navigating');
+        cleanupAndNavigate("/mentor-dashboard");
+    };
+
     return (
         <div
             className="modal fade auth"
@@ -151,7 +157,6 @@ export const MentorAuthModal = ({ initialTab, show, onHide }) => {
             aria-hidden="true"
             ref={modalRef}
         >
-            {/* <div className="modal-dialog modal-dialog-centered"> */}
             <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
                 <div
                     className="modal-content bg-dark"
@@ -190,6 +195,28 @@ export const MentorAuthModal = ({ initialTab, show, onHide }) => {
                                 </div>
                             </div>
                             <div className="modal-body p-4">
+                                {/* OAuth Buttons */}
+                                <div className="mb-4">
+                                    <GoogleOAuthButton 
+                                        userType="mentor" 
+                                        onSuccess={handleGoogleAuthSuccess}
+                                        buttonText={activeTab === 'login' ? 'Login with Google' : 'Sign up with Google'}
+                                    />
+                                    
+                                    <GitHubOAuthButton 
+                                        userType="mentor" 
+                                        onSuccess={handleGoogleAuthSuccess}
+                                        buttonText={activeTab === 'login' ? 'Login with GitHub' : 'Sign up with GitHub'}
+                                    />
+                                    
+                                    {/* Divider */}
+                                    <div className="d-flex align-items-center my-3">
+                                        <hr className="flex-grow-1" style={{ borderColor: '#6c757d' }} />
+                                        <span className="px-3 text-secondary">or</span>
+                                        <hr className="flex-grow-1" style={{ borderColor: '#6c757d' }} />
+                                    </div>
+                                </div>
+
                                 {activeTab === 'login' ? (
                                     <MentorLogin
                                         onSuccess={() => {

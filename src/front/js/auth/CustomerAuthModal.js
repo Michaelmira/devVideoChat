@@ -5,6 +5,8 @@ import { CustomerLogin } from './CustomerLogin.js';
 import { CustomerSignup } from './CustomerSignup.js';
 import { ForgotPsModal } from './ForgotPsModal.js';
 import { VerifyCodeModal } from './VerifyCodeModal.js';
+import { GoogleOAuthButton } from './GoogleOAuthButtons.js';
+import { GitHubOAuthButton } from './GitHubOAuthButton.js';
 import "../../styles/auth.css";
 import { useNavigate } from 'react-router-dom';
 
@@ -145,6 +147,11 @@ export const CustomerAuthModal = ({ initialTab, show, onHide }) => {
     setActiveTab(tab);
   };
 
+  const handleGoogleAuthSuccess = () => {
+    console.log('Google auth successful, cleaning up and navigating');
+    cleanupAndNavigate("/customer-dashboard");
+  };
+
   return (
     <div
       className="modal fade auth"
@@ -153,7 +160,6 @@ export const CustomerAuthModal = ({ initialTab, show, onHide }) => {
       aria-hidden="true"
       ref={modalRef}
     >
-      {/* <div className="modal-dialog modal-dialog-centered"> */}
       <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div
           className="modal-content bg-dark"
@@ -192,6 +198,28 @@ export const CustomerAuthModal = ({ initialTab, show, onHide }) => {
                 />
               </div>
               <div className="modal-body p-4">
+                {/* OAuth Buttons */}
+                <div className="mb-4">
+                  <GoogleOAuthButton 
+                    userType="customer" 
+                    onSuccess={handleGoogleAuthSuccess}
+                    buttonText={activeTab === 'login' ? 'Login with Google' : 'Sign up with Google'}
+                  />
+                  
+                  <GitHubOAuthButton 
+                    userType="customer" 
+                    onSuccess={handleGoogleAuthSuccess}
+                    buttonText={activeTab === 'login' ? 'Login with GitHub' : 'Sign up with GitHub'}
+                  />
+                  
+                  {/* Divider */}
+                  <div className="d-flex align-items-center my-3">
+                    <hr className="flex-grow-1" style={{ borderColor: '#6c757d' }} />
+                    <span className="px-3 text-secondary">or</span>
+                    <hr className="flex-grow-1" style={{ borderColor: '#6c757d' }} />
+                  </div>
+                </div>
+
                 {activeTab === 'login' ? (
                   <CustomerLogin
                     onSuccess={() => {
@@ -223,4 +251,3 @@ export const CustomerAuthModal = ({ initialTab, show, onHide }) => {
     </div>
   );
 };
-
