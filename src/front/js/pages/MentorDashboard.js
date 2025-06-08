@@ -10,6 +10,19 @@ export const MentorDashboard = () => {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
 
+	// Add cleanup effect for modal backdrop
+	useEffect(() => {
+		// Remove any lingering modal backdrops
+		const modalBackdrops = document.getElementsByClassName('modal-backdrop');
+		while (modalBackdrops.length > 0) {
+			modalBackdrops[0].remove();
+		}
+		// Remove modal-open class from body
+		document.body.classList.remove('modal-open');
+		document.body.style.overflow = '';
+		document.body.style.paddingRight = '';
+	}, []);
+
 	useEffect(() => {
 		const fetchMentorData = async () => {
 			try {

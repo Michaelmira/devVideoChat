@@ -7,6 +7,19 @@ const CustomerDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    // Add cleanup effect for modal backdrop
+    useEffect(() => {
+        // Remove any lingering modal backdrops
+        const modalBackdrops = document.getElementsByClassName('modal-backdrop');
+        while (modalBackdrops.length > 0) {
+            modalBackdrops[0].remove();
+        }
+        // Remove modal-open class from body
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+    }, []);
+
     useEffect(() => {
         const fetchBookings = async () => {
             if (store.currentUserData?.role !== 'customer') {
@@ -36,9 +49,9 @@ const CustomerDashboard = () => {
         // Use calendly_event_start_time if available (actual meeting time)
         // Otherwise fall back to scheduled_at (booking creation time)
         const dateToUse = booking.calendly_event_start_time || booking.scheduled_at;
-        
+
         if (!dateToUse) return 'Not scheduled';
-        
+
         return new Date(dateToUse).toLocaleString();
     };
 

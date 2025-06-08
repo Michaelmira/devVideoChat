@@ -25,11 +25,27 @@ export const CustomerAuthModal = ({ initialTab, show, onHide }) => {
         if (onHide) onHide();
         setShowForgotPs(false);
         setShowVerifyCode(false);
+        const modalBackdrops = document.getElementsByClassName('modal-backdrop');
+        while (modalBackdrops.length > 0) {
+          modalBackdrops[0].remove();
+        }
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
       });
     }
     return () => {
       try {
-        if (bsModalRef.current?.dispose) bsModalRef.current.dispose();
+        if (bsModalRef.current?.dispose) {
+          bsModalRef.current.dispose();
+          const modalBackdrops = document.getElementsByClassName('modal-backdrop');
+          while (modalBackdrops.length > 0) {
+            modalBackdrops[0].remove();
+          }
+          document.body.classList.remove('modal-open');
+          document.body.style.overflow = '';
+          document.body.style.paddingRight = '';
+        }
       } catch (error) {
         console.error('Error disposing modal:', error);
       }
