@@ -16,6 +16,7 @@ export const MentorAuthModal = ({ initialTab, show, onHide }) => {
     const bsModalRef = useRef(null);
     const navigate = useNavigate();
 
+    
     useEffect(() => {
         if (modalRef.current && window.bootstrap) {
             bsModalRef.current = new window.bootstrap.Modal(modalRef.current, {});
