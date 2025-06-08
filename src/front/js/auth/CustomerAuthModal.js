@@ -77,6 +77,48 @@ export const CustomerAuthModal = ({ initialTab, show, onHide }) => {
     if (bsModalRef.current) {
       bsModalRef.current.hide();
     }
+    // Clean up any modal artifacts
+    const modalBackdrops = document.getElementsByClassName('modal-backdrop');
+    while (modalBackdrops.length > 0) {
+      modalBackdrops[0].remove();
+    }
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+
+    // Clear any existing modals from the DOM
+    const modals = document.getElementsByClassName('modal');
+    Array.from(modals).forEach(modal => {
+      modal.style.display = 'none';
+      modal.classList.remove('show');
+      modal.setAttribute('aria-hidden', 'true');
+      modal.removeAttribute('aria-modal');
+    });
+  };
+
+  const cleanupAndNavigate = (path) => {
+    handleClose();
+    // Force cleanup of any remaining modal elements
+    setTimeout(() => {
+      const modalBackdrops = document.getElementsByClassName('modal-backdrop');
+      while (modalBackdrops.length > 0) {
+        modalBackdrops[0].remove();
+      }
+      document.body.classList.remove('modal-open');
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+
+      // Clear any existing modals from the DOM
+      const modals = document.getElementsByClassName('modal');
+      Array.from(modals).forEach(modal => {
+        modal.style.display = 'none';
+        modal.classList.remove('show');
+        modal.setAttribute('aria-hidden', 'true');
+        modal.removeAttribute('aria-modal');
+      });
+
+      navigate(path);
+    }, 300);
   };
 
   const handleSignupSuccess = (email) => {
@@ -153,12 +195,8 @@ export const CustomerAuthModal = ({ initialTab, show, onHide }) => {
                 {activeTab === 'login' ? (
                   <CustomerLogin
                     onSuccess={() => {
-                      console.log('Login successful, closing modal before navigation');
-                      handleClose();
-                      // Give modal time to close before navigating
-                      setTimeout(() => {
-                        navigate("/customer-dashboard");
-                      }, 300);
+                      console.log('Login successful, cleaning up and navigating');
+                      cleanupAndNavigate("/customer-dashboard");
                     }}
                     switchToSignUp={handleSwitchSignUp}
                     onForgotPs={() => setShowForgotPs(true)}

@@ -147,6 +147,24 @@ const getState = ({ getStore, getActions, setStore }) => {
                         return { success: false, message: data.msg || "Login failed" };
                     }
 
+                    // Clean up any modal artifacts before setting store state
+                    const modalBackdrops = document.getElementsByClassName('modal-backdrop');
+                    while (modalBackdrops.length > 0) {
+                        modalBackdrops[0].remove();
+                    }
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                    document.body.style.paddingRight = '';
+
+                    // Clear any existing modals from the DOM
+                    const modals = document.getElementsByClassName('modal');
+                    Array.from(modals).forEach(modal => {
+                        modal.style.display = 'none';
+                        modal.classList.remove('show');
+                        modal.setAttribute('aria-hidden', 'true');
+                        modal.removeAttribute('aria-modal');
+                    });
+
                     setStore({
                         token: data.access_token,
                         isMentorLoggedIn: true,
@@ -434,10 +452,27 @@ const getState = ({ getStore, getActions, setStore }) => {
                     });
                     const data = await response.json();
 
-                    // BETTER FIX: Use response.ok which handles all 2xx status codes
                     if (!response.ok) {
                         return { success: false, message: data.msg || "Login failed" };
                     }
+
+                    // Clean up any modal artifacts before setting store state
+                    const modalBackdrops = document.getElementsByClassName('modal-backdrop');
+                    while (modalBackdrops.length > 0) {
+                        modalBackdrops[0].remove();
+                    }
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                    document.body.style.paddingRight = '';
+
+                    // Clear any existing modals from the DOM
+                    const modals = document.getElementsByClassName('modal');
+                    Array.from(modals).forEach(modal => {
+                        modal.style.display = 'none';
+                        modal.classList.remove('show');
+                        modal.setAttribute('aria-hidden', 'true');
+                        modal.removeAttribute('aria-modal');
+                    });
 
                     setStore({
                         isCustomerLoggedIn: true,
@@ -1030,7 +1065,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                         console.error("No token found for fetchCalendlyDetailsAndUpdateBooking");
                         return { success: false, message: "Authentication required." };
                     }
-            
+
                     // FIXED: Use the correct endpoint that exists in your routes.py
                     const response = await fetch(`${process.env.BACKEND_URL}/api/sync_booking_with_calendly_details`, {
                         method: "POST",
@@ -1045,9 +1080,9 @@ const getState = ({ getStore, getActions, setStore }) => {
                             mentorId: mentorId
                         })
                     });
-            
+
                     const data = await response.json();
-            
+
                     if (response.ok) {
                         return { success: true, ...data };
                     } else {
