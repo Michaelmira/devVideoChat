@@ -151,9 +151,11 @@ export const MentorAuthModal = ({ initialTab, show, onHide }) => {
                                 {activeTab === 'login' ? (
                                     <MentorLogin
                                         onSuccess={() => {
-                                            console.log('Login successful, rerouting to the mentor dashboard page');
+                                            console.log('Login successful, closing modal before navigation');
                                             handleClose();
-                                            navigate("/mentor-dashboard");
+                                            setTimeout(() => {
+                                                navigate("/mentor-dashboard");
+                                            }, 300);
                                         }}
                                         switchToSignUp={handleSwitchSignUp}
                                         onForgotPs={() => setShowForgotPs(true)}

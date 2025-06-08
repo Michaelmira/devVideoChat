@@ -153,9 +153,12 @@ export const CustomerAuthModal = ({ initialTab, show, onHide }) => {
                 {activeTab === 'login' ? (
                   <CustomerLogin
                     onSuccess={() => {
-                      console.log('Login successful, rerouting to the customer dashboard page');
+                      console.log('Login successful, closing modal before navigation');
                       handleClose();
-                      navigate("/customer-dashboard");
+                      // Give modal time to close before navigating
+                      setTimeout(() => {
+                        navigate("/customer-dashboard");
+                      }, 300);
                     }}
                     switchToSignUp={handleSwitchSignUp}
                     onForgotPs={() => setShowForgotPs(true)}

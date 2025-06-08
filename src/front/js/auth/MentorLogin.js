@@ -19,6 +19,15 @@ export const MentorLogin = ({ onSuccess, switchToSignUp, onForgotPs }) => {
         if (isEmailValid && isPasswordValid) {
             const result = await actions.logInMentor({ email, password });
             if (result.success) {
+                // Remove any existing modal backdrops and cleanup
+                const modalBackdrops = document.getElementsByClassName('modal-backdrop');
+                while (modalBackdrops.length > 0) {
+                    modalBackdrops[0].remove();
+                }
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+
                 if (onSuccess) onSuccess();
             } else {
                 setApiError(result.message || "Email and/or password is incorrect. Please try again.");

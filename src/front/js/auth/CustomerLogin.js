@@ -24,6 +24,15 @@ export const CustomerLogin = ({ onSuccess, switchToSignUp, onForgotPs }) => {
         if (isEmailValid && isPasswordValid) {
             const result = await actions.logInCustomer({ email, password });
             if (result.success) {
+                // Remove any existing modal backdrops and cleanup
+                const modalBackdrops = document.getElementsByClassName('modal-backdrop');
+                while (modalBackdrops.length > 0) {
+                    modalBackdrops[0].remove();
+                }
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+
                 if (onSuccess) onSuccess();
             } else {
                 // Set the error message from the API response
