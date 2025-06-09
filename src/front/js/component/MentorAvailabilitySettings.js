@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Context } from "../store/appContext";
-import { Container, Row, Col, Form, Button, Card, Alert } from 'react-bootstrap';
 import TimePicker from 'react-time-picker';
 import 'react-time-picker/dist/TimePicker.css';
 import 'react-clock/dist/Clock.css';
@@ -198,156 +197,164 @@ export const MentorAvailabilitySettings = () => {
     }
 
     return (
-        <Container>
+        <div className="container">
             <h2 className="mb-4">Availability Settings</h2>
 
-            {error && <Alert variant="danger">{error}</Alert>}
-            {success && <Alert variant="success">{success}</Alert>}
+            {error && <div className="alert alert-danger">{error}</div>}
+            {success && <div className="alert alert-success">{success}</div>}
 
-            <Form onSubmit={handleSubmit}>
-                <Card className="mb-4">
-                    <Card.Header>
+            <form onSubmit={handleSubmit}>
+                <div className="card mb-4">
+                    <div className="card-header">
                         <h3 className="h5 mb-0">Calendar Settings</h3>
-                    </Card.Header>
-                    <Card.Body>
-                        <Row>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Session Duration (minutes)</Form.Label>
-                                    <Form.Control
+                    </div>
+                    <div className="card-body">
+                        <div className="row">
+                            <div className="col-md-6">
+                                <div className="mb-3">
+                                    <label className="form-label">Session Duration (minutes)</label>
+                                    <input
                                         type="number"
+                                        className="form-control"
                                         value={settings.session_duration}
                                         onChange={(e) => handleSettingsChange('session_duration', parseInt(e.target.value))}
                                         min="15"
                                         max="240"
                                     />
-                                </Form.Group>
-                            </Col>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Buffer Time (minutes)</Form.Label>
-                                    <Form.Control
+                                </div>
+                            </div>
+                            <div className="col-md-6">
+                                <div className="mb-3">
+                                    <label className="form-label">Buffer Time (minutes)</label>
+                                    <input
                                         type="number"
+                                        className="form-control"
                                         value={settings.buffer_time}
                                         onChange={(e) => handleSettingsChange('buffer_time', parseInt(e.target.value))}
                                         min="0"
                                         max="60"
                                     />
-                                </Form.Group>
-                            </Col>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Advance Booking Days</Form.Label>
-                                    <Form.Control
+                                </div>
+                            </div>
+                            <div className="col-md-6">
+                                <div className="mb-3">
+                                    <label className="form-label">Advance Booking Days</label>
+                                    <input
                                         type="number"
+                                        className="form-control"
                                         value={settings.advance_booking_days}
                                         onChange={(e) => handleSettingsChange('advance_booking_days', parseInt(e.target.value))}
                                         min="1"
                                         max="90"
                                     />
-                                </Form.Group>
-                            </Col>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Minimum Notice Hours</Form.Label>
-                                    <Form.Control
+                                </div>
+                            </div>
+                            <div className="col-md-6">
+                                <div className="mb-3">
+                                    <label className="form-label">Minimum Notice Hours</label>
+                                    <input
                                         type="number"
+                                        className="form-control"
                                         value={settings.minimum_notice_hours}
                                         onChange={(e) => handleSettingsChange('minimum_notice_hours', parseInt(e.target.value))}
                                         min="1"
                                         max="72"
                                     />
-                                </Form.Group>
-                            </Col>
-                            <Col md={12}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Timezone</Form.Label>
-                                    <Form.Select
+                                </div>
+                            </div>
+                            <div className="col-md-12">
+                                <div className="mb-3">
+                                    <label className="form-label">Timezone</label>
+                                    <select
+                                        className="form-select"
                                         value={settings.timezone}
                                         onChange={(e) => handleSettingsChange('timezone', e.target.value)}
                                     >
                                         {timezones.map(tz => (
                                             <option key={tz} value={tz}>{tz}</option>
                                         ))}
-                                    </Form.Select>
-                                </Form.Group>
-                            </Col>
-                        </Row>
-                    </Card.Body>
-                </Card>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-                <Card className="mb-4">
-                    <Card.Header className="d-flex justify-content-between align-items-center">
+                <div className="card mb-4">
+                    <div className="card-header d-flex justify-content-between align-items-center">
                         <h3 className="h5 mb-0">Weekly Availability</h3>
-                        <Button variant="primary" size="sm" onClick={handleAddAvailability}>
+                        <button type="button" className="btn btn-primary btn-sm" onClick={handleAddAvailability}>
                             Add Time Slot
-                        </Button>
-                    </Card.Header>
-                    <Card.Body>
+                        </button>
+                    </div>
+                    <div className="card-body">
                         {availabilities.map((availability, index) => (
-                            <Row key={index} className="mb-3 align-items-end">
-                                <Col md={3}>
-                                    <Form.Group>
-                                        <Form.Label>Day</Form.Label>
-                                        <Form.Select
+                            <div key={index} className="row mb-3 align-items-end">
+                                <div className="col-md-3">
+                                    <div className="mb-3">
+                                        <label className="form-label">Day</label>
+                                        <select
+                                            className="form-select"
                                             value={availability.day_of_week}
                                             onChange={(e) => handleAvailabilityChange(index, 'day_of_week', parseInt(e.target.value))}
                                         >
                                             {daysOfWeek.map(day => (
                                                 <option key={day.id} value={day.id}>{day.name}</option>
                                             ))}
-                                        </Form.Select>
-                                    </Form.Group>
-                                </Col>
-                                <Col md={3}>
-                                    <Form.Group>
-                                        <Form.Label>Start Time</Form.Label>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="col-md-3">
+                                    <div className="mb-3">
+                                        <label className="form-label">Start Time</label>
                                         <TimePicker
                                             value={availability.start_time}
                                             onChange={(value) => handleAvailabilityChange(index, 'start_time', value)}
                                             disableClock
                                             format="HH:mm"
+                                            className="form-control"
                                         />
-                                    </Form.Group>
-                                </Col>
-                                <Col md={3}>
-                                    <Form.Group>
-                                        <Form.Label>End Time</Form.Label>
+                                    </div>
+                                </div>
+                                <div className="col-md-3">
+                                    <div className="mb-3">
+                                        <label className="form-label">End Time</label>
                                         <TimePicker
                                             value={availability.end_time}
                                             onChange={(value) => handleAvailabilityChange(index, 'end_time', value)}
                                             disableClock
                                             format="HH:mm"
+                                            className="form-control"
                                         />
-                                    </Form.Group>
-                                </Col>
-                                <Col md={3}>
-                                    <Button
-                                        variant="danger"
-                                        size="sm"
+                                    </div>
+                                </div>
+                                <div className="col-md-3">
+                                    <button
+                                        type="button"
+                                        className="btn btn-danger btn-sm mt-2"
                                         onClick={() => handleRemoveAvailability(index)}
-                                        className="mt-2"
                                     >
                                         Remove
-                                    </Button>
-                                </Col>
-                            </Row>
+                                    </button>
+                                </div>
+                            </div>
                         ))}
-                    </Card.Body>
-                </Card>
+                    </div>
+                </div>
 
-                <Card className="mb-4">
-                    <Card.Header>
+                <div className="card mb-4">
+                    <div className="card-header">
                         <h3 className="h5 mb-0">Unavailability Periods</h3>
-                    </Card.Header>
-                    <Card.Body>
-                        <Form onSubmit={handleAddUnavailability}>
-                            <Row className="mb-3">
-                                <Col md={4}>
-                                    <Form.Group>
-                                        <Form.Label>Start Date/Time</Form.Label>
-                                        <Form.Control
+                    </div>
+                    <div className="card-body">
+                        <form onSubmit={handleAddUnavailability}>
+                            <div className="row mb-3">
+                                <div className="col-md-4">
+                                    <div className="mb-3">
+                                        <label className="form-label">Start Date/Time</label>
+                                        <input
                                             type="datetime-local"
+                                            className="form-control"
                                             value={newUnavailability.start_datetime}
                                             onChange={(e) => setNewUnavailability({
                                                 ...newUnavailability,
@@ -355,13 +362,14 @@ export const MentorAvailabilitySettings = () => {
                                             })}
                                             required
                                         />
-                                    </Form.Group>
-                                </Col>
-                                <Col md={4}>
-                                    <Form.Group>
-                                        <Form.Label>End Date/Time</Form.Label>
-                                        <Form.Control
+                                    </div>
+                                </div>
+                                <div className="col-md-4">
+                                    <div className="mb-3">
+                                        <label className="form-label">End Date/Time</label>
+                                        <input
                                             type="datetime-local"
+                                            className="form-control"
                                             value={newUnavailability.end_datetime}
                                             onChange={(e) => setNewUnavailability({
                                                 ...newUnavailability,
@@ -369,13 +377,14 @@ export const MentorAvailabilitySettings = () => {
                                             })}
                                             required
                                         />
-                                    </Form.Group>
-                                </Col>
-                                <Col md={4}>
-                                    <Form.Group>
-                                        <Form.Label>Reason</Form.Label>
-                                        <Form.Control
+                                    </div>
+                                </div>
+                                <div className="col-md-4">
+                                    <div className="mb-3">
+                                        <label className="form-label">Reason</label>
+                                        <input
                                             type="text"
+                                            className="form-control"
                                             value={newUnavailability.reason}
                                             onChange={(e) => setNewUnavailability({
                                                 ...newUnavailability,
@@ -383,13 +392,13 @@ export const MentorAvailabilitySettings = () => {
                                             })}
                                             placeholder="Optional"
                                         />
-                                    </Form.Group>
-                                </Col>
-                            </Row>
-                            <Button type="submit" variant="primary" size="sm">
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="submit" className="btn btn-primary btn-sm">
                                 Add Unavailability Period
-                            </Button>
-                        </Form>
+                            </button>
+                        </form>
 
                         <div className="mt-4">
                             {unavailabilities.map((period) => (
@@ -401,26 +410,26 @@ export const MentorAvailabilitySettings = () => {
                                             </strong>
                                             {period.reason && <div className="text-muted">{period.reason}</div>}
                                         </div>
-                                        <Button
-                                            variant="danger"
-                                            size="sm"
+                                        <button
+                                            type="button"
+                                            className="btn btn-danger btn-sm"
                                             onClick={() => handleDeleteUnavailability(period.id)}
                                         >
                                             Delete
-                                        </Button>
+                                        </button>
                                     </div>
                                 </div>
                             ))}
                         </div>
-                    </Card.Body>
-                </Card>
+                    </div>
+                </div>
 
                 <div className="d-grid gap-2">
-                    <Button type="submit" variant="primary" size="lg">
+                    <button type="submit" className="btn btn-primary btn-lg">
                         Save All Settings
-                    </Button>
+                    </button>
                 </div>
-            </Form>
-        </Container>
+            </form>
+        </div>
     );
 }; 

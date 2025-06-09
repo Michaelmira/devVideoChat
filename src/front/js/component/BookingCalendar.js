@@ -1,52 +1,45 @@
-import React, { useState, useEffect, useContext } from 'react';
-import { Context } from "../store/appContext";
-import { Container, Row, Col, Card, Button, Alert } from 'react-bootstrap';
-import { Calendar, momentLocalizer } from 'react-big-calendar';
-import moment from 'moment';
+import React, { useState, useEffect } from 'react';
+import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
+import format from 'date-fns/format';
+import parse from 'date-fns/parse';
+import startOfWeek from 'date-fns/startOfWeek';
+import getDay from 'date-fns/getDay';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 
-const localizer = momentLocalizer(moment);
+const locales = {
+    'en-US': require('date-fns/locale/en-US')
+};
 
-export const BookingCalendar = ({ mentorId, onSelectSlot }) => {
-    const { store } = useContext(Context);
+const localizer = dateFnsLocalizer({
+    format,
+    parse,
+    startOfWeek,
+    getDay,
+    locales,
+});
+
+export const BookingCalendar = ({ mentorId, onSlotSelect }) => {
+    const [availableSlots, setAvailableSlots] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [availableSlots, setAvailableSlots] = useState([]);
-    const [selectedDate, setSelectedDate] = useState(new Date());
-    const [timezone, setTimezone] = useState('America/Los_Angeles');
+    const [selectedSlot, setSelectedSlot] = useState(null);
 
     useEffect(() => {
         fetchAvailableSlots();
-    }, [mentorId, selectedDate]);
+    }, [mentorId]);
 
     const fetchAvailableSlots = async () => {
         try {
-            const startDate = moment(selectedDate).startOf('month').format('YYYY-MM-DD');
-            const endDate = moment(selectedDate).endOf('month').format('YYYY-MM-DD');
-
-            const response = await fetch(
-                `${process.env.BACKEND_URL}/api/mentor/${mentorId}/available-slots?` +
-                new URLSearchParams({
-                    start_date: startDate,
-                    end_date: endDate
-                }),
-                {
-                    headers: {
-                        'Authorization': 'Bearer ' + store.token
-                    }
-                }
-            );
+            const response = await fetch(process.env.BACKEND_URL + `/api/mentor/${mentorId}/available-slots`);
             const data = await response.json();
 
             if (response.ok) {
-                setAvailableSlots(data.available_slots.map(slot => ({
-                    title: 'Available',
-                    start: new Date(slot.start_time),
-                    end: new Date(slot.end_time),
-                    duration: slot.duration,
-                    resource: slot
-                })));
-                setTimezone(data.timezone);
+                const slots = data.slots.map(slot => ({
+                    ...slot,
+                    start: new Date(slot.start),
+                    end: new Date(slot.end)
+                }));
+                setAvailableSlots(slots);
             } else {
                 setError(data.msg || 'Failed to load available slots');
             }
@@ -58,61 +51,66 @@ export const BookingCalendar = ({ mentorId, onSelectSlot }) => {
         }
     };
 
-    const handleNavigate = (date) => {
-        setSelectedDate(date);
-    };
-
-    const handleSelectSlot = (slotInfo) => {
-        // Find the available slot that matches this selection
-        const selectedSlot = availableSlots.find(slot =>
-            moment(slot.start).isSame(slotInfo.start) &&
-            moment(slot.end).isSame(slotInfo.end)
-        );
-
-        if (selectedSlot) {
-            onSelectSlot(selectedSlot.resource);
+    const handleSelectSlot = (slot) => {
+        setSelectedSlot(slot);
+        if (onSlotSelect) {
+            onSlotSelect(slot);
         }
     };
 
     if (loading) {
-        return <div className="text-center">Loading available slots...</div>;
+        return <div className="text-center">Loading...</div>;
+    }
+
+    if (error) {
+        return <div className="alert alert-danger">{error}</div>;
     }
 
     return (
-        <Container>
-            {error && <Alert variant="danger">{error}</Alert>}
+        <div className="container">
+            <div className="card">
+                <div className="card-body">
+                    <Calendar
+                        localizer={localizer}
+                        events={availableSlots}
+                        startAccessor="start"
+                        endAccessor="end"
+                        style={{ height: 500 }}
+                        selectable
+                        onSelectSlot={handleSelectSlot}
+                        views={['month', 'week', 'day']}
+                        defaultView="week"
+                        min={new Date(new Date().setHours(8, 0, 0))}
+                        max={new Date(new Date().setHours(20, 0, 0))}
+                        formats={{
+                            timeGutterFormat: 'HH:mm',
+                            eventTimeRangeFormat: ({ start, end }) => {
+                                return `${format(start, 'HH:mm')} - ${format(end, 'HH:mm')}`;
+                            }
+                        }}
+                    />
+                </div>
+            </div>
 
-            <Card>
-                <Card.Header>
-                    <h3 className="h5 mb-0">Available Time Slots</h3>
-                    <small className="text-muted">Timezone: {timezone}</small>
-                </Card.Header>
-                <Card.Body>
-                    <div style={{ height: '500px' }}>
-                        <Calendar
-                            localizer={localizer}
-                            events={availableSlots}
-                            startAccessor="start"
-                            endAccessor="end"
-                            selectable
-                            onSelectSlot={handleSelectSlot}
-                            onNavigate={handleNavigate}
-                            defaultView="week"
-                            views={['week', 'month']}
-                            step={30}
-                            timeslots={2}
-                            min={moment().startOf('day').toDate()}
-                            max={moment().endOf('day').toDate()}
-                            formats={{
-                                timeGutterFormat: 'HH:mm',
-                                eventTimeRangeFormat: ({ start, end }) => {
-                                    return `${moment(start).format('HH:mm')} - ${moment(end).format('HH:mm')}`;
-                                }
-                            }}
-                        />
+            {selectedSlot && (
+                <div className="mt-4">
+                    <div className="card">
+                        <div className="card-body">
+                            <h5 className="card-title">Selected Time Slot</h5>
+                            <p className="card-text">
+                                Start: {format(selectedSlot.start, 'PPpp')}<br />
+                                End: {format(selectedSlot.end, 'PPpp')}
+                            </p>
+                            <button
+                                className="btn btn-primary"
+                                onClick={() => onSlotSelect(selectedSlot)}
+                            >
+                                Confirm Selection
+                            </button>
+                        </div>
                     </div>
-                </Card.Body>
-            </Card>
-        </Container>
+                </div>
+            )}
+        </div>
     );
 }; 
