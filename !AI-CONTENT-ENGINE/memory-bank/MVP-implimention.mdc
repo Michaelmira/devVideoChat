@@ -70,24 +70,24 @@ alwaysApply: true
 ### Phase 1: Essential User Experience (Week 1-2)
 
 #### A. Email Verification on Signup
-- **Priority:** HIGH
+- **Priority:** HIGH  DONE 
 - Send a verification email upon user registration.
 - Users must click a link in the email to verify their account before logging in.
 - Include a developer bypass code (`999000`) for faster testing.
 
 #### B. Social Logins
-- **Priority:** MEDIUM
+- **Priority:** COMPLETE FIX BUG WITH CALENDRY LINKED
 - Add Google and GitHub login/signup buttons for both mentors and clients.
 
 #### C. Cancellation System
-- **Priority:** HIGH
+- **Priority:** AFTER LAUNCH DO MANUALLY FOR NOW 
 - Client-initiated cancellations (with refund policy)
 - Mentor-initiated cancellations (with rescheduling)
 - Automated calendar updates
 - Refund processing workflow
 
 #### D. Payment & Financial Management
-- **Priority:** HIGH
+- **Priority:** HIGH     NOT NEEDED 
 - Transaction history for users
 - Basic payout system for mentors
 - Payment failure handling
@@ -110,7 +110,7 @@ alwaysApply: true
 - Network connectivity issues
 
 #### G. Mobile Responsiveness
-- **Priority:** MEDIUM
+- **Priority:** HIGH
 - Ensure all pages work on mobile
 - Touch-friendly calendar interface
 - Mobile payment flow optimization
@@ -137,10 +137,12 @@ alwaysApply: true
 - Mobile payment flow optimization
 
 #### K. Basic SEO & Performance
-- **Priority:** LOW-MEDIUM
+- **Priority:** LOW-MEDIUM   THROW THIS AWAY
 - Meta tags and descriptions
 - Page loading optimization
 - Basic analytics integration (Google Analytics)
+
+TODO : PRIORITOIZE FOR TICTOK, TWITTER, INSTAGRAM
 
 ---
 
@@ -218,7 +220,7 @@ CREATE TABLE cancellations (
 - [ ] Monitor error logs
 - [ ] Track key metrics (bookings, payments, errors)
 - [ ] Customer support availability
-- [ ] Marketing materials ready
+- [ ] Marketing materials ready.
 
 ### Post-Launch (Week 5+)
 - [ ] User feedback collection
@@ -272,3 +274,18 @@ This plan focuses on completing the essential user journey while maintaining the
 
 
 This plan focuses on completing the essential user journey while maintaining the quality of your existing foundation. The MVP should be achievable within 3-4 weeks with focused development.
+
+
+
+Someone build with an expert,  a doership, Hands on learning. Doing together with Vetted people who have already doe it.. End result feature. 
+
+GuildForge
+
+GitDone
+
+Ask AI about all the Little task that can be dobne by a project mananger, 
+
+Have you done this ?   Feature Orientated.   Things they can help you build this successfuly
+
+Experts with aduieance 50 50..  or 7/20 with famous people 
+Single fixed hour rate.
