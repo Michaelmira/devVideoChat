@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Context } from "../store/appContext";
-import { MentorAvailabilitySettings } from '../component/MentorAvailabilitySettings';
+import MentorAvailabilitySettings from '../component/MentorAvailabilitySettings';
 
 export const MentorDashboard = () => {
 	const { store, actions } = useContext(Context);
