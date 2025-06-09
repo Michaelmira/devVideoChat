@@ -1,170 +1,219 @@
-import React, { useContext, useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from 'react';
 import { Context } from "../store/appContext";
-import { CalendlyAvailability } from "../component/CalendlyAvailability";
-import { MentorAvailability } from "../component/MentorAvailability";
-import { MentorAvailabilitySettings } from "../component/MentorAvailabilitySettings";
-import { Container, Row, Col, Card, ListGroup, Alert } from 'react-bootstrap';
+import { MentorAvailabilitySettings } from '../component/MentorAvailabilitySettings';
 
 export const MentorDashboard = () => {
 	const { store, actions } = useContext(Context);
-	const [mentorData, setMentorData] = useState(store.currentUserData?.user_data);
-	const [bookings, setBookings] = useState([]);
+	const [activeTab, setActiveTab] = useState('overview');
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
-
-	// Add cleanup effect for modal backdrop
-	useEffect(() => {
-		// Remove any lingering modal backdrops
-		const modalBackdrops = document.getElementsByClassName('modal-backdrop');
-		while (modalBackdrops.length > 0) {
-			modalBackdrops[0].remove();
+	const [dashboardData, setDashboardData] = useState({
+		upcomingBookings: [],
+		pastBookings: [],
+		stats: {
+			totalSessions: 0,
+			totalHours: 0,
+			averageRating: 0,
+			completionRate: 0
 		}
-		// Remove modal-open class from body
-		document.body.classList.remove('modal-open');
-		document.body.style.overflow = '';
-		document.body.style.paddingRight = '';
+	});
+
+	useEffect(() => {
+		fetchDashboardData();
 	}, []);
 
-	useEffect(() => {
-		const fetchMentorData = async () => {
-			try {
-				if (!store.currentUserData?.user_data) {
-					const data = await actions.getCurrentUser();
-					if (data && data.user_data) setMentorData(data.user_data);
-				} else {
-					setMentorData(store.currentUserData.user_data);
+	const fetchDashboardData = async () => {
+		try {
+			const response = await fetch(process.env.BACKEND_URL + '/api/mentor/dashboard', {
+				headers: {
+					'Authorization': 'Bearer ' + store.token
 				}
+			});
+			const data = await response.json();
 
-				if (store.currentUserData?.role === 'mentor') {
-					const mentorBookings = await actions.getMentorBookings();
-					setBookings(mentorBookings || []);
-				}
-			} catch (err) {
-				setError('Failed to fetch dashboard data.');
-				console.error(err);
-			} finally {
-				setLoading(false);
+			if (response.ok) {
+				setDashboardData(data);
+			} else {
+				setError(data.msg || 'Failed to load dashboard data');
 			}
-		};
-
-		if (store.token) {
-			fetchMentorData();
-		} else {
+		} catch (err) {
+			setError('Error loading dashboard data');
+			console.error(err);
+		} finally {
 			setLoading(false);
 		}
-	}, [store.currentUserData, store.token, actions]);
+	};
 
 	if (loading) {
-		return <div className="container text-center"><h2>Loading Dashboard...</h2></div>;
-	}
-
-	if (!store.token || store.currentUserData?.role !== 'mentor') {
-		return <div className="container"><h2>Please log in as a mentor to see your dashboard.</h2></div>;
-	}
-
-	if (error) {
-		return <div className="container alert alert-danger"><h2>Error</h2><p>{error}</p></div>;
+		return <div className="text-center">Loading...</div>;
 	}
 
 	return (
-		<Container className="mt-5">
-			<h1 className="text-center mb-4">MENTOR DASHBOARD</h1>
+		<div className="container py-4">
+			{error && <div className="alert alert-danger">{error}</div>}
 
-			<Row>
-				<Col lg={8}>
-					<Card className="mb-4">
-						<Card.Header>
-							<h2 className="h4 mb-0">Upcoming Bookings</h2>
-						</Card.Header>
-						<Card.Body>
-							{bookings.length > 0 ? (
-								<ListGroup>
-									{bookings.map(booking => (
-										<ListGroup.Item key={booking.id}>
-											<div className="d-flex w-100 justify-content-between">
-												<h5 className="mb-1">{`Session with ${booking.customer_name}`}</h5>
-												<span className={`badge bg-success`}>{booking.status}</span>
-											</div>
-											<p className="mb-1">
-												<strong>Date & Time:</strong> {booking.scheduled_at ? new Date(booking.scheduled_at).toLocaleString() : 'Not Scheduled'}
-											</p>
-											<p className="mb-1">
-												<strong>Meeting Link:</strong>
-												{booking.google_meet_link ? (
-													<a href={booking.google_meet_link} target="_blank" rel="noopener noreferrer" className="ms-2">
-														Join Meeting
-													</a>
-												) : (
-													<span className="ms-2">Link not available</span>
-												)}
-											</p>
-											<small>Booking ID: {booking.id}</small>
-										</ListGroup.Item>
-									))}
-								</ListGroup>
-							) : (
-								<Alert variant="info" className="mb-0">You have no upcoming bookings.</Alert>
-							)}
-						</Card.Body>
-					</Card>
-				</Col>
+			<div className="row">
+				<div className="col-md-3">
+					<div className="list-group">
+						<button
+							className={`list-group-item list-group-item-action ${activeTab === 'overview' ? 'active' : ''}`}
+							onClick={() => setActiveTab('overview')}
+						>
+							Overview
+						</button>
+						<button
+							className={`list-group-item list-group-item-action ${activeTab === 'availability' ? 'active' : ''}`}
+							onClick={() => setActiveTab('availability')}
+						>
+							Availability Settings
+						</button>
+						<button
+							className={`list-group-item list-group-item-action ${activeTab === 'bookings' ? 'active' : ''}`}
+							onClick={() => setActiveTab('bookings')}
+						>
+							Bookings
+						</button>
+					</div>
+				</div>
 
-				<Col lg={4}>
-					<Card className="mb-4">
-						<Card.Header>
-							<h2 className="h4 mb-0">Quick Stats</h2>
-						</Card.Header>
-						<Card.Body>
-							<div className="d-flex justify-content-between mb-3">
-								<span>Total Bookings:</span>
-								<strong>{bookings.length}</strong>
+				<div className="col-md-9">
+					{activeTab === 'overview' && (
+						<div>
+							<h2 className="mb-4">Dashboard Overview</h2>
+
+							<div className="row">
+								<div className="col-md-3">
+									<div className="card text-center mb-3">
+										<div className="card-body">
+											<h5 className="card-title">Total Sessions</h5>
+											<p className="card-text h2">{dashboardData.stats.totalSessions}</p>
+										</div>
+									</div>
+								</div>
+								<div className="col-md-3">
+									<div className="card text-center mb-3">
+										<div className="card-body">
+											<h5 className="card-title">Total Hours</h5>
+											<p className="card-text h2">{dashboardData.stats.totalHours}</p>
+										</div>
+									</div>
+								</div>
+								<div className="col-md-3">
+									<div className="card text-center mb-3">
+										<div className="card-body">
+											<h5 className="card-title">Average Rating</h5>
+											<p className="card-text h2">{dashboardData.stats.averageRating.toFixed(1)}</p>
+										</div>
+									</div>
+								</div>
+								<div className="col-md-3">
+									<div className="card text-center mb-3">
+										<div className="card-body">
+											<h5 className="card-title">Completion Rate</h5>
+											<p className="card-text h2">{dashboardData.stats.completionRate}%</p>
+										</div>
+									</div>
+								</div>
 							</div>
-							<div className="d-flex justify-content-between mb-3">
-								<span>Upcoming Sessions:</span>
-								<strong>
-									{bookings.filter(b =>
-										new Date(b.scheduled_at) > new Date() &&
-										b.status !== 'cancelled_by_mentor' &&
-										b.status !== 'cancelled_by_customer'
-									).length}
-								</strong>
-							</div>
-							<div className="d-flex justify-content-between">
-								<span>Completed Sessions:</span>
-								<strong>
-									{bookings.filter(b => b.status === 'completed').length}
-								</strong>
-							</div>
-						</Card.Body>
-					</Card>
-				</Col>
-			</Row>
 
-			<Row>
-				<Col>
-					<MentorAvailabilitySettings />
-				</Col>
-			</Row>
+							<div className="card mb-4">
+								<div className="card-header">
+									<h3 className="h5 mb-0">Upcoming Sessions</h3>
+								</div>
+								<div className="card-body">
+									{dashboardData.upcomingBookings.length === 0 ? (
+										<p className="text-muted">No upcoming sessions</p>
+									) : (
+										<div className="table-responsive">
+											<table className="table">
+												<thead>
+													<tr>
+														<th>Student</th>
+														<th>Date</th>
+														<th>Time</th>
+														<th>Duration</th>
+														<th>Status</th>
+													</tr>
+												</thead>
+												<tbody>
+													{dashboardData.upcomingBookings.map((booking) => (
+														<tr key={booking.id}>
+															<td>{booking.student_name}</td>
+															<td>{new Date(booking.start_time).toLocaleDateString()}</td>
+															<td>{new Date(booking.start_time).toLocaleTimeString()}</td>
+															<td>{booking.duration} min</td>
+															<td>
+																<span className={`badge bg-${booking.status === 'confirmed' ? 'success' : 'warning'}`}>
+																	{booking.status}
+																</span>
+															</td>
+														</tr>
+													))}
+												</tbody>
+											</table>
+										</div>
+									)}
+								</div>
+							</div>
+						</div>
+					)}
 
-			<Row>
-				<div className="col-md-6 mb-4">
-					<h2 className="text-center h4 mb-3">Your Public Calendly Page</h2>
-					<p className="text-center text-muted small">This is a preview of your main Calendly scheduling page that clients might see. Actual bookings will go through the integrated system.</p>
-					{mentorData && mentorData.calendly_url ? (
-						<div className="card"><div className="card-body p-0"><CalendlyAvailability mentor={mentorData} /></div></div>
-					) : (
-						<div className="alert alert-light text-center">
-							<p>Your public Calendly URL is not set. You can set it in your <a href="/mentor-profile">profile</a>.</p>
-							<small>Note: Even without this public URL, integrated bookings will work once Calendly is connected in your profile.</small>
+					{activeTab === 'availability' && (
+						<MentorAvailabilitySettings />
+					)}
+
+					{activeTab === 'bookings' && (
+						<div>
+							<h2 className="mb-4">Session History</h2>
+							<div className="card">
+								<div className="card-body">
+									{dashboardData.pastBookings.length === 0 ? (
+										<p className="text-muted">No past sessions</p>
+									) : (
+										<div className="table-responsive">
+											<table className="table">
+												<thead>
+													<tr>
+														<th>Student</th>
+														<th>Date</th>
+														<th>Duration</th>
+														<th>Status</th>
+														<th>Rating</th>
+													</tr>
+												</thead>
+												<tbody>
+													{dashboardData.pastBookings.map((booking) => (
+														<tr key={booking.id}>
+															<td>{booking.student_name}</td>
+															<td>{new Date(booking.start_time).toLocaleDateString()}</td>
+															<td>{booking.duration} min</td>
+															<td>
+																<span className={`badge bg-${booking.status === 'completed' ? 'success' :
+																	booking.status === 'cancelled' ? 'danger' :
+																		'warning'
+																	}`}>
+																	{booking.status}
+																</span>
+															</td>
+															<td>
+																{booking.rating ? (
+																	<span>{booking.rating} ⭐</span>
+																) : (
+																	<span className="text-muted">No rating</span>
+																)}
+															</td>
+														</tr>
+													))}
+												</tbody>
+											</table>
+										</div>
+									)}
+								</div>
+							</div>
 						</div>
 					)}
 				</div>
-				<div className="col-md-6 mb-4">
-					<h2 className="text-center h4 mb-3">Internal Availability Overview</h2>
-					<p className="text-center text-muted small">This component might show your general availability settings within our platform (if applicable).</p>
-					<div className="card"><div className="card-body"><MentorAvailability /></div></div>
-				</div>
-			</Row>
-		</Container>
+			</div>
+		</div>
 	);
 };
