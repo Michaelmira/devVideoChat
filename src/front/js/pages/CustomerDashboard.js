@@ -1,11 +1,14 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { Context } from '../store/appContext';
+import BookingCalendarWidget from '../component/BookingCalendarWidget';
 
 const CustomerDashboard = () => {
     const { store, actions } = useContext(Context);
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [selectedMentor, setSelectedMentor] = useState(null);
+    const [showBookingWidget, setShowBookingWidget] = useState(false);
 
     // Add cleanup effect for modal backdrop
     useEffect(() => {
@@ -44,15 +47,43 @@ const CustomerDashboard = () => {
         }
     }, [store.currentUserData, store.token, actions]);
 
-    // Helper function to get the correct date/time to display
-    const getBookingDateTime = (booking) => {
-        // Use calendly_event_start_time if available (actual meeting time)
-        // Otherwise fall back to scheduled_at (booking creation time)
-        const dateToUse = booking.calendly_event_start_time || booking.scheduled_at;
+    const handleSelectSlot = async (slot) => {
+        try {
+            // Here you would handle the booking process
+            // This might involve creating a payment intent, etc.
+            const result = await actions.finalizeBooking({
+                mentorId: selectedMentor.id,
+                sessionStartTime: slot.start_time,
+                sessionEndTime: slot.end_time,
+                notes: ''
+            });
 
-        if (!dateToUse) return 'Not scheduled';
+            if (result.success) {
+                // Refresh bookings after successful booking
+                const userBookings = await actions.getCustomerBookings();
+                setBookings(userBookings || []);
+                setShowBookingWidget(false);
+                setSelectedMentor(null);
+            } else {
+                setError('Failed to book the session. Please try again.');
+            }
+        } catch (err) {
+            setError('An error occurred while booking the session.');
+            console.error(err);
+        }
+    };
 
-        return new Date(dateToUse).toLocaleString();
+    const formatDateTime = (dateTimeStr) => {
+        if (!dateTimeStr) return 'Not scheduled';
+        return new Date(dateTimeStr).toLocaleString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        });
     };
 
     if (loading) {
@@ -70,38 +101,63 @@ const CustomerDashboard = () => {
     return (
         <div className="container mt-5">
             <h1>Your Dashboard</h1>
-            <h2 className="mb-4">Your Booked Sessions</h2>
-            {bookings.length > 0 ? (
-                <div className="list-group">
-                    {bookings.map(booking => (
-                        <div key={booking.id} className="list-group-item list-group-item-action flex-column align-items-start mb-3">
-                            <div className="d-flex w-100 justify-content-between">
-                                <h5 className="mb-1">{`Session with ${booking.mentor_name}`}</h5>
-                                <small>Status: <span className="badge bg-success">{booking.status}</span></small>
-                            </div>
-                            <p className="mb-1">
-                                <strong>Date & Time:</strong> {getBookingDateTime(booking)}
-                            </p>
-                            <p className="mb-1">
-                                <strong>Meeting Link:</strong>
-                                {booking.google_meet_link ? (
-                                    <a href={booking.google_meet_link} target="_blank" rel="noopener noreferrer">{booking.google_meet_link}</a>
-                                ) : (
-                                    <span>Link not available</span>
-                                )}
-                            </p>
-                            <small>Booking ID: {booking.id}</small>
-                        </div>
-                    ))}
+
+            {showBookingWidget && selectedMentor ? (
+                <div className="mb-5">
+                    <button
+                        className="btn btn-outline-secondary mb-3"
+                        onClick={() => {
+                            setShowBookingWidget(false);
+                            setSelectedMentor(null);
+                        }}
+                    >
+                        ← Back to Dashboard
+                    </button>
+                    <BookingCalendarWidget
+                        mentorId={selectedMentor.id}
+                        mentorName={`${selectedMentor.first_name} ${selectedMentor.last_name}`}
+                        onSelectSlot={handleSelectSlot}
+                    />
                 </div>
             ) : (
-                <div className="alert alert-info">
-                    <p>You have no upcoming bookings.</p>
-                </div>
+                <>
+                    <h2 className="mb-4">Your Booked Sessions</h2>
+                    {bookings.length > 0 ? (
+                        <div className="list-group">
+                            {bookings.map(booking => (
+                                <div key={booking.id} className="list-group-item list-group-item-action flex-column align-items-start mb-3">
+                                    <div className="d-flex w-100 justify-content-between">
+                                        <h5 className="mb-1">{`Session with ${booking.mentor_name}`}</h5>
+                                        <small>Status: <span className="badge bg-success">{booking.status}</span></small>
+                                    </div>
+                                    <p className="mb-1">
+                                        <strong>Date & Time:</strong> {formatDateTime(booking.session_start_time)}
+                                    </p>
+                                    <p className="mb-1">
+                                        <strong>Duration:</strong> {booking.session_duration} minutes
+                                    </p>
+                                    <p className="mb-1">
+                                        <strong>Meeting Link:</strong>
+                                        {booking.google_meet_link ? (
+                                            <a href={booking.google_meet_link} target="_blank" rel="noopener noreferrer">{booking.google_meet_link}</a>
+                                        ) : (
+                                            <span>Link not available</span>
+                                        )}
+                                    </p>
+                                    <small>Booking ID: {booking.id}</small>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="alert alert-info">
+                            <p>You have no upcoming bookings.</p>
+                            <p>Browse our mentors to schedule your first session!</p>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );
 };
-
 
 export default CustomerDashboard;

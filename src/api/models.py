@@ -1,14 +1,7 @@
-import os
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.dialects.postgresql import ARRAY
-from sqlalchemy.ext.mutable import MutableList
-from sqlalchemy import DateTime, ForeignKey, Enum as SQLEnum, Text, Numeric
-from sqlalchemy.orm import relationship
-import datetime
-from enum import Enum as PyEnum
-import pytz
 
-from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.ext.mutable import MutableList, MutableDict
+from sqlalchemy.types import ARRAY, JSON
 from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, Text
 from enum import Enum as PyEnum
 from sqlalchemy.orm import relationship
@@ -18,7 +11,162 @@ import datetime
 
 db = SQLAlchemy()
 
-# Calendar System Models
+    
+class Customer(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    first_name = db.Column(db.String(30), unique=False, nullable=False)
+    last_name = db.Column(db.String(30), unique=False, nullable=False)
+    phone = db.Column(db.String(30), unique=True, nullable=False, index=True)
+    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    password = db.Column(db.String(256), unique=False, nullable=False)
+    is_active = db.Column(db.Boolean(), unique=False,)
+    last_active = db.Column(db.DateTime(timezone=True), unique=False)
+    date_joined = db.Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
+    about_me = db.Column(db.String(2500), unique=False)
+    is_verified = db.Column(db.Boolean(), default=False, nullable=False)
+    verification_code = db.Column(db.String(6), nullable=True)
+
+    profile_photo = db.relationship("CustomerImage", back_populates="customer", uselist=False)
+
+    def __repr__(self):
+        return f'<Customer {self.email}>'
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
+            "phone": self.phone,
+            "email": self.email,
+            "is_active": self.is_active,
+            "last_active": self.last_active,
+            "date_joined": self.date_joined,
+            "profile_photo": self.profile_photo.serialize() if self.profile_photo else None,
+            "about_me": self.about_me,
+            "is_verified": self.is_verified,
+        }
+    
+class CustomerImage(db.Model):
+    """Profile face image to be uploaded by the customer """
+    id = db.Column(db.Integer, primary_key=True)
+    public_id = db.Column(db.String(500), nullable=False, unique=True)
+    image_url = db.Column(db.String(500), nullable=False, unique=True)
+    customer_id = db.Column(db.Integer, db.ForeignKey("customer.id"), nullable=False, unique=True)
+    customer = db.relationship("Customer", back_populates="profile_photo", uselist=False)
+
+    def __init__(self, public_id, image_url, customer_id):
+        self.public_id = public_id
+        self.image_url = image_url.strip()
+        self.customer_id = customer_id
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "image_url": self.image_url
+        }
+    
+class Mentor(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    # Removed Calendly fields
+    is_active = db.Column(db.Boolean, default=True)
+    last_active = db.Column(DateTime(timezone=True), unique=False)
+    password = db.Column(db.String(256), unique=False, nullable=False)
+    first_name = db.Column(db.String(30), unique=False, nullable=False)
+    last_name = db.Column(db.String(30), unique=False, nullable=False)
+    nick_name = db.Column(db.String(30), unique=False)
+    phone = db.Column(db.String(30), nullable=False, index=True)
+    city = db.Column(db.String(30), unique=False, nullable=False)
+    what_state = db.Column(db.String(30), unique=False, nullable=False)
+    country = db.Column(db.String(30), unique=False, nullable=False)
+    about_me = db.Column(db.String(2500), unique=False)
+    years_exp = db.Column(db.String(30), unique=False)
+    skills = db.Column(MutableList.as_mutable(ARRAY(db.String(255))), default=list)
+    days = db.Column(MutableList.as_mutable(ARRAY(db.String(255))), default=list) ## Days Available 
+    price = db.Column(db.Numeric(10,2), nullable=True)
+    date_joined = db.Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
+    google_oauth_credentials = db.Column(db.Text, nullable=True)
+    is_verified = db.Column(db.Boolean(), default=False, nullable=False)
+    verification_code = db.Column(db.String(6), nullable=True)
+    
+    profile_photo = db.relationship("MentorImage", back_populates="mentor", uselist=False)
+    portfolio_photos = db.relationship("PortfolioPhoto", back_populates="mentor")
+    stripe_account_id = db.Column(db.String(255), unique=True, nullable=True)
+
+    def __repr__(self):
+        return f'<Mentor {self.email}>'
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "email": self.email,
+            "is_active": self.is_active,
+            "is_verified": self.is_verified,
+            "last_active": self.last_active,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
+            "nick_name": self.nick_name,
+            "phone": self.phone,
+            "city": self.city,
+            "what_state": self.what_state,
+            "country": self.country,
+            "years_exp": self.years_exp,
+            "skills": [skill for skill in self.skills] if self.skills is not None else [],
+            "days": [day for day in self.days] if self.days is not None else [],
+            "profile_photo": self.profile_photo.serialize() if self.profile_photo else None,
+            "portfolio_photos": [portfolio_photo.serialize() for portfolio_photo in self.portfolio_photos] if self.portfolio_photos is not None else [],
+            "about_me": self.about_me,
+            "price": str(self.price)
+        }
+
+class MentorImage(db.Model):
+    """Profile face image to be uploaded by the mentor for profile """
+    id = db.Column(db.Integer, primary_key=True)
+    public_id = db.Column(db.String(500), nullable=False, unique=True)
+    image_url = db.Column(db.String(500), nullable=False, unique=True)
+    mentor_id = db.Column(db.Integer, db.ForeignKey("mentor.id"), nullable=False, unique=True)
+    mentor = db.relationship("Mentor", back_populates="profile_photo", uselist=False)
+    position_x = db.Column(db.Float, nullable=True)
+    position_y = db.Column(db.Float, nullable=True)
+    scale = db.Column(db.Float, nullable=True)
+
+    def __init__(self, public_id, image_url, mentor_id, position_x, position_y, scale):
+        self.public_id = public_id
+        self.image_url = image_url.strip()
+        self.mentor_id = mentor_id
+        self.position_x = position_x
+        self.position_y = position_y
+        self.scale = scale
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "image_url": self.image_url,
+            "position_x": self.position_x,
+            "position_y": self.position_y,
+            "scale": self.scale
+        }
+    
+class PortfolioPhoto(db.Model):
+    """Portfolio Images to be uploaded by the mentor for profile """
+    id = db.Column(db.Integer, primary_key=True)
+    public_id = db.Column(db.String(500), nullable=False, unique=True)
+    image_url = db.Column(db.String(500), nullable=False, unique=True)
+    mentor_id = db.Column(db.Integer, db.ForeignKey("mentor.id"), nullable=False)
+    mentor = db.relationship("Mentor", back_populates="portfolio_photos")
+
+    def __init__(self, public_id, image_url, mentor_id):
+        self.public_id = public_id
+        self.image_url = image_url.strip()
+        self.mentor_id = mentor_id
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "image_url": self.image_url
+    }
+
+# NEW Calendar Models
 class MentorAvailability(db.Model):
     """Stores mentor's recurring weekly availability"""
     id = db.Column(db.Integer, primary_key=True)
@@ -83,179 +231,11 @@ class CalendarSettings(db.Model):
             "timezone": self.timezone
         }
 
-    
-class Customer(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    first_name = db.Column(db.String(30), unique=False, nullable=False)
-    last_name = db.Column(db.String(30), unique=False, nullable=False)
-    phone = db.Column(db.String(30), unique=True, nullable=False, index=True)
-    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
-    password = db.Column(db.String(256), unique=False, nullable=False)
-    is_active = db.Column(db.Boolean(), unique=False,)
-    last_active = db.Column(db.DateTime(timezone=True), unique=False)
-    date_joined = db.Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
-    about_me = db.Column(db.String(2500), unique=False)
-    is_verified = db.Column(db.Boolean(), default=False, nullable=False)
-    verification_code = db.Column(db.String(6), nullable=True)
-
-    profile_photo = db.relationship("CustomerImage", back_populates="customer", uselist=False)
-    # sessions = db.relationship("Session", back_populates="customer", lazy="dynamic")
-
-    def __repr__(self):
-        return f'<Customer {self.email}>'
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "first_name": self.first_name,
-            "last_name": self.last_name,
-            "phone": self.phone,
-            "email": self.email,
-            "is_active": self.is_active,
-            "last_active": self.last_active,
-            "date_joined": self.date_joined,
-            "profile_photo": self.profile_photo.serialize() if self.profile_photo else None,
-            "about_me": self.about_me,
-            "is_verified": self.is_verified,
-            # "sessions": [session.id for session in self.sessions]
-        }
-    
-class CustomerImage(db.Model):
-    """Profile face image to be uploaded by the customer """
-
-    # __table_args__ = (
-    #     db.UniqueConstraint("user_username", name="unique_user_image"),
-    # )
-    id = db.Column(db.Integer, primary_key=True)
-    public_id = db.Column(db.String(500), nullable=False, unique=True)
-    image_url = db.Column(db.String(500), nullable=False, unique=True)
-    customer_id = db.Column(db.Integer, db.ForeignKey("customer.id"), nullable=False, unique=True)
-    customer = db.relationship("Customer", back_populates="profile_photo", uselist=False)
-
-    def __init__(self, public_id, image_url, customer_id):
-        self.public_id = public_id
-        self.image_url = image_url.strip()
-        self.customer_id = customer_id
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "image_url": self.image_url
-        }
-    
-class Mentor(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
-    is_active = db.Column(db.Boolean, default=True)
-    last_active = db.Column(DateTime(timezone=True), unique=False)
-    password = db.Column(db.String(256), unique=False, nullable=False)
-    first_name = db.Column(db.String(30), unique=False, nullable=False)
-    last_name = db.Column(db.String(30), unique=False, nullable=False)
-    nick_name = db.Column(db.String(30), unique=False)
-    phone = db.Column(db.String(30), nullable=False, index=True)
-    city = db.Column(db.String(30), unique=False, nullable=False)
-    what_state = db.Column(db.String(30), unique=False, nullable=False)
-    country = db.Column(db.String(30), unique=False, nullable=False)
-    about_me = db.Column(db.String(2500), unique=False)
-    years_exp = db.Column(db.String(30), unique=False)
-    skills = db.Column(MutableList.as_mutable(ARRAY(db.String(255))), default=list)
-    days = db.Column(MutableList.as_mutable(ARRAY(db.String(255))), default=list)  # Days Available 
-    price = db.Column(db.Numeric(10,2), nullable=True)
-    date_joined = db.Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
-    google_oauth_credentials = db.Column(db.Text, nullable=True)
-    is_verified = db.Column(db.Boolean(), default=False, nullable=False)
-    verification_code = db.Column(db.String(6), nullable=True)
-    stripe_account_id = db.Column(db.String(255), unique=True, nullable=True)
-
-    profile_photo = db.relationship("MentorImage", back_populates="mentor", uselist=False)
-    portfolio_photos = db.relationship("PortfolioPhoto", back_populates="mentor")
-
-    def __repr__(self):
-        return f'<Mentor {self.email}>'
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "email": self.email,
-            "is_active": self.is_active,
-            "is_verified": self.is_verified,
-            "last_active": self.last_active,
-            "first_name": self.first_name,
-            "last_name": self.last_name,
-            "nick_name": self.nick_name,
-            "phone": self.phone,
-            "city": self.city,
-            "what_state": self.what_state,
-            "country": self.country,
-            "years_exp": self.years_exp,
-            "skills": [skill for skill in self.skills] if self.skills is not None else [],
-            "days": [day for day in self.days] if self.days is not None else [],
-            "profile_photo": self.profile_photo.serialize() if self.profile_photo else None,
-            "portfolio_photos": [portfolio_photo.serialize() for portfolio_photo in self.portfolio_photos] if self.portfolio_photos is not None else [],
-            "about_me": self.about_me,
-            "price": str(self.price)
-        }
-
-class MentorImage(db.Model):
-    """Profile face image to be uploaded by the mentor for profile """
-
-    # __table_args__ = (
-    #     db.UniqueConstraint("user_username", name="unique_user_image"),
-    # )
-    id = db.Column(db.Integer, primary_key=True)
-    public_id = db.Column(db.String(500), nullable=False, unique=True)
-    image_url = db.Column(db.String(500), nullable=False, unique=True)
-    mentor_id = db.Column(db.Integer, db.ForeignKey("mentor.id"), nullable=False, unique=True)
-    mentor = db.relationship("Mentor", back_populates="profile_photo", uselist=False)
-    position_x = db.Column(db.Float, nullable=True)
-    position_y = db.Column(db.Float, nullable=True)
-    scale = db.Column(db.Float, nullable=True)
-
-    def __init__(self, public_id, image_url, mentor_id, position_x, position_y, scale):
-        self.public_id = public_id
-        self.image_url = image_url.strip()
-        self.mentor_id = mentor_id
-        self.position_x = position_x
-        self.position_y = position_y
-        self.scale = scale
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "image_url": self.image_url,
-            "position_x": self.position_x,
-            "position_y": self.position_y,
-            "scale": self.scale
-        }
-    
-class PortfolioPhoto(db.Model):
-    """Portfolio Images to be uploaded by the mentor for profile """
-
-    # __table_args__ = (
-    #     db.UniqueConstraint("user_username", name="unique_user_image"),
-    # )
-    id = db.Column(db.Integer, primary_key=True)
-    public_id = db.Column(db.String(500), nullable=False, unique=True)
-    image_url = db.Column(db.String(500), nullable=False, unique=True)
-    mentor_id = db.Column(db.Integer, db.ForeignKey("mentor.id"), nullable=False)
-    mentor = db.relationship("Mentor", back_populates="portfolio_photos")
-
-    def __init__(self, public_id, image_url, mentor_id):
-        self.public_id = public_id
-        self.image_url = image_url.strip()
-        self.mentor_id = mentor_id
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "image_url": self.image_url
-    }
-
-# NEW Booking Model
+# Updated Booking Model
 class BookingStatus(PyEnum):
-    PENDING_PAYMENT = "pending_payment"       # Initial state before payment
-    PAID = "paid"                            # Payment confirmed, pending scheduling
-    CONFIRMED = "confirmed"                   # Successfully scheduled
+    PENDING_PAYMENT = "pending_payment"
+    PAID = "paid"
+    CONFIRMED = "confirmed"
     CANCELLED_BY_CUSTOMER = "cancelled_by_customer"
     CANCELLED_BY_MENTOR = "cancelled_by_mentor"
     COMPLETED = "completed"
@@ -269,16 +249,15 @@ class Booking(db.Model):
     # Timestamps
     created_at = db.Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
     updated_at = db.Column(DateTime(timezone=True), default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
-    paid_at = db.Column(DateTime(timezone=True), nullable=True)  # When payment was successfully processed
-    scheduled_at = db.Column(DateTime(timezone=True), nullable=True)  # When session was scheduled
-    
-    # Session details
+    paid_at = db.Column(DateTime(timezone=True), nullable=True)
+    scheduled_at = db.Column(DateTime(timezone=True), nullable=True)
+
+    # Session fields (renamed from calendly_event_*)
     session_start_time = db.Column(DateTime(timezone=True), nullable=True)
     session_end_time = db.Column(DateTime(timezone=True), nullable=True)
     session_duration = db.Column(db.Integer, nullable=True)  # in minutes
     timezone = db.Column(db.String(50), default='America/Los_Angeles')
-    
-    # Customer details
+
     invitee_name = db.Column(db.String(255), nullable=True)
     invitee_email = db.Column(db.String(255), nullable=True)
     invitee_notes = db.Column(db.Text, nullable=True)
@@ -355,3 +334,4 @@ class Booking(db.Model):
             "mentor": self.mentor.serialize() if self.mentor else None, 
             "customer": self.customer.serialize() if self.customer else None,
         }
+        
