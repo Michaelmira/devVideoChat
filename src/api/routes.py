@@ -17,7 +17,7 @@ import cloudinary.uploader as uploader
 from cloudinary.uploader import destroy
 from cloudinary.api import delete_resources_by_tag
 
-from api.models import db, Mentor, Customer, MentorImage, PortfolioPhoto, Booking, BookingStatus
+from api.models import db, Mentor, Customer, MentorImage, PortfolioPhoto, Booking, BookingStatus, MentorAvailability, CalendarSettings, MentorUnavailability
 from api.utils import generate_sitemap, APIException
 from api.decorators import mentor_required, customer_required
 from api.send_email import send_email, send_verification_email_code
@@ -1546,186 +1546,128 @@ def finalize_booking():
     data = request.get_json()
     current_customer_id = get_jwt_identity()
     customer = Customer.query.get(current_customer_id)
-
+    
     if not customer:
         return jsonify({"msg": "Customer not found"}), 404
 
-    # --- Expected data from frontend (BookingDetailsForm.js) --- 
+    # Required data
     mentor_id = data.get('mentorId')
-    calendly_selected_event_uri = data.get('calendlyScheduledEventUri') 
-    
-    event_start_time_str = data.get('eventStartTime') 
-    event_end_time_str = data.get('eventEndTime') 
-    
+    session_start_time_str = data.get('sessionStartTime')  # ISO format
+    session_end_time_str = data.get('sessionEndTime')      # ISO format
     invitee_name = data.get('inviteeName')
     invitee_email = data.get('inviteeEmail')
     invitee_notes = data.get('notes', '')
-    
     stripe_payment_intent_id = data.get('paymentIntentId')
-    amount_paid = data.get('amountPaid') 
-    currency = data.get('currency', 'usd')
+    amount_paid = data.get('amountPaid')
+    timezone = data.get('timezone', 'America/Los_Angeles')
 
-    # --- UPDATED Basic Validation (removed calendly_selected_event_uri requirement) --- 
-    if not all([mentor_id, event_start_time_str, invitee_name, invitee_email, stripe_payment_intent_id]):
-        current_app.logger.error(f"Missing required data: mentorId={mentor_id}, eventStartTime={event_start_time_str}, inviteeName={invitee_name}, inviteeEmail={invitee_email}, paymentIntentId={stripe_payment_intent_id}")
+    # Basic validation
+    if not all([mentor_id, session_start_time_str, session_end_time_str, invitee_name, invitee_email, stripe_payment_intent_id]):
+        current_app.logger.error(f"Missing required data: mentorId={mentor_id}, sessionStartTime={session_start_time_str}, sessionEndTime={session_end_time_str}, inviteeName={invitee_name}, inviteeEmail={invitee_email}, paymentIntentId={stripe_payment_intent_id}")
         return jsonify({"msg": "Missing required booking information."}), 400
 
     mentor = Mentor.query.get(mentor_id)
     if not mentor:
         return jsonify({"msg": "Selected mentor not found."}), 404
 
-    # Convert string dates to datetime objects early for use in email and booking
-    parsed_event_start_time = dt.fromisoformat(event_start_time_str.replace('Z', '+00:00')) if event_start_time_str else None
-    parsed_event_end_time = dt.fromisoformat(event_end_time_str.replace('Z', '+00:00')) if event_end_time_str else None
+    # Convert string dates to datetime objects
+    try:
+        session_start_time = datetime.fromisoformat(session_start_time_str.replace('Z', '+00:00'))
+        session_end_time = datetime.fromisoformat(session_end_time_str.replace('Z', '+00:00'))
+        session_duration = int((session_end_time - session_start_time).total_seconds() / 60)
+    except (ValueError, TypeError) as e:
+        return jsonify({"msg": f"Invalid date format: {str(e)}"}), 400
 
-    # --- Handle case where Calendly URI is null --- 
-    if not calendly_selected_event_uri:
-        current_app.logger.warning(f"No Calendly event URI provided - creating booking without Calendly integration for mentor {mentor_id}")
-        
-        calculated_amount_paid = Decimal(amount_paid) if amount_paid else Decimal(mentor.price or 0)
-        calculated_platform_fee = calculated_amount_paid * Decimal('0.10') 
-        calculated_mentor_payout = calculated_amount_paid - calculated_platform_fee
+    # Verify slot availability
+    settings = CalendarSettings.query.filter_by(mentor_id=mentor_id).first()
+    if not settings:
+        return jsonify({"msg": "Mentor has not configured their calendar settings."}), 400
 
-        # --- Generate a unique Google Meet link ---
-        # This is a simple but effective way to create unique links.
-        # It combines a base URL with a unique identifier from the booking.
-        google_meet_link = f"https://meet.google.com/lookup/{stripe_payment_intent_id}"
+    # Check if slot is within mentor's availability
+    day_of_week = session_start_time.weekday()
+    availability = MentorAvailability.query.filter_by(
+        mentor_id=mentor_id,
+        day_of_week=day_of_week,
+        is_active=True
+    ).filter(
+        MentorAvailability.start_time <= session_start_time.time(),
+        MentorAvailability.end_time >= session_end_time.time()
+    ).first()
 
-        new_booking = Booking(
-            mentor_id=mentor_id,
-            customer_id=current_customer_id,
-            paid_at=datetime.utcnow(),
-            scheduled_at=datetime.utcnow(), 
-            calendly_event_uri=None,
-            calendly_invitee_uri=None,
-            calendly_event_start_time=parsed_event_start_time,
-            calendly_event_end_time=parsed_event_end_time,
-            invitee_name=invitee_name,
-            invitee_email=invitee_email,
-            invitee_notes=invitee_notes,
-            stripe_payment_intent_id=stripe_payment_intent_id,
-            amount_paid=calculated_amount_paid,
-            currency=currency,
-            platform_fee=calculated_platform_fee,
-            mentor_payout_amount=calculated_mentor_payout,
-            status=BookingStatus.PAID,
-            google_meet_link=google_meet_link
-        )
-        
-        # --- FIXED: Separate database operations from email sending ---
-        try:
-            db.session.add(new_booking)
-            db.session.commit()
-            current_app.logger.info(f"Booking {new_booking.id} created successfully (manual confirmation required)")
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.error(f"Error creating manual booking: {str(e)}")
-            return jsonify({"msg": "Failed to create booking"}), 500
+    if not availability:
+        return jsonify({"msg": "Selected time slot is not within mentor's availability."}), 400
 
-        return jsonify({
-            "success": True, 
-            "message": "Your booking request has been sent to the mentor. They will contact you with a calendar invitation shortly.",
-            "bookingDetails": new_booking.serialize(),
-            "requires_manual_confirmation": True
-        }), 201
+    # Check for conflicts with existing bookings
+    conflicting_booking = Booking.query.filter(
+        Booking.mentor_id == mentor_id,
+        Booking.status.in_([BookingStatus.PAID, BookingStatus.CONFIRMED]),
+        Booking.session_start_time < session_end_time,
+        Booking.session_end_time > session_start_time
+    ).first()
 
-    # --- Original Calendly integration code (when URI is provided) --- 
-    access_token, token_error_msg = get_valid_calendly_access_token(mentor_id)
-    if token_error_msg or not access_token:
-        current_app.logger.error(f"Failed to get Calendly token for mentor {mentor_id} during booking: {token_error_msg}")
-        return jsonify({"msg": token_error_msg or "Could not authenticate with Calendly for this mentor."}), 503
+    if conflicting_booking:
+        return jsonify({"msg": "Selected time slot is no longer available."}), 409
+
+    # Check for conflicts with mentor's unavailability periods
+    conflicting_unavailability = MentorUnavailability.query.filter(
+        MentorUnavailability.mentor_id == mentor_id,
+        MentorUnavailability.start_datetime < session_end_time,
+        MentorUnavailability.end_datetime > session_start_time
+    ).first()
+
+    if conflicting_unavailability:
+        return jsonify({"msg": "Mentor is not available during the selected time."}), 409
+
+    # Check minimum notice period
+    if session_start_time < datetime.utcnow() + timedelta(hours=settings.minimum_notice_hours):
+        return jsonify({"msg": f"Bookings must be made at least {settings.minimum_notice_hours} hours in advance."}), 400
+
+    # Calculate financials
+    calculated_amount_paid = Decimal(amount_paid) if amount_paid else Decimal(mentor.price or 0)
+    calculated_platform_fee = calculated_amount_paid * Decimal('0.10')
+    calculated_mentor_payout = calculated_amount_paid - calculated_platform_fee
+
+    # Generate Google Meet link
+    google_meet_link = f"https://meet.google.com/lookup/{stripe_payment_intent_id}"
+
+    # Create booking
+    new_booking = Booking(
+        mentor_id=mentor_id,
+        customer_id=current_customer_id,
+        paid_at=datetime.utcnow(),
+        scheduled_at=datetime.utcnow(),
+        session_start_time=session_start_time,
+        session_end_time=session_end_time,
+        session_duration=session_duration,
+        timezone=timezone,
+        invitee_name=invitee_name,
+        invitee_email=invitee_email,
+        invitee_notes=invitee_notes,
+        stripe_payment_intent_id=stripe_payment_intent_id,
+        amount_paid=calculated_amount_paid,
+        currency='usd',
+        platform_fee=calculated_platform_fee,
+        mentor_payout_amount=calculated_mentor_payout,
+        status=BookingStatus.CONFIRMED,
+        google_meet_link=google_meet_link
+    )
 
     try:
-        event_uuid = calendly_selected_event_uri.split("/")[-1]
-    except Exception:
-        return jsonify({"msg": "Invalid Calendly event URI format."}), 400
-
-    create_invitee_url = f"https://api.calendly.com/scheduled_events/{event_uuid}/invitees"
-
-    invitee_payload = {
-        "email": invitee_email,
-        "name": invitee_name,
-    }
-    if invitee_notes:
-        invitee_payload["questions_and_answers"] = [
-            {
-                "question": "Notes or special requests?",
-                "answer": invitee_notes
-            }
-        ]
-
-    headers = {
-        'Authorization': f'Bearer {access_token}',
-        'Content-Type': 'application/json'
-    }
-
-    try:
-        current_app.logger.info(f"Attempting to create Calendly invitee for event {event_uuid} for {invitee_email}")
-        calendly_response = requests.post(create_invitee_url, headers=headers, json=invitee_payload)
-        
-        current_app.logger.debug(f"Calendly request to {create_invitee_url} with payload: {invitee_payload}")
-        current_app.logger.debug(f"Calendly response: {calendly_response.status_code} - {calendly_response.text}")
-
-        calendly_response.raise_for_status()
-        calendly_invitee_data = calendly_response.json().get('resource', {})
-        
-        confirmed_calendly_event_uri = calendly_invitee_data.get('scheduled_event', {}).get('uri')
-        confirmed_calendly_invitee_uri = calendly_invitee_data.get('uri')
-
-        calculated_amount_paid = Decimal(amount_paid) if amount_paid else Decimal(mentor.price or 0)
-        calculated_platform_fee = calculated_amount_paid * Decimal('0.10') 
-        calculated_mentor_payout = calculated_amount_paid - calculated_platform_fee
-
-        # --- Generate Google Meet Link for Calendly booking ---
-        google_meet_link = f"https://meet.google.com/lookup/{stripe_payment_intent_id}"
-
-        new_booking = Booking(
-            mentor_id=mentor_id,
-            customer_id=current_customer_id,
-            paid_at=datetime.utcnow(),
-            scheduled_at=datetime.utcnow(), 
-            calendly_event_uri=confirmed_calendly_event_uri or calendly_selected_event_uri,
-            calendly_invitee_uri=confirmed_calendly_invitee_uri,
-            calendly_event_start_time=parsed_event_start_time,
-            calendly_event_end_time=parsed_event_end_time,
-            invitee_name=invitee_name,
-            invitee_email=invitee_email,
-            invitee_notes=invitee_notes,
-            stripe_payment_intent_id=stripe_payment_intent_id,
-            amount_paid=calculated_amount_paid,
-            currency=currency,
-            platform_fee=calculated_platform_fee,
-            mentor_payout_amount=calculated_mentor_payout,
-            status=BookingStatus.CONFIRMED,
-            google_meet_link=google_meet_link
-        )
-
-        # --- FIXED: Separate database operations from email sending ---
-        try:
-            db.session.add(new_booking)
-            db.session.commit()
-            current_app.logger.info(f"Booking {new_booking.id} created successfully with Calendly integration")
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.error(f"Error creating Calendly booking: {str(e)}")
-            return jsonify({"msg": "Failed to create booking"}), 500
-
-        return jsonify({
-            "success": True, 
-            "message": "Booking successfully scheduled with Calendly!", 
-            "bookingDetails": new_booking.serialize()
-        }), 201
-
-    except requests.exceptions.HTTPError as e:
-        current_app.logger.error(f"Calendly API error: {e}")
-        error_details = "Unknown Calendly API error."
-        if e.response is not None:
-            error_details = e.response.json()
-        return jsonify({"msg": "Failed to schedule with Calendly due to an API error.", "details": error_details}), 502
+        db.session.add(new_booking)
+        db.session.commit()
+        current_app.logger.info(f"Booking {new_booking.id} created successfully")
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Unexpected error finalizing booking: {str(e)}")
-        return jsonify({"msg": "An unexpected server error occurred while finalizing your booking."}), 500
+        current_app.logger.error(f"Error creating booking: {str(e)}")
+        return jsonify({"msg": "Failed to create booking"}), 500
+
+    # TODO: Send confirmation emails to both mentor and customer
+
+    return jsonify({
+        "success": True,
+        "message": "Booking successfully scheduled!",
+        "bookingDetails": new_booking.serialize()
+    }), 201
 
 # Make sure to import Decimal if using it for precise fee calculations
 from decimal import Decimal
@@ -2775,3 +2717,212 @@ def verify_mvp_signed_state(state_param):
         
     except Exception as e:
         return None, f"Invalid state format: {str(e)}"
+
+# Calendar System Endpoints
+@api.route('/mentor/availability', methods=['GET'])
+@mentor_required
+def get_mentor_availability():
+    """Get current mentor's availability settings"""
+    mentor_id = get_jwt_identity()
+    
+    # Get recurring availability
+    availabilities = MentorAvailability.query.filter_by(
+        mentor_id=mentor_id, 
+        is_active=True
+    ).all()
+    
+    # Get calendar settings
+    settings = CalendarSettings.query.filter_by(mentor_id=mentor_id).first()
+    if not settings:
+        # Create default settings
+        settings = CalendarSettings(mentor_id=mentor_id)
+        db.session.add(settings)
+        db.session.commit()
+    
+    # Get unavailability periods (future only)
+    now = datetime.utcnow()
+    unavailabilities = MentorUnavailability.query.filter(
+        MentorUnavailability.mentor_id == mentor_id,
+        MentorUnavailability.end_datetime >= now
+    ).all()
+    
+    return jsonify({
+        "availabilities": [a.serialize() for a in availabilities],
+        "settings": settings.serialize(),
+        "unavailabilities": [u.serialize() for u in unavailabilities]
+    }), 200
+
+@api.route('/mentor/availability', methods=['POST'])
+@mentor_required
+def set_mentor_availability():
+    """Set or update mentor's weekly availability"""
+    mentor_id = get_jwt_identity()
+    data = request.get_json()
+    
+    # Clear existing availability
+    MentorAvailability.query.filter_by(mentor_id=mentor_id).delete()
+    
+    # Add new availability slots
+    for slot in data.get('availabilities', []):
+        availability = MentorAvailability(
+            mentor_id=mentor_id,
+            day_of_week=slot['day_of_week'],
+            start_time=datetime.strptime(slot['start_time'], '%H:%M').time(),
+            end_time=datetime.strptime(slot['end_time'], '%H:%M').time(),
+            timezone=slot.get('timezone', 'America/Los_Angeles')
+        )
+        db.session.add(availability)
+    
+    # Update settings
+    settings = CalendarSettings.query.filter_by(mentor_id=mentor_id).first()
+    if not settings:
+        settings = CalendarSettings(mentor_id=mentor_id)
+        db.session.add(settings)
+    
+    settings.session_duration = data.get('session_duration', 60)
+    settings.buffer_time = data.get('buffer_time', 15)
+    settings.advance_booking_days = data.get('advance_booking_days', 30)
+    settings.minimum_notice_hours = data.get('minimum_notice_hours', 24)
+    settings.timezone = data.get('timezone', 'America/Los_Angeles')
+    
+    db.session.commit()
+    
+    return jsonify({"message": "Availability updated successfully"}), 200
+
+@api.route('/mentor/unavailability', methods=['POST'])
+@mentor_required
+def add_mentor_unavailability():
+    """Add dates when mentor is unavailable"""
+    mentor_id = get_jwt_identity()
+    data = request.get_json()
+    
+    try:
+        unavailability = MentorUnavailability(
+            mentor_id=mentor_id,
+            start_datetime=datetime.fromisoformat(data['start_datetime']),
+            end_datetime=datetime.fromisoformat(data['end_datetime']),
+            reason=data.get('reason', '')
+        )
+        db.session.add(unavailability)
+        db.session.commit()
+        
+        return jsonify({"message": "Unavailability period added", "period": unavailability.serialize()}), 201
+    except (KeyError, ValueError) as e:
+        return jsonify({"error": "Invalid date format. Use ISO format (YYYY-MM-DDTHH:MM:SS)"}), 400
+
+@api.route('/mentor/unavailability/<int:period_id>', methods=['DELETE'])
+@mentor_required
+def delete_mentor_unavailability(period_id):
+    """Delete an unavailability period"""
+    mentor_id = get_jwt_identity()
+    
+    period = MentorUnavailability.query.filter_by(
+        id=period_id,
+        mentor_id=mentor_id
+    ).first()
+    
+    if not period:
+        return jsonify({"error": "Unavailability period not found"}), 404
+    
+    db.session.delete(period)
+    db.session.commit()
+    
+    return jsonify({"message": "Unavailability period deleted"}), 200
+
+@api.route('/mentor/<int:mentor_id>/available-slots', methods=['GET'])
+def get_available_slots(mentor_id):
+    """Get available booking slots for a specific mentor"""
+    # Query parameters
+    start_date = request.args.get('start_date')  # ISO format
+    end_date = request.args.get('end_date')      # ISO format
+    
+    if not start_date or not end_date:
+        # Default to next 30 days
+        start_date = datetime.utcnow().date()
+        end_date = start_date + timedelta(days=30)
+    else:
+        start_date = datetime.fromisoformat(start_date).date()
+        end_date = datetime.fromisoformat(end_date).date()
+    
+    # Get mentor's availability settings
+    availabilities = MentorAvailability.query.filter_by(
+        mentor_id=mentor_id, 
+        is_active=True
+    ).all()
+    
+    settings = CalendarSettings.query.filter_by(mentor_id=mentor_id).first()
+    if not settings:
+        return jsonify({"error": "Mentor has not configured availability"}), 404
+    
+    # Get existing bookings
+    existing_bookings = Booking.query.filter(
+        Booking.mentor_id == mentor_id,
+        Booking.session_start_time >= start_date,
+        Booking.session_end_time <= end_date + timedelta(days=1),
+        Booking.status.in_([BookingStatus.PAID, BookingStatus.CONFIRMED])
+    ).all()
+    
+    # Get unavailability periods
+    unavailabilities = MentorUnavailability.query.filter(
+        MentorUnavailability.mentor_id == mentor_id,
+        MentorUnavailability.start_datetime <= end_date + timedelta(days=1),
+        MentorUnavailability.end_datetime >= start_date
+    ).all()
+    
+    # Generate available slots
+    available_slots = []
+    current_date = start_date
+    
+    while current_date <= end_date:
+        day_of_week = current_date.weekday()
+        
+        # Get availability for this day
+        day_availabilities = [a for a in availabilities if a.day_of_week == day_of_week]
+        
+        for availability in day_availabilities:
+            # Generate time slots
+            current_time = datetime.combine(current_date, availability.start_time)
+            end_time = datetime.combine(current_date, availability.end_time)
+            
+            while current_time + timedelta(minutes=settings.session_duration) <= end_time:
+                slot_end = current_time + timedelta(minutes=settings.session_duration)
+                
+                # Check if slot is available
+                is_available = True
+                
+                # Check minimum notice
+                if current_time < datetime.utcnow() + timedelta(hours=settings.minimum_notice_hours):
+                    is_available = False
+                
+                # Check against existing bookings
+                for booking in existing_bookings:
+                    if (current_time < booking.session_end_time and 
+                        slot_end > booking.session_start_time):
+                        is_available = False
+                        break
+                
+                # Check against unavailabilities
+                for unavail in unavailabilities:
+                    if (current_time < unavail.end_datetime and 
+                        slot_end > unavail.start_datetime):
+                        is_available = False
+                        break
+                
+                if is_available:
+                    available_slots.append({
+                        "start_time": current_time.isoformat(),
+                        "end_time": slot_end.isoformat(),
+                        "date": current_date.isoformat(),
+                        "duration": settings.session_duration
+                    })
+                
+                # Move to next slot with buffer
+                current_time = slot_end + timedelta(minutes=settings.buffer_time)
+        
+        current_date += timedelta(days=1)
+    
+    return jsonify({
+        "mentor_id": mentor_id,
+        "available_slots": available_slots,
+        "timezone": settings.timezone
+    }), 200
