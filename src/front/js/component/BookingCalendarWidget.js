@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns';
-import { utcToZonedTime, zonedTimeToUtc } from 'date-fns-tz';
+import { utcToZonedTime } from 'date-fns-tz';
 import PropTypes from 'prop-types';
 import './BookingCalendarWidget.css';
 
