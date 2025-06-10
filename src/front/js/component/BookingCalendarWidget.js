@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns';
+import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isWithinInterval, parseISO } from 'date-fns';
 import { utcToZonedTime } from 'date-fns-tz';
 import PropTypes from 'prop-types';
 import './BookingCalendarWidget.css';
@@ -7,6 +7,7 @@ import './BookingCalendarWidget.css';
 const BookingCalendarWidget = ({ mentorId, mentorName, onSelectSlot, backendUrl }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [availableSlots, setAvailableSlots] = useState([]);
+    const [unavailabilities, setUnavailabilities] = useState([]);
     const [selectedDate, setSelectedDate] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -14,6 +15,7 @@ const BookingCalendarWidget = ({ mentorId, mentorName, onSelectSlot, backendUrl 
 
     useEffect(() => {
         fetchAvailableSlots();
+        fetchUnavailabilities();
     }, [currentDate, mentorId]);
 
     const fetchAvailableSlots = async () => {
@@ -31,7 +33,6 @@ const BookingCalendarWidget = ({ mentorId, mentorName, onSelectSlot, backendUrl 
 
             if (!response.ok) {
                 if (response.status === 404) {
-                    // Mentor hasn't configured availability
                     setError('This mentor has not yet set up their availability. Please check back later or contact the mentor directly.');
                     setAvailableSlots([]);
                     return;
@@ -40,13 +41,30 @@ const BookingCalendarWidget = ({ mentorId, mentorName, onSelectSlot, backendUrl 
             }
 
             const data = await response.json();
-            setAvailableSlots(data.available_slots);
-            setTimezone(data.timezone);
+            console.log('Available slots response:', data);
+            setAvailableSlots(data.available_slots || []);
+            setTimezone(data.timezone || 'America/Los_Angeles');
         } catch (err) {
             setError('Failed to load available time slots. Please try again later.');
             console.error('Error fetching slots:', err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchUnavailabilities = async () => {
+        try {
+            const response = await fetch(
+                `${backendUrl || process.env.BACKEND_URL}/api/mentor/${mentorId}/unavailabilities`
+            );
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Unavailabilities:', data);
+                setUnavailabilities(data.unavailabilities || []);
+            }
+        } catch (err) {
+            console.error('Error fetching unavailabilities:', err);
         }
     };
 
@@ -73,10 +91,63 @@ const BookingCalendarWidget = ({ mentorId, mentorName, onSelectSlot, backendUrl 
         });
     };
 
+    const isDateUnavailable = (date) => {
+        // Check if any part of this date falls within an unavailability period
+        return unavailabilities.some(unavail => {
+            const unavailStart = parseISO(unavail.start_datetime);
+            const unavailEnd = parseISO(unavail.end_datetime);
+            
+            // Check if the date overlaps with the unavailability period
+            const dateStart = new Date(date);
+            dateStart.setHours(0, 0, 0, 0);
+            const dateEnd = new Date(date);
+            dateEnd.setHours(23, 59, 59, 999);
+            
+            return (
+                isWithinInterval(dateStart, { start: unavailStart, end: unavailEnd }) ||
+                isWithinInterval(dateEnd, { start: unavailStart, end: unavailEnd }) ||
+                (dateStart <= unavailStart && dateEnd >= unavailEnd)
+            );
+        });
+    };
+
     const getAvailableSlotsForDate = (date) => {
-        return availableSlots.filter(slot => {
+        const daySlots = availableSlots.filter(slot => {
             const slotDate = new Date(slot.start_time);
             return isSameDay(slotDate, date);
+        });
+
+        // Filter out slots that overlap with unavailability periods
+        return daySlots.filter(slot => {
+            const slotStart = parseISO(slot.start_time);
+            const slotEnd = parseISO(slot.end_time);
+
+            // Check if this slot overlaps with any unavailability
+            return !unavailabilities.some(unavail => {
+                const unavailStart = parseISO(unavail.start_datetime);
+                const unavailEnd = parseISO(unavail.end_datetime);
+
+                // Check for any overlap
+                return (slotStart < unavailEnd && slotEnd > unavailStart);
+            });
+        });
+    };
+
+    const getUnavailabilityForDate = (date) => {
+        return unavailabilities.find(unavail => {
+            const unavailStart = parseISO(unavail.start_datetime);
+            const unavailEnd = parseISO(unavail.end_datetime);
+            
+            const dateStart = new Date(date);
+            dateStart.setHours(0, 0, 0, 0);
+            const dateEnd = new Date(date);
+            dateEnd.setHours(23, 59, 59, 999);
+            
+            return (
+                isWithinInterval(dateStart, { start: unavailStart, end: unavailEnd }) ||
+                isWithinInterval(dateEnd, { start: unavailStart, end: unavailEnd }) ||
+                (dateStart <= unavailStart && dateEnd >= unavailEnd)
+            );
         });
     };
 
@@ -148,13 +219,16 @@ const BookingCalendarWidget = ({ mentorId, mentorName, onSelectSlot, backendUrl 
                                 const daySlots = getAvailableSlotsForDate(date);
                                 const isSelected = selectedDate && isSameDay(date, selectedDate);
                                 const hasSlots = daySlots.length > 0;
+                                const unavailable = isDateUnavailable(date);
+                                const unavailability = getUnavailabilityForDate(date);
 
                                 return (
                                     <div
                                         key={date.toISOString()}
-                                        className={`calendar-day ${isSelected ? 'selected' : ''} ${hasSlots ? 'has-slots' : ''}`}
+                                        className={`calendar-day ${isSelected ? 'selected' : ''} ${hasSlots ? 'has-slots' : ''} ${unavailable ? 'unavailable' : ''}`}
                                         onClick={() => hasSlots && handleDateClick(date)}
                                         style={{ cursor: hasSlots ? 'pointer' : 'default' }}
+                                        title={unavailable && unavailability?.reason ? `Unavailable: ${unavailability.reason}` : ''}
                                     >
                                         <span className="day-number">{format(date, 'd')}</span>
                                         {hasSlots && (
@@ -162,10 +236,21 @@ const BookingCalendarWidget = ({ mentorId, mentorName, onSelectSlot, backendUrl 
                                                 {daySlots.length} slot{daySlots.length !== 1 ? 's' : ''}
                                             </small>
                                         )}
+                                        {unavailable && !hasSlots && (
+                                            <small className="unavailable-label">Unavailable</small>
+                                        )}
                                     </div>
                                 );
                             })}
                         </div>
+                    </div>
+
+                    {/* Legend */}
+                    <div className="calendar-legend mb-3">
+                        <small className="text-muted d-flex align-items-center gap-3">
+                            <span><span className="legend-dot available"></span> Available</span>
+                            <span><span className="legend-dot unavailable"></span> Unavailable</span>
+                        </small>
                     </div>
 
                     {/* Time Slots */}

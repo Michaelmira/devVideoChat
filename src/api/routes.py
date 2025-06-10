@@ -2382,3 +2382,34 @@ def get_mentor_unavailability():
     except Exception as e:
         current_app.logger.error(f"Error getting unavailabilities: {str(e)}")
         return jsonify({"error": "Failed to fetch unavailabilities"}), 500
+
+@api.route('/mentor/<int:mentor_id>/unavailabilities', methods=['GET'])
+def get_mentor_unavailabilities_public(mentor_id):
+    """Get unavailability periods for a specific mentor (public endpoint for customers)"""
+    try:
+        # Get current date range from query params
+        start_date_str = request.args.get('start_date')
+        end_date_str = request.args.get('end_date')
+        
+        # Build query
+        query = MentorUnavailability.query.filter_by(mentor_id=mentor_id)
+        
+        # If date range provided, filter to that range
+        if start_date_str and end_date_str:
+            start_date = datetime.fromisoformat(start_date_str).replace(hour=0, minute=0, second=0)
+            end_date = datetime.fromisoformat(end_date_str).replace(hour=23, minute=59, second=59)
+            
+            query = query.filter(
+                MentorUnavailability.start_datetime <= end_date,
+                MentorUnavailability.end_datetime >= start_date
+            )
+        
+        unavailabilities = query.order_by(MentorUnavailability.start_datetime).all()
+        
+        return jsonify({
+            "unavailabilities": [u.serialize() for u in unavailabilities]
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting mentor unavailabilities: {str(e)}")
+        return jsonify({"error": "Failed to fetch unavailabilities"}), 500
