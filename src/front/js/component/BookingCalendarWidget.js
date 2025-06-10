@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isWithinInterval, parseISO } from 'date-fns';
+import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO } from 'date-fns';
 import { utcToZonedTime } from 'date-fns-tz';
 import PropTypes from 'prop-types';
 import './BookingCalendarWidget.css';
@@ -94,20 +94,32 @@ const BookingCalendarWidget = ({ mentorId, mentorName, onSelectSlot, backendUrl 
     const isDateUnavailable = (date) => {
         // Check if any part of this date falls within an unavailability period
         return unavailabilities.some(unavail => {
-            const unavailStart = parseISO(unavail.start_datetime);
-            const unavailEnd = parseISO(unavail.end_datetime);
-            
-            // Check if the date overlaps with the unavailability period
-            const dateStart = new Date(date);
-            dateStart.setHours(0, 0, 0, 0);
-            const dateEnd = new Date(date);
-            dateEnd.setHours(23, 59, 59, 999);
-            
-            return (
-                isWithinInterval(dateStart, { start: unavailStart, end: unavailEnd }) ||
-                isWithinInterval(dateEnd, { start: unavailStart, end: unavailEnd }) ||
-                (dateStart <= unavailStart && dateEnd >= unavailEnd)
-            );
+            try {
+                const unavailStart = parseISO(unavail.start_datetime);
+                const unavailEnd = parseISO(unavail.end_datetime);
+                
+                // Validate dates
+                if (!unavailStart || !unavailEnd || isNaN(unavailStart.getTime()) || isNaN(unavailEnd.getTime())) {
+                    console.warn('Invalid unavailability dates:', unavail);
+                    return false;
+                }
+                
+                // Check if the date overlaps with the unavailability period
+                const dateStart = new Date(date);
+                dateStart.setHours(0, 0, 0, 0);
+                const dateEnd = new Date(date);
+                dateEnd.setHours(23, 59, 59, 999);
+                
+                // Check for overlap
+                return (
+                    (dateStart >= unavailStart && dateStart <= unavailEnd) ||
+                    (dateEnd >= unavailStart && dateEnd <= unavailEnd) ||
+                    (dateStart <= unavailStart && dateEnd >= unavailEnd)
+                );
+            } catch (error) {
+                console.error('Error checking date unavailability:', error);
+                return false;
+            }
         });
     };
 
@@ -119,35 +131,55 @@ const BookingCalendarWidget = ({ mentorId, mentorName, onSelectSlot, backendUrl 
 
         // Filter out slots that overlap with unavailability periods
         return daySlots.filter(slot => {
-            const slotStart = parseISO(slot.start_time);
-            const slotEnd = parseISO(slot.end_time);
+            try {
+                const slotStart = parseISO(slot.start_time);
+                const slotEnd = parseISO(slot.end_time);
 
-            // Check if this slot overlaps with any unavailability
-            return !unavailabilities.some(unavail => {
-                const unavailStart = parseISO(unavail.start_datetime);
-                const unavailEnd = parseISO(unavail.end_datetime);
+                // Check if this slot overlaps with any unavailability
+                return !unavailabilities.some(unavail => {
+                    const unavailStart = parseISO(unavail.start_datetime);
+                    const unavailEnd = parseISO(unavail.end_datetime);
 
-                // Check for any overlap
-                return (slotStart < unavailEnd && slotEnd > unavailStart);
-            });
+                    // Validate dates
+                    if (!unavailStart || !unavailEnd || isNaN(unavailStart.getTime()) || isNaN(unavailEnd.getTime())) {
+                        return false;
+                    }
+
+                    // Check for any overlap
+                    return (slotStart < unavailEnd && slotEnd > unavailStart);
+                });
+            } catch (error) {
+                console.error('Error filtering slot:', error);
+                return true; // Keep the slot if there's an error
+            }
         });
     };
 
     const getUnavailabilityForDate = (date) => {
         return unavailabilities.find(unavail => {
-            const unavailStart = parseISO(unavail.start_datetime);
-            const unavailEnd = parseISO(unavail.end_datetime);
-            
-            const dateStart = new Date(date);
-            dateStart.setHours(0, 0, 0, 0);
-            const dateEnd = new Date(date);
-            dateEnd.setHours(23, 59, 59, 999);
-            
-            return (
-                isWithinInterval(dateStart, { start: unavailStart, end: unavailEnd }) ||
-                isWithinInterval(dateEnd, { start: unavailStart, end: unavailEnd }) ||
-                (dateStart <= unavailStart && dateEnd >= unavailEnd)
-            );
+            try {
+                const unavailStart = parseISO(unavail.start_datetime);
+                const unavailEnd = parseISO(unavail.end_datetime);
+                
+                // Validate dates
+                if (!unavailStart || !unavailEnd || isNaN(unavailStart.getTime()) || isNaN(unavailEnd.getTime())) {
+                    return false;
+                }
+                
+                const dateStart = new Date(date);
+                dateStart.setHours(0, 0, 0, 0);
+                const dateEnd = new Date(date);
+                dateEnd.setHours(23, 59, 59, 999);
+                
+                return (
+                    (dateStart >= unavailStart && dateStart <= unavailEnd) ||
+                    (dateEnd >= unavailStart && dateEnd <= unavailEnd) ||
+                    (dateStart <= unavailStart && dateEnd >= unavailEnd)
+                );
+            } catch (error) {
+                console.error('Error getting unavailability for date:', error);
+                return false;
+            }
         });
     };
 
