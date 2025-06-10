@@ -3,7 +3,7 @@ This module takes care of starting the API Server, Loading the DB and Adding the
 """
 import os
 import logging
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, time as datetime_time 
 import stripe
 
 from flask import Flask, request, jsonify, url_for, Blueprint, current_app, redirect, session
@@ -2043,142 +2043,149 @@ def remove_mentor_unavailability(unavail_id):
 @api.route('/mentor/<int:mentor_id>/available-slots', methods=['GET'])
 def get_available_slots(mentor_id):
     """Get available booking slots for a specific mentor"""
-    # Query parameters
-    start_date_str = request.args.get('start_date')
-    end_date_str = request.args.get('end_date')
-    
-    if not start_date_str or not end_date_str:
-        # Default to next 30 days
-        start_date = datetime.utcnow().date()
-        end_date = start_date + timedelta(days=30)
-    else:
-        start_date = datetime.fromisoformat(start_date_str).date()
-        end_date = datetime.fromisoformat(end_date_str).date()
-    
-    # Get mentor's availability settings
-    availabilities = MentorAvailability.query.filter_by(
-        mentor_id=mentor_id, 
-        is_active=True
-    ).all()
-    
-    settings = CalendarSettings.query.filter_by(mentor_id=mentor_id).first()
-    if not settings:
-        return jsonify({"error": "Mentor has not configured availability"}), 404
-    
-    # Get existing bookings
-    existing_bookings = Booking.query.filter(
-        Booking.mentor_id == mentor_id,
-        Booking.session_start_time >= datetime.combine(start_date, time.min),
-        Booking.session_end_time <= datetime.combine(end_date + timedelta(days=1), time.min),
-        Booking.status.in_([BookingStatus.PAID, BookingStatus.CONFIRMED])
-    ).all()
-    
-    # Get unavailability periods
-    unavailabilities = MentorUnavailability.query.filter(
-        MentorUnavailability.mentor_id == mentor_id,
-        MentorUnavailability.start_datetime <= datetime.combine(end_date + timedelta(days=1), time.min),
-        MentorUnavailability.end_datetime >= datetime.combine(start_date, time.min)
-    ).all()
-    
-    # Generate available slots
-    available_slots = []
-    current_date = start_date
-    
-    # Get timezone
-    tz = pytz.timezone(settings.timezone)
-    
-    while current_date <= end_date:
-        day_of_week = current_date.weekday()
+    try:
+        # Query parameters
+        start_date_str = request.args.get('start_date')
+        end_date_str = request.args.get('end_date')
         
-        # Get availability for this day
-        day_availabilities = [a for a in availabilities if a.day_of_week == day_of_week]
+        if not start_date_str or not end_date_str:
+            # Default to next 30 days
+            start_date = datetime.utcnow().date()
+            end_date = start_date + timedelta(days=30)
+        else:
+            start_date = datetime.fromisoformat(start_date_str).date()
+            end_date = datetime.fromisoformat(end_date_str).date()
         
-        for availability in day_availabilities:
-            # Generate time slots
-            # Create naive datetime first, then localize
-            slot_start_naive = datetime.combine(current_date, availability.start_time)
-            slot_end_naive = datetime.combine(current_date, availability.end_time)
+        # Get mentor's availability settings
+        availabilities = MentorAvailability.query.filter_by(
+            mentor_id=mentor_id, 
+            is_active=True
+        ).all()
+        
+        settings = CalendarSettings.query.filter_by(mentor_id=mentor_id).first()
+        if not settings:
+            return jsonify({"error": "Mentor has not configured availability"}), 404
+        
+        # Get existing bookings
+        existing_bookings = Booking.query.filter(
+            Booking.mentor_id == mentor_id,
+            Booking.session_start_time >= datetime.combine(start_date, datetime_time.min),
+            Booking.session_end_time <= datetime.combine(end_date + timedelta(days=1), datetime_time.min),
+            Booking.status.in_([BookingStatus.PAID, BookingStatus.CONFIRMED])
+        ).all()
+        
+        # Get unavailability periods
+        unavailabilities = MentorUnavailability.query.filter(
+            MentorUnavailability.mentor_id == mentor_id,
+            MentorUnavailability.start_datetime <= datetime.combine(end_date + timedelta(days=1), datetime_time.min),
+            MentorUnavailability.end_datetime >= datetime.combine(start_date, datetime_time.min)
+        ).all()
+        
+        # Generate available slots
+        available_slots = []
+        current_date = start_date
+        
+        # Get timezone
+        tz = pytz.timezone(settings.timezone)
+        
+        while current_date <= end_date:
+            day_of_week = current_date.weekday()
             
-            # Localize to the mentor's timezone
-            current_time = tz.localize(slot_start_naive)
-            end_time = tz.localize(slot_end_naive)
+            # Get availability for this day
+            day_availabilities = [a for a in availabilities if a.day_of_week == day_of_week]
             
-            while current_time + timedelta(minutes=settings.session_duration) <= end_time:
-                slot_end = current_time + timedelta(minutes=settings.session_duration)
+            for availability in day_availabilities:
+                # Generate time slots
+                # Create naive datetime first, then localize
+                slot_start_naive = datetime.combine(current_date, availability.start_time)
+                slot_end_naive = datetime.combine(current_date, availability.end_time)
                 
-                # Check if slot is available
-                is_available = True
+                # Localize to the mentor's timezone
+                current_time = tz.localize(slot_start_naive)
+                end_time = tz.localize(slot_end_naive)
                 
-                # Check minimum notice
-                now_utc = datetime.utcnow()
-                now_tz = tz.normalize(pytz.utc.localize(now_utc).astimezone(tz))
-                
-                if current_time < now_tz + timedelta(hours=settings.minimum_notice_hours):
-                    is_available = False
-                
-                # Check against existing bookings
-                if is_available:
-                    for booking in existing_bookings:
-                        # Convert booking times to timezone-aware for comparison
-                        booking_start = booking.session_start_time
-                        booking_end = booking.session_end_time
-                        
-                        # If booking times are naive, assume they're in UTC
-                        if booking_start.tzinfo is None:
-                            booking_start = pytz.utc.localize(booking_start)
-                        if booking_end.tzinfo is None:
-                            booking_end = pytz.utc.localize(booking_end)
-                        
-                        # Convert to mentor's timezone for comparison
-                        booking_start_tz = booking_start.astimezone(tz)
-                        booking_end_tz = booking_end.astimezone(tz)
-                        
-                        if (current_time < booking_end_tz and slot_end > booking_start_tz):
-                            is_available = False
-                            break
-                
-                # Check against unavailabilities
-                if is_available:
-                    for unavail in unavailabilities:
-                        unavail_start = unavail.start_datetime
-                        unavail_end = unavail.end_datetime
-                        
-                        # If unavailability times are naive, assume they're in UTC
-                        if unavail_start.tzinfo is None:
-                            unavail_start = pytz.utc.localize(unavail_start)
-                        if unavail_end.tzinfo is None:
-                            unavail_end = pytz.utc.localize(unavail_end)
-                        
-                        # Convert to mentor's timezone for comparison
-                        unavail_start_tz = unavail_start.astimezone(tz)
-                        unavail_end_tz = unavail_end.astimezone(tz)
-                        
-                        if (current_time < unavail_end_tz and slot_end > unavail_start_tz):
-                            is_available = False
-                            break
-                
-                if is_available:
-                    # Convert to UTC for storage/transmission
-                    slot_start_utc = current_time.astimezone(pytz.utc)
-                    slot_end_utc = slot_end.astimezone(pytz.utc)
+                while current_time + timedelta(minutes=settings.session_duration) <= end_time:
+                    slot_end = current_time + timedelta(minutes=settings.session_duration)
                     
-                    available_slots.append({
-                        "start_time": slot_start_utc.isoformat(),
-                        "end_time": slot_end_utc.isoformat(),
-                        "date": current_date.isoformat(),
-                        "duration": settings.session_duration
-                    })
-                
-                # Move to next slot with buffer
-                current_time = slot_end + timedelta(minutes=settings.buffer_time)
+                    # Check if slot is available
+                    is_available = True
+                    
+                    # Check minimum notice
+                    now_utc = datetime.utcnow()
+                    now_tz = tz.normalize(pytz.utc.localize(now_utc).astimezone(tz))
+                    
+                    if current_time < now_tz + timedelta(hours=settings.minimum_notice_hours):
+                        is_available = False
+                    
+                    # Check against existing bookings
+                    if is_available:
+                        for booking in existing_bookings:
+                            # Convert booking times to timezone-aware for comparison
+                            booking_start = booking.session_start_time
+                            booking_end = booking.session_end_time
+                            
+                            # If booking times are naive, assume they're in UTC
+                            if booking_start.tzinfo is None:
+                                booking_start = pytz.utc.localize(booking_start)
+                            if booking_end.tzinfo is None:
+                                booking_end = pytz.utc.localize(booking_end)
+                            
+                            # Convert to mentor's timezone for comparison
+                            booking_start_tz = booking_start.astimezone(tz)
+                            booking_end_tz = booking_end.astimezone(tz)
+                            
+                            if (current_time < booking_end_tz and slot_end > booking_start_tz):
+                                is_available = False
+                                break
+                    
+                    # Check against unavailabilities
+                    if is_available:
+                        for unavail in unavailabilities:
+                            unavail_start = unavail.start_datetime
+                            unavail_end = unavail.end_datetime
+                            
+                            # If unavailability times are naive, assume they're in UTC
+                            if unavail_start.tzinfo is None:
+                                unavail_start = pytz.utc.localize(unavail_start)
+                            if unavail_end.tzinfo is None:
+                                unavail_end = pytz.utc.localize(unavail_end)
+                            
+                            # Convert to mentor's timezone for comparison
+                            unavail_start_tz = unavail_start.astimezone(tz)
+                            unavail_end_tz = unavail_end.astimezone(tz)
+                            
+                            if (current_time < unavail_end_tz and slot_end > unavail_start_tz):
+                                is_available = False
+                                break
+                    
+                    if is_available:
+                        # Convert to UTC for storage/transmission
+                        slot_start_utc = current_time.astimezone(pytz.utc)
+                        slot_end_utc = slot_end.astimezone(pytz.utc)
+                        
+                        available_slots.append({
+                            "start_time": slot_start_utc.isoformat(),
+                            "end_time": slot_end_utc.isoformat(),
+                            "date": current_date.isoformat(),
+                            "duration": settings.session_duration
+                        })
+                    
+                    # Move to next slot with buffer
+                    current_time = slot_end + timedelta(minutes=settings.buffer_time)
+            
+            current_date += timedelta(days=1)
         
-        current_date += timedelta(days=1)
-    
-    return jsonify({
-        "mentor_id": mentor_id,
-        "available_slots": available_slots,
-        "timezone": settings.timezone
-    }), 200
+        return jsonify({
+            "mentor_id": mentor_id,
+            "available_slots": available_slots,
+            "timezone": settings.timezone
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error in get_available_slots: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({"error": "Internal server error", "message": str(e)}), 500
 
 @api.route('/finalize-booking', methods=['POST'])
 @jwt_required()
