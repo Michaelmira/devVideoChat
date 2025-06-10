@@ -2280,3 +2280,105 @@ def finalize_booking():
         db.session.rollback()
         current_app.logger.error(f"Error creating booking: {str(e)}")
         return jsonify({"msg": "Failed to create booking"}), 500
+
+@api.route('/mentor/dashboard', methods=['GET'])
+@mentor_required
+def get_mentor_dashboard():
+    """Get mentor dashboard data"""
+    mentor_id = get_jwt_identity()
+    
+    try:
+        # Get upcoming bookings
+        upcoming_bookings = Booking.query.filter(
+            Booking.mentor_id == mentor_id,
+            Booking.session_start_time >= datetime.utcnow(),
+            Booking.status.in_([BookingStatus.PAID, BookingStatus.CONFIRMED])
+        ).order_by(Booking.session_start_time).all()
+        
+        # Get past bookings
+        past_bookings = Booking.query.filter(
+            Booking.mentor_id == mentor_id,
+            Booking.session_start_time < datetime.utcnow(),
+            Booking.status.in_([BookingStatus.COMPLETED, BookingStatus.CONFIRMED])
+        ).order_by(Booking.session_start_time.desc()).limit(10).all()
+        
+        # Calculate statistics
+        total_sessions = Booking.query.filter(
+            Booking.mentor_id == mentor_id,
+            Booking.status == BookingStatus.COMPLETED
+        ).count()
+        
+        # Calculate total hours
+        completed_bookings = Booking.query.filter(
+            Booking.mentor_id == mentor_id,
+            Booking.status == BookingStatus.COMPLETED
+        ).all()
+        
+        total_hours = sum(
+            (booking.session_duration or 60) / 60.0 
+            for booking in completed_bookings
+        )
+        
+        # For now, using placeholder values for rating and completion rate
+        # You can implement actual rating system later
+        average_rating = 4.5
+        completion_rate = 95
+        
+        # Format the response
+        upcoming_data = []
+        for booking in upcoming_bookings:
+            customer = Customer.query.get(booking.customer_id)
+            upcoming_data.append({
+                "id": booking.id,
+                "student_name": f"{customer.first_name} {customer.last_name}" if customer else "Unknown",
+                "start_time": booking.session_start_time.isoformat() if booking.session_start_time else None,
+                "duration": booking.session_duration or 60,
+                "status": booking.status.value
+            })
+        
+        past_data = []
+        for booking in past_bookings:
+            customer = Customer.query.get(booking.customer_id)
+            past_data.append({
+                "id": booking.id,
+                "student_name": f"{customer.first_name} {customer.last_name}" if customer else "Unknown",
+                "start_time": booking.session_start_time.isoformat() if booking.session_start_time else None,
+                "duration": booking.session_duration or 60,
+                "status": booking.status.value,
+                "rating": None  # Implement rating system later
+            })
+        
+        return jsonify({
+            "upcomingBookings": upcoming_data,
+            "pastBookings": past_data,
+            "stats": {
+                "totalSessions": total_sessions,
+                "totalHours": round(total_hours, 1),
+                "averageRating": average_rating,
+                "completionRate": completion_rate
+            }
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error in get_mentor_dashboard: {str(e)}")
+        return jsonify({"error": "Failed to load dashboard data"}), 500
+
+
+@api.route('/mentor/unavailability', methods=['GET'])
+@mentor_required
+def get_mentor_unavailability():
+    """Get all unavailability periods for the current mentor"""
+    mentor_id = get_jwt_identity()
+    
+    try:
+        unavailabilities = MentorUnavailability.query.filter_by(
+            mentor_id=mentor_id
+        ).order_by(MentorUnavailability.start_datetime).all()
+        
+        return jsonify({
+            "unavailabilities": [u.serialize() for u in unavailabilities]
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting unavailabilities: {str(e)}")
+        return jsonify({"error": "Failed to fetch unavailabilities"}), 500

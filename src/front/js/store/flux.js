@@ -1689,7 +1689,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                         const data = await response.json();
                         return {
                             success: true,
-                            unavailabilities: data.unavailabilities
+                            unavailabilities: data.unavailabilities || []
                         };
                     } else {
                         return { success: false, message: "Failed to fetch unavailability" };
