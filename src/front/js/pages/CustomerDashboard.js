@@ -117,6 +117,7 @@ const CustomerDashboard = () => {
                         mentorId={selectedMentor.id}
                         mentorName={`${selectedMentor.first_name} ${selectedMentor.last_name}`}
                         onSelectSlot={handleSelectSlot}
+                        backendUrl={process.env.BACKEND_URL}
                     />
                 </div>
             ) : (
