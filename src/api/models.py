@@ -296,10 +296,16 @@ class Booking(db.Model):
         return {
             "id": self.id,
             "mentor_name": self.mentor.first_name + " " + self.mentor.last_name if self.mentor else "N/A",
-            "scheduled_at": self.session_start_time.isoformat() if self.session_start_time else None,
+            "session_start_time": self.session_start_time.isoformat() if self.session_start_time else None,
+            "session_end_time": self.session_end_time.isoformat() if self.session_end_time else None,
+            "session_duration": self.session_duration,
             "status": self.status.value,
             "amount_paid": str(self.amount_paid),
-            "google_meet_link": self.google_meet_link
+            "google_meet_link": self.google_meet_link,
+            "invitee_name": self.invitee_name,
+            "invitee_email": self.invitee_email,
+            "invitee_notes": self.invitee_notes,
+            "timezone": self.timezone
         }
 
     def serialize(self):

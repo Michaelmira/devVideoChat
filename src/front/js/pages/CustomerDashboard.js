@@ -134,17 +134,32 @@ const CustomerDashboard = () => {
                                     <p className="mb-1">
                                         <strong>Date & Time:</strong> {formatDateTime(booking.session_start_time)}
                                     </p>
+                                    {booking.session_end_time && (
+                                        <p className="mb-1">
+                                            <strong>End Time:</strong> {formatDateTime(booking.session_end_time)}
+                                        </p>
+                                    )}
                                     <p className="mb-1">
-                                        <strong>Duration:</strong> {booking.session_duration} minutes
+                                        <strong>Duration:</strong> {booking.session_duration || 60} minutes
                                     </p>
-                                    <p className="mb-1">
-                                        <strong>Meeting Link:</strong>
-                                        {booking.google_meet_link ? (
-                                            <a href={booking.google_meet_link} target="_blank" rel="noopener noreferrer">{booking.google_meet_link}</a>
-                                        ) : (
-                                            <span>Link not available</span>
-                                        )}
-                                    </p>
+                                    {booking.timezone && (
+                                        <p className="mb-1">
+                                            <strong>Timezone:</strong> {booking.timezone}
+                                        </p>
+                                    )}
+                                    {booking.google_meet_link && (
+                                        <p className="mb-1">
+                                            <strong>Meeting Link: </strong>
+                                            <a href={booking.google_meet_link} target="_blank" rel="noopener noreferrer">
+                                                {booking.google_meet_link}
+                                            </a>
+                                        </p>
+                                    )}
+                                    {booking.invitee_notes && (
+                                        <p className="mb-1">
+                                            <strong>Notes:</strong> {booking.invitee_notes}
+                                        </p>
+                                    )}
                                     <small>Booking ID: {booking.id}</small>
                                 </div>
                             ))}
