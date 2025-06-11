@@ -1,11 +1,14 @@
-// MentorDetails.js 
-
 import React, { useEffect, useContext, useState, useRef } from "react";
 import { Context } from "../store/appContext";
 import { MapPin, Mail, Phone, Calendar, Clock, DollarSign, Award, BookOpen } from 'lucide-react';
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { StripePaymentComponent } from "../component/StripePaymentComponent";
-import BookingCalendarWidget from "../component/BookingCalendarWidget";
+import BookingCalendarWidget from '../component/BookingCalendarWidget';
+import { CustomerLogin } from '../auth/CustomerLogin';
+import { CustomerSignup } from '../auth/CustomerSignup';
+import { VerifyCodeModal } from '../auth/VerifyCodeModal';
+import { MVPGoogleOAuthButton } from '../auth/MVPGoogelOAuthButton';
+import { MVPGitHubOAuthButton } from '../auth/MVPGitHubOAuthButton';
+import { PaymentForm } from '../component/PaymentForm';
 import './MentorDetails.css';
 
 export const MentorDetails = () => {
@@ -14,14 +17,70 @@ export const MentorDetails = () => {
     const navigate = useNavigate();
     const [mentor, setMentor] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    
+    // Booking flow states
+    const [showCalendar, setShowCalendar] = useState(true);
+    const [showAuthForm, setShowAuthForm] = useState(false);
+    const [showPaymentForm, setShowPaymentForm] = useState(false);
+    const [showVerifyCode, setShowVerifyCode] = useState(false);
+    const [activeAuthTab, setActiveAuthTab] = useState('login');
+    const [emailForVerification, setEmailForVerification] = useState("");
     const [selectedTimeSlot, setSelectedTimeSlot] = useState(null);
 
-    // State for portfolio image modal
+    // Portfolio modal states
     const [showPortfolioModal, setShowPortfolioModal] = useState(false);
     const [selectedPortfolioImage, setSelectedPortfolioImage] = useState(null);
 
     const bookingSectionRef = useRef(null);
+
+    // Check for OAuth redirect on component mount
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const mvpGoogleAuth = urlParams.get('mvp_google_auth');
+        const mvpGithubAuth = urlParams.get('mvp_github_auth');
+        const token = urlParams.get('token');
+        const userId = urlParams.get('user_id');
+        const userType = urlParams.get('user_type');
+        
+        if ((mvpGoogleAuth === 'success' || mvpGithubAuth === 'success') && token && userId && userType === 'customer') {
+            console.log("Detected OAuth redirect, processing authentication");
+            
+            // Process the OAuth verification
+            const processOAuth = async () => {
+                try {
+                    const authAction = mvpGoogleAuth === 'success' ? 'verifyMVPGoogleAuth' : 'verifyMVPGitHubAuth';
+                    const result = await actions[authAction]({
+                        token,
+                        user_id: userId,
+                        user_type: userType
+                    });
+
+                    if (result.success) {
+                        console.log("OAuth verification successful");
+                        // Clean URL
+                        window.history.replaceState({}, '', window.location.pathname);
+                        
+                        // Check if we have a pending booking
+                        const pendingSlot = sessionStorage.getItem('pendingTimeSlot');
+                        if (pendingSlot) {
+                            setSelectedTimeSlot(JSON.parse(pendingSlot));
+                            sessionStorage.removeItem('pendingTimeSlot');
+                            setShowCalendar(false);
+                            setShowPaymentForm(true);
+                        }
+                    } else {
+                        console.error("OAuth verification failed:", result.message);
+                        alert(result.message || "Authentication failed. Please try again.");
+                    }
+                } catch (error) {
+                    console.error("OAuth processing error:", error);
+                    alert("An error occurred during authentication. Please try again.");
+                }
+            };
+            
+            setTimeout(processOAuth, 100);
+        }
+    }, [actions]);
 
     const openPortfolioModal = (imageUrl) => {
         setSelectedPortfolioImage(imageUrl);
@@ -34,7 +93,6 @@ export const MentorDetails = () => {
     };
 
     useEffect(() => {
-        // Get the specific mentor details
         const fetchMentorDetails = async () => {
             setLoading(true);
             try {
@@ -47,7 +105,6 @@ export const MentorDetails = () => {
             }
         };
 
-        // If store.mentors is empty, fetch all mentors first
         if (store.mentors.length === 0) {
             actions.getMentors().then(() => fetchMentorDetails());
         } else {
@@ -61,24 +118,62 @@ export const MentorDetails = () => {
         }
     };
 
-    const handleTimeSlotSelected = async (slot) => {
+    const handleTimeSlotSelected = (slot) => {
         setSelectedTimeSlot(slot);
-        setShowPaymentModal(true);
+        
+        // Check if user is logged in
+        if (store.token && store.customerId) {
+            // User is logged in, proceed to payment
+            setShowCalendar(false);
+            setShowPaymentForm(true);
+        } else {
+            // User needs to authenticate
+            // Save the slot to sessionStorage in case of OAuth redirect
+            sessionStorage.setItem('pendingTimeSlot', JSON.stringify(slot));
+            setShowCalendar(false);
+            setShowAuthForm(true);
+        }
+    };
+
+    // Auth handlers
+    const handleLoginSuccess = () => {
+        setShowAuthForm(false);
+        setShowPaymentForm(true);
+    };
+
+    const handleSignupSuccess = (email) => {
+        setEmailForVerification(email);
+        setShowAuthForm(false);
+        setShowVerifyCode(true);
+    };
+
+    const handleVerificationComplete = () => {
+        setShowVerifyCode(false);
+        setActiveAuthTab('login');
+        setShowAuthForm(true);
+    };
+
+    const handleMVPOAuthSuccess = (result) => {
+        console.log("MVP OAuth success, proceeding to payment");
+        setShowAuthForm(false);
+        setShowPaymentForm(true);
     };
 
     const handlePaymentSuccess = async (paymentIntent) => {
         try {
-            const result = await actions.finalizeBooking({
+            const bookingData = {
                 mentorId: mentor.id,
                 sessionStartTime: selectedTimeSlot.start_time,
                 sessionEndTime: selectedTimeSlot.end_time,
                 paymentIntentId: paymentIntent.id,
-                amountPaid: paymentIntent.amount,
+                amountPaid: paymentIntent.amount / 100, // Convert from cents
                 notes: ''
-            });
+            };
+
+            const result = await actions.finalizeBooking(bookingData);
 
             if (result.success) {
-                // Redirect to customer dashboard or show success message
+                alert('Booking confirmed successfully!');
                 navigate('/customer-dashboard');
             } else {
                 alert('Failed to finalize booking. Please contact support.');
@@ -89,16 +184,24 @@ export const MentorDetails = () => {
         }
     };
 
-    const handlePaymentError = (error) => {
-        console.error("Payment error:", error);
-        alert(`Payment error: ${error.message || 'Unknown error'}`);
-        setShowPaymentModal(false);
+    const handleCancel = () => {
+        // Reset the booking flow
+        setShowAuthForm(false);
+        setShowPaymentForm(false);
+        setShowVerifyCode(false);
+        setShowCalendar(true);
+        setSelectedTimeSlot(null);
+        setEmailForVerification("");
     };
 
-    const handleClosePaymentModal = () => {
-        setShowPaymentModal(false);
-        setSelectedTimeSlot(null);
-    };
+    // Effect to handle auth state changes
+    useEffect(() => {
+        if (showAuthForm && store.token && store.customerId) {
+            console.log("User is now logged in, proceeding to payment");
+            setShowAuthForm(false);
+            setShowPaymentForm(true);
+        }
+    }, [store.token, store.customerId, showAuthForm]);
 
     if (loading) {
         return (
@@ -126,6 +229,148 @@ export const MentorDetails = () => {
             </div>
         );
     }
+
+    const renderBookingStep = () => {
+        if (showCalendar) {
+            return (
+                <BookingCalendarWidget
+                    mentorId={mentor.id}
+                    mentorName={`${mentor.first_name} ${mentor.last_name}`}
+                    onSelectSlot={handleTimeSlotSelected}
+                    backendUrl={process.env.BACKEND_URL}
+                />
+            );
+        } else if (showVerifyCode) {
+            return (
+                <div className="card border-0 shadow p-4">
+                    <div className="card-body">
+                        <VerifyCodeModal
+                            email={emailForVerification}
+                            onClose={handleCancel}
+                            switchToLogin={handleVerificationComplete}
+                        />
+                        <div className="text-center mt-3">
+                            <button className="btn btn-secondary" onClick={handleCancel}>
+                                Back to Calendar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        } else if (showAuthForm) {
+            return (
+                <div className="card border-0 shadow p-4">
+                    <div className="card-body">
+                        <h4 className="text-center mb-4">Authentication Required</h4>
+                        
+                        {/* MVP OAuth Buttons */}
+                        <div className="mb-4">
+                            <MVPGoogleOAuthButton 
+                                mentor={mentor}
+                                onSuccess={handleMVPOAuthSuccess}
+                                buttonText={activeAuthTab === 'login' ? 'Login with Google' : 'Sign up with Google'}
+                            />
+                            
+                            <MVPGitHubOAuthButton 
+                                mentor={mentor}
+                                onSuccess={handleMVPOAuthSuccess}
+                                buttonText={activeAuthTab === 'login' ? 'Login with GitHub' : 'Sign up with GitHub'}
+                            />
+                            
+                            <div className="d-flex align-items-center my-3">
+                                <hr className="flex-grow-1" />
+                                <span className="px-3 text-secondary">or</span>
+                                <hr className="flex-grow-1" />
+                            </div>
+                        </div>
+
+                        {/* Auth tabs */}
+                        <ul className="nav nav-tabs mb-4">
+                            <li className="nav-item">
+                                <button
+                                    className={`nav-link ${activeAuthTab === 'login' ? 'active' : ''}`}
+                                    onClick={() => setActiveAuthTab('login')}
+                                >
+                                    Login
+                                </button>
+                            </li>
+                            <li className="nav-item">
+                                <button
+                                    className={`nav-link ${activeAuthTab === 'signup' ? 'active' : ''}`}
+                                    onClick={() => setActiveAuthTab('signup')}
+                                >
+                                    Sign Up
+                                </button>
+                            </li>
+                        </ul>
+
+                        {/* Auth forms */}
+                        {activeAuthTab === 'login' ? (
+                            <CustomerLogin
+                                onSuccess={handleLoginSuccess}
+                                switchToSignUp={() => setActiveAuthTab('signup')}
+                                onForgotPs={() => {}}
+                            />
+                        ) : (
+                            <CustomerSignup
+                                switchToLogin={() => setActiveAuthTab('login')}
+                                onSignupSuccess={handleSignupSuccess}
+                            />
+                        )}
+
+                        <div className="text-center mt-3">
+                            <button className="btn btn-secondary" onClick={handleCancel}>
+                                Back to Calendar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        } else if (showPaymentForm) {
+            return (
+                <div className="card border-0 shadow p-4">
+                    <div className="card-body">
+                        <h4 className="text-center mb-4">Complete Your Booking</h4>
+                        
+                        {selectedTimeSlot && (
+                            <div className="mb-4">
+                                <h6>Session Details:</h6>
+                                <p className="mb-1">
+                                    <strong>Date:</strong> {new Date(selectedTimeSlot.start_time).toLocaleDateString('en-US', {
+                                        weekday: 'long',
+                                        year: 'numeric',
+                                        month: 'long',
+                                        day: 'numeric'
+                                    })}
+                                </p>
+                                <p className="mb-1">
+                                    <strong>Time:</strong> {new Date(selectedTimeSlot.start_time).toLocaleTimeString('en-US', {
+                                        hour: 'numeric',
+                                        minute: '2-digit',
+                                        hour12: true
+                                    })} - {new Date(selectedTimeSlot.end_time).toLocaleTimeString('en-US', {
+                                        hour: 'numeric',
+                                        minute: '2-digit',
+                                        hour12: true
+                                    })}
+                                </p>
+                                <p className="mb-1">
+                                    <strong>Duration:</strong> {selectedTimeSlot.duration} minutes
+                                </p>
+                                <hr />
+                            </div>
+                        )}
+
+                        <PaymentForm
+                            mentor={mentor}
+                            onSuccess={handlePaymentSuccess}
+                            onCancel={handleCancel}
+                        />
+                    </div>
+                </div>
+            );
+        }
+    };
 
     return (
         <div className="container mt-5 mb-5">
@@ -226,18 +471,13 @@ export const MentorDetails = () => {
                         </div>
                     )}
 
-                    {/* Booking Calendar Section */}
+                    {/* Booking Section */}
                     <div ref={bookingSectionRef} className="card mb-4">
                         <div className="card-header">
                             <h5 className="mb-0">Book a Session</h5>
                         </div>
                         <div className="card-body">
-                            <BookingCalendarWidget
-                                mentorId={mentor.id}
-                                mentorName={`${mentor.first_name} ${mentor.last_name}`}
-                                onSelectSlot={handleTimeSlotSelected}
-                                backendUrl={process.env.BACKEND_URL}
-                            />
+                            {renderBookingStep()}
                         </div>
                     </div>
                 </div>
@@ -261,70 +501,6 @@ export const MentorDetails = () => {
                         </div>
                     </div>
                     <div className="modal-backdrop fade show"></div>
-                </div>
-            )}
-
-            {/* Payment Modal */}
-            {showPaymentModal && selectedTimeSlot && (
-                <div className="payment-modal-wrapper">
-                    <div 
-                        className="modal d-block" 
-                        tabIndex="-1" 
-                        style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-                        onClick={(e) => {
-                            // Close modal when clicking on backdrop
-                            if (e.target.classList.contains('modal')) {
-                                handleClosePaymentModal();
-                            }
-                        }}
-                    >
-                        <div className="modal-dialog modal-dialog-centered">
-                            <div className="modal-content">
-                                <div className="modal-header">
-                                    <h5 className="modal-title">Complete Your Booking</h5>
-                                    <button type="button" className="btn-close" onClick={handleClosePaymentModal}></button>
-                                </div>
-                                <div className="modal-body">
-                                    <div className="mb-4">
-                                        <h6>Session Details:</h6>
-                                        <p className="mb-1">
-                                            <strong>Date:</strong> {new Date(selectedTimeSlot.start_time).toLocaleDateString('en-US', {
-                                                weekday: 'long',
-                                                year: 'numeric',
-                                                month: 'long',
-                                                day: 'numeric'
-                                            })}
-                                        </p>
-                                        <p className="mb-1">
-                                            <strong>Time:</strong> {new Date(selectedTimeSlot.start_time).toLocaleTimeString('en-US', {
-                                                hour: 'numeric',
-                                                minute: '2-digit',
-                                                hour12: true
-                                            })} - {new Date(selectedTimeSlot.end_time).toLocaleTimeString('en-US', {
-                                                hour: 'numeric',
-                                                minute: '2-digit',
-                                                hour12: true
-                                            })}
-                                        </p>
-                                        <p className="mb-1">
-                                            <strong>Duration:</strong> {selectedTimeSlot.duration} minutes
-                                        </p>
-                                        <p className="mb-0">
-                                            <strong>Price:</strong> ${mentor.price}
-                                        </p>
-                                    </div>
-                                    <hr />
-                                    <StripePaymentComponent
-                                        amount={parseFloat(mentor.price) * 100} // Convert to cents
-                                        onSuccess={handlePaymentSuccess}
-                                        onError={handlePaymentError}
-                                        mentorName={`${mentor.first_name} ${mentor.last_name}`}
-                                        mentorId={mentor.id}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             )}
         </div>
