@@ -81,7 +81,32 @@ const BookingCalendarWidget = ({ mentorId, mentorName, onSelectSlot, backendUrl 
     };
 
     const handleSlotSelect = (slot) => {
-        onSelectSlot(slot);
+        // Parse the dates to ensure they're valid
+        const startTime = parseISO(slot.start_time);
+        const endTime = parseISO(slot.end_time);
+        
+        // Calculate duration in minutes
+        const durationMs = endTime - startTime;
+        const durationMinutes = Math.round(durationMs / (1000 * 60));
+        
+        // Create a complete slot object with all necessary data
+        const completeSlot = {
+            // Original slot data
+            ...slot,
+            // Ensure we have all required fields
+            date: format(startTime, 'yyyy-MM-dd'), // YYYY-MM-DD format
+            start_time: slot.start_time, // ISO datetime string from backend
+            end_time: slot.end_time, // ISO datetime string from backend
+            duration: slot.duration || durationMinutes || 60, // Duration in minutes
+            timezone: timezone,
+            // Additional useful data
+            formatted_date: format(startTime, 'EEEE, MMMM d, yyyy'),
+            formatted_start_time: format(utcToZonedTime(startTime, timezone), 'h:mm a'),
+            formatted_end_time: format(utcToZonedTime(endTime, timezone), 'h:mm a'),
+        };
+        
+        console.log("Passing complete slot data:", completeSlot);
+        onSelectSlot(completeSlot);
     };
 
     const getDaysInMonth = () => {
