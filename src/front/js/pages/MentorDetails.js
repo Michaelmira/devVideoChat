@@ -236,6 +236,7 @@ export const MentorDetails = () => {
                                 mentorId={mentor.id}
                                 mentorName={`${mentor.first_name} ${mentor.last_name}`}
                                 onSelectSlot={handleTimeSlotSelected}
+                                backendUrl={process.env.BACKEND_URL}
                             />
                         </div>
                     </div>
@@ -265,51 +266,65 @@ export const MentorDetails = () => {
 
             {/* Payment Modal */}
             {showPaymentModal && selectedTimeSlot && (
-                <div className="modal fade show" style={{ display: 'block' }} tabIndex="-1">
-                    <div className="modal-dialog">
-                        <div className="modal-content">
-                            <div className="modal-header">
-                                <h5 className="modal-title">Complete Your Booking</h5>
-                                <button type="button" className="btn-close" onClick={handleClosePaymentModal}></button>
-                            </div>
-                            <div className="modal-body">
-                                <div className="mb-4">
-                                    <h6>Session Details:</h6>
-                                    <p className="mb-1">
-                                        <strong>Date:</strong> {new Date(selectedTimeSlot.start_time).toLocaleDateString('en-US', {
-                                            weekday: 'long',
-                                            year: 'numeric',
-                                            month: 'long',
-                                            day: 'numeric'
-                                        })}
-                                    </p>
-                                    <p className="mb-1">
-                                        <strong>Time:</strong> {new Date(selectedTimeSlot.start_time).toLocaleTimeString('en-US', {
-                                            hour: 'numeric',
-                                            minute: '2-digit',
-                                            hour12: true
-                                        })} - {new Date(selectedTimeSlot.end_time).toLocaleTimeString('en-US', {
-                                            hour: 'numeric',
-                                            minute: '2-digit',
-                                            hour12: true
-                                        })}
-                                    </p>
-                                    <p className="mb-1">
-                                        <strong>Duration:</strong> {selectedTimeSlot.duration} minutes
-                                    </p>
-                                    <p className="mb-0">
-                                        <strong>Price:</strong> ${mentor.price}
-                                    </p>
+                <div className="payment-modal-wrapper">
+                    <div 
+                        className="modal d-block" 
+                        tabIndex="-1" 
+                        style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+                        onClick={(e) => {
+                            // Close modal when clicking on backdrop
+                            if (e.target.classList.contains('modal')) {
+                                handleClosePaymentModal();
+                            }
+                        }}
+                    >
+                        <div className="modal-dialog modal-dialog-centered">
+                            <div className="modal-content">
+                                <div className="modal-header">
+                                    <h5 className="modal-title">Complete Your Booking</h5>
+                                    <button type="button" className="btn-close" onClick={handleClosePaymentModal}></button>
                                 </div>
-                                <StripePaymentComponent
-                                    amount={parseFloat(mentor.price) * 100} // Convert to cents
-                                    onSuccess={handlePaymentSuccess}
-                                    onError={handlePaymentError}
-                                />
+                                <div className="modal-body">
+                                    <div className="mb-4">
+                                        <h6>Session Details:</h6>
+                                        <p className="mb-1">
+                                            <strong>Date:</strong> {new Date(selectedTimeSlot.start_time).toLocaleDateString('en-US', {
+                                                weekday: 'long',
+                                                year: 'numeric',
+                                                month: 'long',
+                                                day: 'numeric'
+                                            })}
+                                        </p>
+                                        <p className="mb-1">
+                                            <strong>Time:</strong> {new Date(selectedTimeSlot.start_time).toLocaleTimeString('en-US', {
+                                                hour: 'numeric',
+                                                minute: '2-digit',
+                                                hour12: true
+                                            })} - {new Date(selectedTimeSlot.end_time).toLocaleTimeString('en-US', {
+                                                hour: 'numeric',
+                                                minute: '2-digit',
+                                                hour12: true
+                                            })}
+                                        </p>
+                                        <p className="mb-1">
+                                            <strong>Duration:</strong> {selectedTimeSlot.duration} minutes
+                                        </p>
+                                        <p className="mb-0">
+                                            <strong>Price:</strong> ${mentor.price}
+                                        </p>
+                                    </div>
+                                    <hr />
+                                    <StripePaymentComponent
+                                        amount={parseFloat(mentor.price) * 100} // Convert to cents
+                                        onSuccess={handlePaymentSuccess}
+                                        onError={handlePaymentError}
+                                        mentorName={`${mentor.first_name} ${mentor.last_name}`}
+                                        mentorId={mentor.id}
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div className="modal-backdrop fade show"></div>
                 </div>
             )}
         </div>
