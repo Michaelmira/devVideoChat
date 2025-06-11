@@ -173,8 +173,8 @@ export const MentorDetails = () => {
             const result = await actions.finalizeBooking(bookingData);
 
             if (result.success) {
-                // Navigate to the booking confirmation page with the booking details
-                navigate('/booking-confirmed', {
+                // Navigate to the booking confirmation page with the booking ID in the URL
+                navigate(`/booking-confirmed/${result.booking.id}`, {
                     state: {
                         bookingDetails: result.booking,
                         mentorName: `${mentor.first_name} ${mentor.last_name}`,
