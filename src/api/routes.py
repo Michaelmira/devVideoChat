@@ -2548,8 +2548,8 @@ def videosdk_webhook():
 
 @api.route('/videosdk/meeting-token/<meeting_id>', methods=['GET'])
 @jwt_required()
-def get_meeting_token(meeting_id):
-    """Get a token for joining a specific meeting"""
+def get_videosdk_meeting_token(meeting_id):
+    """Get a token for joining a specific VideoSDK meeting"""
     try:
         # Get the current user
         current_user_id = get_jwt_identity()

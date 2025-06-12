@@ -1809,7 +1809,7 @@ const getState = ({ getStore, getActions, setStore }) => {
             getMeetingToken: async (meetingId) => {
                 try {
                     const store = getStore();
-                    const response = await fetch(process.env.BACKEND_URL + '/api/videosdk/meeting-token/' + meetingId, {
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/videosdk/meeting-token/${meetingId}`, {
                         headers: {
                             'Authorization': 'Bearer ' + store.token
                         }
