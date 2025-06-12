@@ -169,12 +169,12 @@ export const MentorDetails = () => {
                 amountPaid: paymentIntent.amount / 100, // Convert from cents
                 notes: ''
             };
-
+    
             const result = await actions.finalizeBooking(bookingData);
-
+    
             if (result.success) {
-                alert('Booking confirmed successfully!');
-                navigate('/customer-dashboard');
+                // Navigate to booking confirmed page with the booking ID
+                navigate(`/booking-confirmed/${result.booking.id}`);
             } else {
                 alert('Failed to finalize booking. Please contact support.');
             }
