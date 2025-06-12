@@ -2198,15 +2198,17 @@ def finalize_booking():
         current_user_id = get_jwt_identity()
         data = request.get_json()
         
-        # Extract booking details
-        mentor_id = data.get('mentor_id')
-        booking_datetime = data.get('booking_datetime')
-        duration = data.get('duration', 60)  # Default 60 minutes
-        price = data.get('price')
-        payment_intent_id = data.get('payment_intent_id')
+        # Extract booking details - handle both camelCase and snake_case
+        mentor_id = data.get('mentorId') or data.get('mentor_id')
+        session_start_time = data.get('sessionStartTime') or data.get('session_start_time')
+        session_end_time = data.get('sessionEndTime') or data.get('session_end_time')
+        payment_intent_id = data.get('paymentIntentId') or data.get('payment_intent_id')
+        amount_paid = data.get('amountPaid') or data.get('amount_paid') or data.get('price')
+        notes = data.get('notes', '')
         
         # Validate required fields
-        if not all([mentor_id, booking_datetime, price, payment_intent_id]):
+        if not all([mentor_id, session_start_time, session_end_time, payment_intent_id]):
+            current_app.logger.error(f"Missing required fields: mentor_id={mentor_id}, start={session_start_time}, end={session_end_time}, payment={payment_intent_id}")
             return jsonify({"msg": "Missing required booking information"}), 400
         
         # Get customer and mentor
@@ -2218,10 +2220,16 @@ def finalize_booking():
         if not mentor:
             return jsonify({"msg": "Mentor not found"}), 404
         
-        # Convert booking datetime string to datetime object
+        # Convert datetime strings to datetime objects
         try:
-            booking_dt = datetime.strptime(booking_datetime, '%Y-%m-%dT%H:%M:%S')
-        except ValueError:
+            # Handle ISO format with timezone
+            session_start_dt = datetime.fromisoformat(session_start_time.replace('Z', '+00:00'))
+            session_end_dt = datetime.fromisoformat(session_end_time.replace('Z', '+00:00'))
+            
+            # Calculate duration in minutes
+            duration = int((session_end_dt - session_start_dt).total_seconds() / 60)
+        except ValueError as e:
+            current_app.logger.error(f"Invalid datetime format: {e}")
             return jsonify({"msg": "Invalid datetime format"}), 400
         
         # Verify the payment intent with Stripe
@@ -2229,24 +2237,43 @@ def finalize_booking():
             payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
             if payment_intent.status != 'succeeded':
                 return jsonify({"msg": "Payment not confirmed"}), 400
+                
+            # Use the amount from Stripe (in cents) if amount_paid is not provided
+            if not amount_paid:
+                amount_paid = payment_intent.amount / 100
         except stripe.error.StripeError as e:
+            current_app.logger.error(f"Stripe error: {e}")
             return jsonify({"msg": f"Payment verification failed: {str(e)}"}), 400
+        
+        # Calculate fees
+        amount_decimal = Decimal(str(amount_paid))
+        platform_fee = amount_decimal * Decimal('0.10')  # 10% platform fee
+        mentor_payout = amount_decimal - platform_fee
         
         # Create the booking
         new_booking = Booking(
             mentor_id=mentor_id,
             customer_id=current_user_id,
-            booking_datetime=booking_dt,
-            duration=duration,
-            price=price,
-            status='confirmed',
-            payment_status='paid',
-            payment_intent_id=payment_intent_id,
-            created_at=datetime.utcnow()
+            session_start_time=session_start_dt,
+            session_end_time=session_end_dt,
+            session_duration=duration,
+            timezone='UTC',  # Since we're storing UTC times
+            invitee_name=f"{customer.first_name} {customer.last_name}",
+            invitee_email=customer.email,
+            invitee_notes=notes,
+            stripe_payment_intent_id=payment_intent_id,
+            amount_paid=amount_decimal,
+            currency='usd',
+            platform_fee=platform_fee,
+            mentor_payout_amount=mentor_payout,
+            status=BookingStatus.PAID,
+            created_at=datetime.utcnow(),
+            paid_at=datetime.utcnow()
         )
         
         db.session.add(new_booking)
         db.session.commit()
+        db.session.refresh(new_booking)
         
         # Create VideoSDK meeting room
         try:
@@ -2255,23 +2282,24 @@ def finalize_booking():
                 booking_id=new_booking.id,
                 mentor_name=f"{mentor.first_name} {mentor.last_name}",
                 customer_name=f"{customer.first_name} {customer.last_name}",
-                start_time=booking_dt,
+                start_time=session_start_dt,
                 duration_minutes=duration
             )
             
             if meeting_result['success']:
                 new_booking.meeting_id = meeting_result['meeting_id']
                 new_booking.meeting_url = meeting_result['meeting_url']
+                new_booking.meeting_token = meeting_result['token']
                 db.session.commit()
-                print(f"Meeting created successfully: {meeting_result['meeting_id']}")
+                current_app.logger.info(f"Meeting created successfully: {meeting_result['meeting_id']}")
             else:
                 error_msg = meeting_result.get('error', 'Unknown error')
-                print(f"Failed to create VideoSDK meeting for booking {new_booking.id}: {error_msg}")
+                current_app.logger.error(f"Failed to create VideoSDK meeting for booking {new_booking.id}: {error_msg}")
                 
         except Exception as e:
-            print(f"Exception creating VideoSDK meeting for booking {new_booking.id}: {str(e)}")
+            current_app.logger.error(f"Exception creating VideoSDK meeting for booking {new_booking.id}: {str(e)}")
             import traceback
-            print(traceback.format_exc())
+            current_app.logger.error(traceback.format_exc())
         
         # Return booking details
         return jsonify({
@@ -2280,23 +2308,22 @@ def finalize_booking():
                 "id": new_booking.id,
                 "mentor_id": new_booking.mentor_id,
                 "customer_id": new_booking.customer_id,
-                "booking_datetime": new_booking.booking_datetime.isoformat(),
-                "duration": new_booking.duration,
-                "price": float(new_booking.price),
-                "status": new_booking.status,
-                "payment_status": new_booking.payment_status,
+                "session_start_time": new_booking.session_start_time.isoformat(),
+                "session_end_time": new_booking.session_end_time.isoformat(),
+                "duration": new_booking.session_duration,
+                "price": float(new_booking.amount_paid),
+                "status": new_booking.status.value,
                 "meeting_id": new_booking.meeting_id,
-                "meeting_url": new_booking.meeting_url if hasattr(new_booking, 'meeting_url') else None
+                "meeting_url": new_booking.meeting_url
             }
         }), 201
         
     except Exception as e:
-        print(f"Error in finalize_booking: {str(e)}")
+        current_app.logger.error(f"Error in finalize_booking: {str(e)}")
         import traceback
-        print(traceback.format_exc())
+        current_app.logger.error(traceback.format_exc())
         db.session.rollback()
         return jsonify({"msg": "Failed to create booking"}), 500
-
 
 @api.route('/mentor/dashboard', methods=['GET'])
 @mentor_required
