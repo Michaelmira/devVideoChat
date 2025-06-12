@@ -151,8 +151,6 @@ const CustomerDashboard = () => {
                                         <p className="mb-1">
                                             <strong>Meeting Link: </strong>
                                             <a href={booking.meeting_url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
                                                 className="btn btn-primary btn-sm">
                                                 Join Video Meeting
                                             </a>

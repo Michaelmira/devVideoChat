@@ -215,8 +215,6 @@ export const BookingConfirmedPage = () => {
                                         <li className="mb-2">
                                             <strong>Meeting Link:</strong>
                                             <a href={bookingData.meeting_url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
                                                 className="ms-2 btn btn-primary btn-sm">
                                                 Join Video Meeting
                                             </a>
