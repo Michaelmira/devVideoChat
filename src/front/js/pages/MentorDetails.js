@@ -506,5 +506,6 @@ export const MentorDetails = () => {
         </div>
     );
 };
+ 
 
 export default MentorDetails;
