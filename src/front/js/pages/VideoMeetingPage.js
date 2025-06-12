@@ -26,6 +26,7 @@ export const VideoMeetingPage = () => {
 
                 // Now get the meeting token
                 const result = await actions.getMeetingToken(meetingId);
+                console.log('Meeting token result:', result); // Debug log
                 if (result.success) {
                     setToken(result.token);
                 } else {
@@ -95,7 +96,7 @@ export const VideoMeetingPage = () => {
 
     return (
         <div className="video-meeting-page">
-            <VideoMeeting meetingId={meetingId} />
+            <VideoMeeting meetingId={meetingId} token={token} />
         </div>
     );
 }; 

@@ -33,17 +33,30 @@ const VideoMeeting = ({ bookingId, meetingId }) => {
     if (loading) return <div>Loading meeting...</div>;
     if (!token) return <div>Error loading meeting</div>;
 
+    const videoSDKConfig = {
+        meetingId: meetingId,
+        micEnabled: true,
+        webcamEnabled: true,
+        name: "Test User", // We can update this with actual user name
+        participantId: Date.now().toString(), // Unique ID for each participant
+    };
+
     return (
         <MeetingProvider
-            config={{
-                meetingId: meetingId,
-                micEnabled: true,
-                webcamEnabled: true,
-                name: "Participant Name", // Get from user context
-                token: token,
-            }}
+            config={videoSDKConfig}
+            token={token}
+            joinWithoutUserInteraction={true}
         >
-            <MeetingView />
+            <MeetingConsumer>
+                {({ meetingId }) => (
+                    <div className="container">
+                        <h1>Meeting ID: {meetingId}</h1>
+                        <div className="video-container">
+                            <MeetingView />
+                        </div>
+                    </div>
+                )}
+            </MeetingConsumer>
         </MeetingProvider>
     );
 };

@@ -10,16 +10,31 @@ class VideoSDKService:
         self.secret_key = os.getenv('VIDEOSDK_SECRET_KEY')
         self.api_endpoint = os.getenv('VIDEOSDK_API_ENDPOINT', 'https://api.videosdk.live/v2')
         
-    def generate_token(self, permissions=["allow_join", "allow_mod"]):
-        """Generate JWT token for VideoSDK"""
-        payload = {
-            "apikey": self.api_key,
-            "permissions": permissions,
-            "iat": datetime.utcnow(),
-            "exp": datetime.utcnow() + timedelta(hours=24)
-        }
-        token = jwt.encode(payload, self.secret_key, algorithm="HS256")
-        return token
+    def generate_token(self):
+        """Generate a token for VideoSDK"""
+        try:
+            api_key = os.getenv('VIDEOSDK_API_KEY')
+            secret_key = os.getenv('VIDEOSDK_SECRET_KEY')
+            
+            if not api_key or not secret_key:
+                raise ValueError("VideoSDK API key or secret key not found in environment variables")
+
+            # Create payload with necessary permissions
+            payload = {
+                'apikey': api_key,
+                'permissions': ['allow_join', 'allow_mod'], # Basic permissions
+                'version': 2,
+                'iat': datetime.utcnow(),
+                'exp': datetime.utcnow() + timedelta(hours=24) # Token valid for 24 hours
+            }
+
+            # Generate JWT token
+            token = jwt.encode(payload, secret_key, algorithm='HS256')
+            return token
+
+        except Exception as e:
+            print(f"Error generating VideoSDK token: {str(e)}")
+            raise
     
     def create_meeting(self, booking_id, mentor_name, customer_name, start_time, duration_minutes=60):
         """Create a meeting room for a booking"""
