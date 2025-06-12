@@ -741,6 +741,73 @@ def get_customer_bookings():
     # You might want a different serializer for the customer view
     return jsonify([b.serialize_for_customer() for b in bookings]), 200
 
+@api.route('/bookings/<int:booking_id>', methods=['GET'])
+@jwt_required()
+def get_booking_by_id(booking_id):
+    """Get a specific booking by ID"""
+    try:
+        current_user_id = get_jwt_identity()
+        role = get_jwt()['role']
+        
+        booking = Booking.query.get(booking_id)
+        if not booking:
+            return jsonify({"success": False, "message": "Booking not found"}), 404
+        
+        # Check authorization - user must be either the customer or mentor for this booking
+        if role == 'customer' and booking.customer_id != current_user_id:
+            return jsonify({"success": False, "message": "Unauthorized"}), 403
+        elif role == 'mentor' and booking.mentor_id != current_user_id:
+            return jsonify({"success": False, "message": "Unauthorized"}), 403
+        
+        # Get mentor and customer details
+        mentor = Mentor.query.get(booking.mentor_id)
+        customer = Customer.query.get(booking.customer_id)
+        
+        # Prepare response based on role
+        booking_data = {
+            "id": booking.id,
+            "mentor_name": f"{mentor.first_name} {mentor.last_name}" if mentor else "Unknown",
+            "customer_name": f"{customer.first_name} {customer.last_name}" if customer else "Unknown",
+            "session_start_time": booking.session_start_time.isoformat() if booking.session_start_time else None,
+            "session_end_time": booking.session_end_time.isoformat() if booking.session_end_time else None,
+            "session_duration": booking.session_duration,
+            "timezone": booking.timezone,
+            "amount_paid": str(booking.amount_paid) if booking.amount_paid else None,
+            "status": booking.status.value,
+            "meeting_id": booking.meeting_id,
+            "meeting_url": booking.meeting_url,
+            "created_at": booking.created_at.isoformat() if booking.created_at else None,
+            "invitee_notes": booking.invitee_notes
+        }
+        
+        # Add role-specific information
+        if role == 'mentor':
+            booking_data.update({
+                "customer_email": customer.email if customer else None,
+                "customer_phone": customer.phone if customer else None,
+                "mentor_payout_amount": str(booking.mentor_payout_amount) if booking.mentor_payout_amount else None,
+                "platform_fee": str(booking.platform_fee) if booking.platform_fee else None
+            })
+        else:  # customer
+            booking_data.update({
+                "mentor_email": mentor.email if mentor else None,
+                "mentor_phone": mentor.phone if mentor else None,
+                "mentor_city": mentor.city if mentor else None,
+                "mentor_state": mentor.what_state if mentor else None
+            })
+        
+        return jsonify({
+            "success": true,
+            "booking": booking_data
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error fetching booking {booking_id}: {str(e)}")
+        return jsonify({
+            "success": False,
+            "message": "An error occurred while fetching the booking"
+        }), 500
+
 @api.route('/create-payment-intent', methods=['POST'])
 @jwt_required()
 def create_payment_intent():
