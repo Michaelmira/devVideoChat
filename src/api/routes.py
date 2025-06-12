@@ -41,6 +41,7 @@ from decimal import Decimal
 import time
 
 
+
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -2276,32 +2277,9 @@ def finalize_booking():
             print(traceback.format_exc())
             # The booking is still successful, user can create meeting later
         
-        # Send confirmation emails
-        try:
-            # Send email to customer
-            send_booking_confirmation_email(
-                customer.email,
-                customer.first_name,
-                mentor.first_name + ' ' + mentor.last_name,
-                booking_dt,
-                duration,
-                price,
-                new_booking.meeting_url if hasattr(new_booking, 'meeting_url') else None
-            )
-            
-            # Send email to mentor
-            send_mentor_booking_notification(
-                mentor.email,
-                mentor.first_name,
-                customer.first_name + ' ' + customer.last_name,
-                booking_dt,
-                duration,
-                price,
-                new_booking.meeting_url if hasattr(new_booking, 'meeting_url') else None
-            )
-        except Exception as e:
-            print(f"Error sending booking confirmation emails: {str(e)}")
-            # Don't fail the booking if email sending fails
+        # Log email notifications (instead of sending them)
+        print(f"Would send booking confirmation to customer: {customer.email}")
+        print(f"Would send booking notification to mentor: {mentor.email}")
         
         # Return booking details
         return jsonify({
