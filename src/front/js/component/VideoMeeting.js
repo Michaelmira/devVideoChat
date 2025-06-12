@@ -1,113 +1,221 @@
-import React, { useEffect, useState, useContext } from 'react';
-import { Context } from '../store/appContext';
-import { MeetingProvider, MeetingConsumer, useMeeting, useParticipant } from "@videosdk.live/react-sdk";
+import React, { useEffect, useState } from 'react';
+import { MeetingProvider, useMeeting, useParticipant, Constants, MeetingConsumer } from '@videosdk.live/react-sdk';
 
-const VideoMeeting = ({ bookingId, meetingId }) => {
-    const { actions } = useContext(Context);
-    const [token, setToken] = useState(null);
-    const [loading, setLoading] = useState(true);
+function ParticipantView({ participantId }) {
+    const { webcamStream, micStream, webcamOn, micOn, isLocal, displayName } = useParticipant(participantId);
+    const videoRef = React.useRef(null);
 
     useEffect(() => {
-        const initMeeting = async () => {
-            // If no meeting ID, create one
-            if (!meetingId && bookingId) {
-                const createResult = await actions.createMeetingForBooking(bookingId);
-                if (createResult.success) {
-                    meetingId = createResult.meeting_id;
-                }
-            }
+        if (webcamStream && videoRef.current) {
+            const mediaStream = new MediaStream();
+            mediaStream.addTrack(webcamStream.track);
+            videoRef.current.srcObject = mediaStream;
+            
+            videoRef.current.play().catch(error => {
+                console.error("Error playing video:", error);
+            });
+        } else if (videoRef.current) {
+            videoRef.current.srcObject = null;
+        }
+    }, [webcamStream]);
 
-            // Get token for joining
-            if (meetingId) {
-                const tokenResult = await actions.getMeetingToken(meetingId);
-                if (tokenResult.success) {
-                    setToken(tokenResult.token);
-                }
-            }
-            setLoading(false);
-        };
+    return (
+        <div className="participant-view" style={{ 
+            position: 'relative',
+            backgroundColor: '#1a1a1a',
+            borderRadius: '8px',
+            overflow: 'hidden',
+            minHeight: '200px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+        }}>
+            {webcamOn ? (
+                <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted={isLocal}
+                    style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover'
+                    }}
+                />
+            ) : (
+                <div style={{
+                    width: '100px',
+                    height: '100px',
+                    borderRadius: '50%',
+                    backgroundColor: '#333',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '36px',
+                    color: '#fff'
+                }}>
+                    {displayName?.charAt(0).toUpperCase() || 'U'}
+                </div>
+            )}
+            
+            <div style={{
+                position: 'absolute',
+                bottom: '10px',
+                left: '10px',
+                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                color: 'white',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '14px'
+            }}>
+                {displayName || 'Participant'} {isLocal && '(You)'}
+                {!micOn && ' 🔇'}
+            </div>
+        </div>
+    );
+}
 
-        initMeeting();
-    }, [bookingId, meetingId]);
+function MeetingView({ onMeetingLeave }) {
+    const [joined, setJoined] = useState(null);
+    const { join, leave, toggleMic, toggleWebcam, participants, meetingId } = useMeeting({
+        onMeetingJoined: () => {
+            setJoined('JOINED');
+        },
+        onMeetingLeft: () => {
+            onMeetingLeave();
+        },
+        onError: (error) => {
+            console.error("Meeting error:", error);
+            alert(`Meeting Error: ${error.message || 'Unknown error occurred'}`);
+        },
+    });
 
-    if (loading) return <div>Loading meeting...</div>;
-    if (!token) return <div>Error loading meeting</div>;
-
-    const videoSDKConfig = {
-        meetingId: meetingId,
-        micEnabled: true,
-        webcamEnabled: true,
-        name: "Test User", // We can update this with actual user name
-        participantId: Date.now().toString(), // Unique ID for each participant
+    const joinMeeting = () => {
+        setJoined('JOINING');
+        join();
     };
+
+    if (!joined || joined === 'JOINING') {
+        return (
+            <div className="d-flex flex-column align-items-center justify-content-center" style={{ height: '80vh' }}>
+                <h3 className="mb-4">Ready to join the meeting?</h3>
+                <button 
+                    className="btn btn-primary btn-lg"
+                    onClick={joinMeeting}
+                    disabled={joined === 'JOINING'}
+                >
+                    {joined === 'JOINING' ? (
+                        <>
+                            <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Joining...
+                        </>
+                    ) : (
+                        'Join Meeting'
+                    )}
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="container-fluid p-3">
+            <div className="row mb-3">
+                <div className="col-12">
+                    <div className="d-flex justify-content-between align-items-center">
+                        <h4>Meeting ID: {meetingId}</h4>
+                        <div>
+                            <button
+                                className="btn btn-secondary me-2"
+                                onClick={() => toggleMic()}
+                            >
+                                Toggle Mic
+                            </button>
+                            <button
+                                className="btn btn-secondary me-2"
+                                onClick={() => toggleWebcam()}
+                            >
+                                Toggle Camera
+                            </button>
+                            <button
+                                className="btn btn-danger"
+                                onClick={() => leave()}
+                            >
+                                Leave Meeting
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="row">
+                {[...participants.keys()].map((participantId) => (
+                    <div key={participantId} className="col-md-6 col-lg-4 mb-3">
+                        <ParticipantView participantId={participantId} />
+                    </div>
+                ))}
+            </div>
+
+            {participants.size === 0 && (
+                <div className="text-center py-5">
+                    <p className="text-muted">Waiting for other participants to join...</p>
+                </div>
+            )}
+        </div>
+    );
+}
+
+const VideoMeeting = ({ meetingId, token }) => {
+    const [meetingEnded, setMeetingEnded] = useState(false);
+
+    const onMeetingLeave = () => {
+        setMeetingEnded(true);
+    };
+
+    if (meetingEnded) {
+        return (
+            <div className="d-flex flex-column align-items-center justify-content-center" style={{ height: '80vh' }}>
+                <h3>Meeting has ended</h3>
+                <p>Thank you for participating!</p>
+                <button 
+                    className="btn btn-primary"
+                    onClick={() => window.location.href = '/customer-dashboard'}
+                >
+                    Return to Dashboard
+                </button>
+            </div>
+        );
+    }
+
+    if (!meetingId || !token) {
+        return (
+            <div className="d-flex flex-column align-items-center justify-content-center" style={{ height: '80vh' }}>
+                <h3>Invalid meeting configuration</h3>
+                <p>Meeting ID or token is missing</p>
+            </div>
+        );
+    }
 
     return (
         <MeetingProvider
-            config={videoSDKConfig}
+            config={{
+                meetingId,
+                micEnabled: true,
+                webcamEnabled: true,
+                name: "Participant",
+                mode: Constants.modes.CONFERENCE,
+                multiStream: true,
+            }}
             token={token}
-            joinWithoutUserInteraction={true}
+            reinitialiseMeetingOnConfigChange={true}
+            joinWithoutUserInteraction={false}
         >
             <MeetingConsumer>
-                {({ meetingId }) => (
-                    <div className="container">
-                        <h1>Meeting ID: {meetingId}</h1>
-                        <div className="video-container">
-                            <MeetingView />
-                        </div>
-                    </div>
+                {() => (
+                    <MeetingView onMeetingLeave={onMeetingLeave} />
                 )}
             </MeetingConsumer>
         </MeetingProvider>
     );
 };
 
-const MeetingView = () => {
-    const { join, leave, toggleMic, toggleWebcam, meetingId } = useMeeting();
-
-    useEffect(() => {
-        join();
-        return () => leave();
-    }, []);
-
-    return (
-        <div className="meeting-container">
-            <div className="video-grid">
-                <MeetingConsumer>
-                    {({ participants }) =>
-                        Array.from(participants.values()).map(participant => (
-                            <ParticipantView key={participant.id} participant={participant} />
-                        ))
-                    }
-                </MeetingConsumer>
-            </div>
-            <div className="controls">
-                <button onClick={toggleMic}>Toggle Mic</button>
-                <button onClick={toggleWebcam}>Toggle Camera</button>
-                <button onClick={leave} className="btn-danger">Leave Meeting</button>
-            </div>
-        </div>
-    );
-};
-
-const ParticipantView = ({ participant }) => {
-    const { webcamStream, micStream, webcamOn, micOn } = useParticipant(participant.id);
-
-    return (
-        <div className="participant">
-            {webcamOn && webcamStream && (
-                <video
-                    ref={(ref) => {
-                        if (ref && webcamStream) {
-                            ref.srcObject = webcamStream;
-                        }
-                    }}
-                    autoPlay
-                    playsInline
-                />
-            )}
-            <p>{participant.displayName}</p>
-        </div>
-    );
-};
-
-export default VideoMeeting; 
+export default VideoMeeting;

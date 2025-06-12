@@ -2546,9 +2546,57 @@ def videosdk_webhook():
         current_app.logger.error(f"Webhook error: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
 
+
 @api.route('/videosdk/meeting-token/<meeting_id>', methods=['GET'])
 @jwt_required()
 def get_videosdk_meeting_token(meeting_id):
+    """Get a token for joining a specific VideoSDK meeting"""
+    try:
+        # Get the current user
+        current_user_id = get_jwt_identity()
+        
+        # Find the booking associated with this meeting
+        booking = Booking.query.filter_by(meeting_id=meeting_id).first()
+        if not booking:
+            return jsonify({"msg": "Meeting not found"}), 404
+            
+        # Check if the current user is either the mentor or the customer
+        if not (booking.mentor_id == current_user_id or booking.customer_id == current_user_id):
+            return jsonify({"msg": "Unauthorized to join this meeting"}), 403
+            
+        # Generate a token for the meeting
+        videosdk_service = VideoSDKService()
+        
+        # Determine user role and permissions
+        is_mentor = booking.mentor_id == current_user_id
+        permissions = ['allow_join', 'allow_mod', 'allow_record'] if is_mentor else ['allow_join']
+        
+        token = videosdk_service.generate_token(permissions)
+        
+        # Get user name for the meeting
+        if is_mentor:
+            mentor = Mentor.query.get(current_user_id)
+            user_name = f"{mentor.first_name} {mentor.last_name}" if mentor else "Mentor"
+        else:
+            customer = Customer.query.get(current_user_id)
+            user_name = f"{customer.first_name} {customer.last_name}" if customer else "Customer"
+        
+        return jsonify({
+            "token": token,
+            "success": True,
+            "meetingId": meeting_id,
+            "userName": user_name,
+            "isModerator": is_mentor
+        })
+        
+    except Exception as e:
+        print(f"Error generating meeting token: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({
+            "msg": "Failed to generate meeting token",
+            "error": str(e)
+        }), 500
     """Get a token for joining a specific VideoSDK meeting"""
     try:
         # Get the current user

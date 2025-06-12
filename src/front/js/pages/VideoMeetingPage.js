@@ -9,6 +9,7 @@ export const VideoMeetingPage = () => {
     const [token, setToken] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [userName, setUserName] = useState('Participant');
 
     useEffect(() => {
         const initializeMeeting = async () => {
@@ -24,16 +25,29 @@ export const VideoMeetingPage = () => {
                     }
                 }
 
-                // Now get the meeting token
-                const result = await actions.getMeetingToken(meetingId);
-                console.log('Meeting token result:', result); // Debug log
-                if (result.success) {
-                    setToken(result.token);
+                // Now get the meeting token with updated endpoint
+                const response = await fetch(`${process.env.BACKEND_URL}/api/videosdk/meeting-token/${meetingId}`, {
+                    headers: {
+                        'Authorization': 'Bearer ' + (store.token || sessionStorage.getItem('token'))
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.msg || 'Failed to get meeting access');
+                }
+
+                const data = await response.json();
+                console.log('Meeting token result:', data); // Debug log
+                
+                if (data.success) {
+                    setToken(data.token);
+                    setUserName(data.userName || 'Participant');
                 } else {
                     setError('Failed to get meeting access. Please try again.');
                 }
             } catch (err) {
-                setError('An error occurred while joining the meeting.');
+                setError(err.message || 'An error occurred while joining the meeting.');
                 console.error('Meeting initialization error:', err);
             } finally {
                 setLoading(false);
@@ -94,9 +108,14 @@ export const VideoMeetingPage = () => {
         );
     }
 
+    // Pass userName to VideoMeeting component via config
     return (
         <div className="video-meeting-page">
-            <VideoMeeting meetingId={meetingId} token={token} />
+            <VideoMeeting 
+                meetingId={meetingId} 
+                token={token}
+                userName={userName}
+            />
         </div>
     );
-}; 
+};
