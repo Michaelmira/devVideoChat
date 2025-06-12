@@ -17,7 +17,7 @@ import cloudinary.uploader as uploader
 from cloudinary.uploader import destroy
 from cloudinary.api import delete_resources_by_tag
 
-from services.videosdk_service import VideoSDKService
+from api.services.videosdk_service import VideoSDKService
 
 from api.models import db, Mentor, Customer, MentorImage, PortfolioPhoto, Booking, BookingStatus, MentorAvailability, CalendarSettings, MentorUnavailability
 from api.utils import generate_sitemap, APIException
