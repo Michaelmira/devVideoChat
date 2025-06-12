@@ -2496,6 +2496,21 @@ def get_meeting_token(meeting_id):
 def videosdk_webhook():
     """Handle VideoSDK webhooks for recording, etc."""
     try:
+        # Get webhook secret from environment
+        webhook_secret = os.getenv('VIDEOSDK_WEBHOOK_SECRET')
+        if not webhook_secret:
+            current_app.logger.error("VIDEOSDK_WEBHOOK_SECRET not set in environment variables")
+            return jsonify({"success": False, "error": "Webhook secret not configured"}), 500
+
+        # Get signature from headers
+        signature = request.headers.get('Authorization')
+        if not signature:
+            return jsonify({"success": False, "error": "No signature provided"}), 401
+
+        # Verify signature
+        if signature != webhook_secret:
+            return jsonify({"success": False, "error": "Invalid signature"}), 401
+
         data = request.json
         webhook_type = data.get("webhook_type")
         
@@ -2508,9 +2523,12 @@ def videosdk_webhook():
             if booking:
                 booking.recording_url = recording_url
                 db.session.commit()
+                current_app.logger.info(f"Updated recording URL for meeting {meeting_id}")
+            else:
+                current_app.logger.warning(f"No booking found for meeting {meeting_id}")
         
         return jsonify({"success": True}), 200
         
     except Exception as e:
-        print(f"Webhook error: {str(e)}")
-        return jsonify({"success": False}), 500
+        current_app.logger.error(f"Webhook error: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
