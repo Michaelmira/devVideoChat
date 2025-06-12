@@ -62,26 +62,33 @@ const getState = ({ getStore, getActions, setStore }) => {
                     return false;
                 }
             },
-            checkStorage: () => {
-                const token = sessionStorage.getItem("token", undefined)
-                const customer_id = sessionStorage.getItem("customerId", undefined)
-                setStore({
-                    token: token,
-                    customerId: customer_id,
-                });
+            checkStorage: async () => {
+                const token = sessionStorage.getItem("token");
+                const customerId = sessionStorage.getItem("customerId");
+
+                if (token && customerId) {
+                    setStore({
+                        token: token,
+                        customerId: customerId,
+                        isLoggedIn: true
+                    });
+                    return true;
+                }
+                return false;
             },
-            checkStorageMentor: () => {
-                const token = sessionStorage.getItem("token", undefined)
-                const mentor_id = sessionStorage.getItem("mentorId", undefined)
-                const currentUserData = JSON.parse(sessionStorage.getItem("currentUserData"));
-                const isLoggedIn = !!token;
-                setStore({
-                    token: token,
-                    mentorId: mentor_id,
-                    currentUserData: currentUserData,
-                    isMentorLoggedIn: !!token
-                });
-                return isLoggedIn;
+            checkStorageMentor: async () => {
+                const token = sessionStorage.getItem("token");
+                const mentorId = sessionStorage.getItem("mentorId");
+
+                if (token && mentorId) {
+                    setStore({
+                        token: token,
+                        mentorId: mentorId,
+                        isMentorLoggedIn: true
+                    });
+                    return true;
+                }
+                return false;
             },
 
             signUpMentor: async (mentor) => {
@@ -1801,23 +1808,28 @@ const getState = ({ getStore, getActions, setStore }) => {
 
             getMeetingToken: async (meetingId) => {
                 try {
-                    const token = sessionStorage.getItem("token");
-                    const response = await fetch(`${process.env.BACKEND_URL}/api/meeting/${meetingId}/token`, {
-                        method: "GET",
+                    const store = getStore();
+                    const response = await fetch(process.env.BACKEND_URL + '/api/videosdk/meeting-token/' + meetingId, {
                         headers: {
-                            "Authorization": `Bearer ${token}`
+                            'Authorization': 'Bearer ' + store.token
                         }
                     });
 
-                    if (response.ok) {
-                        const data = await response.json();
-                        return { success: true, ...data };
-                    } else {
-                        return { success: false };
+                    if (!response.ok) {
+                        throw new Error('Failed to get meeting token');
                     }
+
+                    const data = await response.json();
+                    return {
+                        success: true,
+                        token: data.token
+                    };
                 } catch (error) {
-                    console.error("Error getting meeting token:", error);
-                    return { success: false };
+                    console.error('Error getting meeting token:', error);
+                    return {
+                        success: false,
+                        error: error.message
+                    };
                 }
             }
         }

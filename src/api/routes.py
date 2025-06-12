@@ -2545,3 +2545,36 @@ def videosdk_webhook():
     except Exception as e:
         current_app.logger.error(f"Webhook error: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+@api.route('/videosdk/meeting-token/<meeting_id>', methods=['GET'])
+@jwt_required()
+def get_meeting_token(meeting_id):
+    """Get a token for joining a specific meeting"""
+    try:
+        # Get the current user
+        current_user_id = get_jwt_identity()
+        
+        # Find the booking associated with this meeting
+        booking = Booking.query.filter_by(meeting_id=meeting_id).first()
+        if not booking:
+            return jsonify({"msg": "Meeting not found"}), 404
+            
+        # Check if the current user is either the mentor or the customer
+        if not (booking.mentor_id == current_user_id or booking.customer_id == current_user_id):
+            return jsonify({"msg": "Unauthorized to join this meeting"}), 403
+            
+        # Generate a token for the meeting
+        videosdk_service = VideoSDKService()
+        token = videosdk_service.generate_token()
+        
+        return jsonify({
+            "token": token,
+            "success": True
+        })
+        
+    except Exception as e:
+        print(f"Error generating meeting token: {str(e)}")
+        return jsonify({
+            "msg": "Failed to generate meeting token",
+            "error": str(e)
+        }), 500

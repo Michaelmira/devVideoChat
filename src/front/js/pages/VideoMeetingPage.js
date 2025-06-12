@@ -13,6 +13,18 @@ export const VideoMeetingPage = () => {
     useEffect(() => {
         const initializeMeeting = async () => {
             try {
+                // First ensure we're authenticated
+                if (!store.token) {
+                    // Try to restore session from storage
+                    const success = await actions.checkStorageMentor() || await actions.checkStorage();
+                    if (!success) {
+                        setError('Please log in to join the meeting.');
+                        setLoading(false);
+                        return;
+                    }
+                }
+
+                // Now get the meeting token
                 const result = await actions.getMeetingToken(meetingId);
                 if (result.success) {
                     setToken(result.token);
@@ -30,7 +42,7 @@ export const VideoMeetingPage = () => {
         if (meetingId) {
             initializeMeeting();
         }
-    }, [meetingId]);
+    }, [meetingId, store.token]);
 
     if (loading) {
         return (
@@ -49,6 +61,22 @@ export const VideoMeetingPage = () => {
                 <div className="alert alert-danger">
                     <h4 className="alert-heading">Meeting Error</h4>
                     <p>{error}</p>
+                    {error.includes('Please log in') && (
+                        <div className="mt-3">
+                            <button
+                                className="btn btn-primary me-2"
+                                onClick={() => window.location.href = '/mentor-login'}
+                            >
+                                Mentor Login
+                            </button>
+                            <button
+                                className="btn btn-primary"
+                                onClick={() => window.location.href = '/customer-login'}
+                            >
+                                Customer Login
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         );
