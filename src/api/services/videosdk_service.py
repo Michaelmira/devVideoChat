@@ -64,12 +64,14 @@ class VideoSDKService:
         
         if response.status_code == 200:
             data = response.json()
+            # Use VideoSDK's direct meeting URL format
+            meeting_url = f"https://app.videosdk.live/meetings/{data.get('roomId')}"
             return {
                 "success": True,
                 "meeting_id": data.get("roomId"),
                 "custom_id": custom_id,
                 "token": token,
-                "meeting_url": f"{os.getenv('FRONTEND_URL')}/meeting/{data.get('roomId')}"
+                "meeting_url": meeting_url
             }
         else:
             return {
