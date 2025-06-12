@@ -63,14 +63,14 @@ export const BookingConfirmedPage = () => {
     // Helper function to safely format date/time
     const formatDateTime = (dateTimeString) => {
         if (!dateTimeString) return 'Not scheduled yet';
-        
+
         try {
             const date = new Date(dateTimeString);
             if (isNaN(date.getTime())) {
                 console.error('Invalid date:', dateTimeString);
                 return 'Invalid date';
             }
-            
+
             return date.toLocaleString('en-US', {
                 weekday: 'long',
                 year: 'numeric',
@@ -89,11 +89,11 @@ export const BookingConfirmedPage = () => {
     // Helper function to calculate end time if not provided
     const calculateEndTime = (startTime, duration) => {
         if (!startTime || !duration) return null;
-        
+
         try {
             const start = new Date(startTime);
             if (isNaN(start.getTime())) return null;
-            
+
             const end = new Date(start.getTime() + duration * 60000); // duration in minutes
             return end.toISOString();
         } catch (error) {
@@ -131,34 +131,34 @@ export const BookingConfirmedPage = () => {
     const displayMentorName = mentorName ||
         (bookingData.mentor ? `${bookingData.mentor.first_name} ${bookingData.mentor.last_name}` :
             (bookingData.mentor_id ? `Mentor ID: ${bookingData.mentor_id}` : 'your mentor'));
-    
+
     const mentorEmail = bookingData.mentor?.email || 'the mentor directly';
 
     // Get session start time - check multiple possible fields
-    const sessionStartTime = bookingData.session_start_time || 
-                           bookingData.calendly_event_start_time || 
-                           bookingData.start_time;
-    
+    const sessionStartTime = bookingData.session_start_time ||
+        bookingData.calendly_event_start_time ||
+        bookingData.start_time;
+
     // Get session end time - check multiple possible fields or calculate from duration
-    const sessionEndTime = bookingData.session_end_time || 
-                         bookingData.calendly_event_end_time || 
-                         bookingData.end_time ||
-                         calculateEndTime(sessionStartTime, bookingData.session_duration || bookingData.duration);
+    const sessionEndTime = bookingData.session_end_time ||
+        bookingData.calendly_event_end_time ||
+        bookingData.end_time ||
+        calculateEndTime(sessionStartTime, bookingData.session_duration || bookingData.duration);
 
     // Get duration - check multiple possible fields
     const sessionDuration = bookingData.session_duration || bookingData.duration || 60;
 
     // Get customer email
-    const customerEmail = bookingData.customer_email || 
-                        bookingData.invitee_email || 
-                        bookingData.customer?.email ||
-                        store.currentUserData?.user_data?.email || 
-                        'N/A';
+    const customerEmail = bookingData.customer_email ||
+        bookingData.invitee_email ||
+        bookingData.customer?.email ||
+        store.currentUserData?.user_data?.email ||
+        'N/A';
 
     // Get customer name
-    const customerName = bookingData.invitee_name || 
-                       (bookingData.customer ? `${bookingData.customer.first_name} ${bookingData.customer.last_name}` : null) ||
-                       (store.currentUserData?.user_data ? `${store.currentUserData.user_data.first_name} ${store.currentUserData.user_data.last_name}` : 'N/A');
+    const customerName = bookingData.invitee_name ||
+        (bookingData.customer ? `${bookingData.customer.first_name} ${bookingData.customer.last_name}` : null) ||
+        (store.currentUserData?.user_data ? `${store.currentUserData.user_data.first_name} ${store.currentUserData.user_data.last_name}` : 'N/A');
 
     return (
         <div className="container my-5">
@@ -201,29 +201,50 @@ export const BookingConfirmedPage = () => {
                                     </li>
                                     {bookingData.notes && (
                                         <li className="mb-2">
-                                            <strong>Notes:</strong> 
+                                            <strong>Notes:</strong>
                                             <span style={{ whiteSpace: "pre-wrap" }}> {bookingData.notes}</span>
                                         </li>
                                     )}
                                     <li className="mb-2">
-                                        <strong>Status:</strong> 
+                                        <strong>Status:</strong>
                                         <span className={`badge bg-${bookingData.status === 'confirmed' ? 'success' : 'warning'} ms-2`}>
                                             {bookingData.status || 'pending'}
                                         </span>
                                     </li>
-                                    {bookingData.meeting_link && (
+                                    {bookingData.meeting_url ? (
                                         <li className="mb-2">
-                                            <strong>Meeting Link:</strong> 
-                                            <a href={bookingData.meeting_link} 
-                                               target="_blank" 
-                                               rel="noopener noreferrer"
-                                               className="ms-2">
-                                                Join Session
+                                            <strong>Meeting Link:</strong>
+                                            <a href={bookingData.meeting_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="ms-2">
+                                                Join Meeting
                                             </a>
+                                        </li>
+                                    ) : (
+                                        <li className="mb-2">
+                                            <strong>Meeting:</strong>
+                                            <button
+                                                onClick={async () => {
+                                                    const result = await actions.createMeetingForBooking(bookingData.id);
+                                                    if (result.success) {
+                                                        // Refresh booking details to get the new meeting URL
+                                                        const updatedBooking = await actions.getBookingDetails(bookingData.id);
+                                                        if (updatedBooking.success) {
+                                                            setBookingData(updatedBooking.booking);
+                                                        }
+                                                    } else {
+                                                        alert('Failed to create meeting room. Please try again.');
+                                                    }
+                                                }}
+                                                className="btn btn-primary btn-sm ms-2"
+                                            >
+                                                Create Meeting Room
+                                            </button>
                                         </li>
                                     )}
                                     <li className="mb-0">
-                                        <strong>Booking Reference:</strong> 
+                                        <strong>Booking Reference:</strong>
                                         <code className="ms-2">#{bookingData.id}</code>
                                     </li>
                                 </ul>
@@ -231,7 +252,7 @@ export const BookingConfirmedPage = () => {
 
                             {bookingData.status !== 'confirmed' && (
                                 <div className="alert alert-warning mt-3">
-                                    <strong>Important:</strong> Your booking is currently pending confirmation. 
+                                    <strong>Important:</strong> Your booking is currently pending confirmation.
                                     You may want to contact your mentor at {mentorEmail} to confirm the session details.
                                 </div>
                             )}
@@ -241,7 +262,7 @@ export const BookingConfirmedPage = () => {
                                 <ul className="mb-0">
                                     <li>You'll receive a confirmation email shortly with all the session details</li>
                                     <li>Add this session to your calendar</li>
-                                    {bookingData.meeting_link ? (
+                                    {bookingData.meeting_url ? (
                                         <li>Join the session using the meeting link provided above</li>
                                     ) : (
                                         <li>Your mentor will share the meeting link before the session</li>

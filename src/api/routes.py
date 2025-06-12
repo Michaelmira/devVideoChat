@@ -17,6 +17,8 @@ import cloudinary.uploader as uploader
 from cloudinary.uploader import destroy
 from cloudinary.api import delete_resources_by_tag
 
+from services.videosdk_service import VideoSDKService
+
 from api.models import db, Mentor, Customer, MentorImage, PortfolioPhoto, Booking, BookingStatus, MentorAvailability, CalendarSettings, MentorUnavailability
 from api.utils import generate_sitemap, APIException
 from api.decorators import mentor_required, customer_required
@@ -2413,3 +2415,102 @@ def get_mentor_unavailabilities_public(mentor_id):
     except Exception as e:
         current_app.logger.error(f"Error getting mentor unavailabilities: {str(e)}")
         return jsonify({"error": "Failed to fetch unavailabilities"}), 500
+
+
+videosdk_service = VideoSDKService()
+
+@api.route('/booking/<int:booking_id>/create-meeting', methods=['POST'])
+@jwt_required()
+def create_meeting_for_booking(booking_id):
+    """Create VideoSDK meeting when booking is confirmed"""
+    try:
+        # Get booking details
+        booking = Booking.query.get(booking_id)
+        if not booking:
+            return jsonify({"success": False, "msg": "Booking not found"}), 404
+        
+        # Verify the requester has permission
+        current_user_id = get_jwt_identity()
+        if str(booking.customer_id) != str(current_user_id) and str(booking.mentor_id) != str(current_user_id):
+            return jsonify({"success": False, "msg": "Unauthorized"}), 403
+        
+        # Create meeting
+        meeting_result = videosdk_service.create_meeting(
+            booking_id=booking.id,
+            mentor_name=f"{booking.mentor.first_name} {booking.mentor.last_name}",
+            customer_name=f"{booking.customer.first_name} {booking.customer.last_name}",
+            start_time=booking.session_start_time,
+            duration_minutes=booking.session_duration or 60
+        )
+        
+        if meeting_result["success"]:
+            # Update booking with meeting details
+            booking.meeting_id = meeting_result["meeting_id"]
+            booking.meeting_url = meeting_result["meeting_url"]
+            booking.meeting_token = meeting_result["token"]
+            db.session.commit()
+            
+            return jsonify({
+                "success": True,
+                "meeting_id": meeting_result["meeting_id"],
+                "meeting_url": meeting_result["meeting_url"]
+            }), 200
+        else:
+            return jsonify({"success": False, "msg": "Failed to create meeting", "error": meeting_result["error"]}), 500
+            
+    except Exception as e:
+        return jsonify({"success": False, "msg": str(e)}), 500
+
+@api.route('/meeting/<meeting_id>/token', methods=['GET'])
+@jwt_required()
+def get_meeting_token(meeting_id):
+    """Get a fresh token for joining a meeting"""
+    try:
+        # Verify user has access to this meeting
+        current_user_id = get_jwt_identity()
+        booking = Booking.query.filter_by(meeting_id=meeting_id).first()
+        
+        if not booking:
+            return jsonify({"success": False, "msg": "Meeting not found"}), 404
+            
+        if str(booking.customer_id) != str(current_user_id) and str(booking.mentor_id) != str(current_user_id):
+            return jsonify({"success": False, "msg": "Unauthorized"}), 403
+        
+        # Generate appropriate token based on user role
+        is_mentor = str(booking.mentor_id) == str(current_user_id)
+        permissions = ["allow_join", "allow_mod"] if is_mentor else ["allow_join"]
+        
+        token = videosdk_service.generate_token(permissions)
+        
+        return jsonify({
+            "success": True,
+            "token": token,
+            "meeting_id": meeting_id,
+            "is_moderator": is_mentor
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"success": False, "msg": str(e)}), 500
+
+@api.route('/videosdk/webhook', methods=['POST'])
+def videosdk_webhook():
+    """Handle VideoSDK webhooks for recording, etc."""
+    try:
+        data = request.json
+        webhook_type = data.get("webhook_type")
+        
+        if webhook_type == "recording-completed":
+            meeting_id = data.get("data", {}).get("meetingId")
+            recording_url = data.get("data", {}).get("file", {}).get("url")
+            
+            # Update booking with recording URL
+            booking = Booking.query.filter_by(meeting_id=meeting_id).first()
+            if booking:
+                booking.recording_url = recording_url
+                db.session.commit()
+        
+        return jsonify({"success": True}), 200
+        
+    except Exception as e:
+        print(f"Webhook error: {str(e)}")
+        return jsonify({"success": False}), 500

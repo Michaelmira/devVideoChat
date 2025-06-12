@@ -274,6 +274,12 @@ class Booking(db.Model):
     status = db.Column(Enum(BookingStatus), default=BookingStatus.PENDING_PAYMENT, nullable=False)
     google_meet_link = db.Column(db.String(255), nullable=True)
 
+    # Meeting fields
+    meeting_id = db.Column(db.String(100), nullable=True)
+    meeting_url = db.Column(db.String(500), nullable=True)
+    meeting_token = db.Column(db.Text, nullable=True)
+    recording_url = db.Column(db.String(500), nullable=True)
+
     # Relationships
     mentor = relationship("Mentor", backref=db.backref("bookings", lazy=True))
     customer = relationship("Customer", backref=db.backref("bookings", lazy=True))
@@ -289,7 +295,10 @@ class Booking(db.Model):
             "status": self.status.value,
             "amount_paid": str(self.amount_paid),
             "mentor_payout_amount": str(self.mentor_payout_amount),
-            "google_meet_link": self.google_meet_link
+            "google_meet_link": self.google_meet_link,
+            "meeting_id": self.meeting_id,
+            "meeting_url": self.meeting_url,
+            "has_recording": bool(self.recording_url)
         }
 
     def serialize_for_customer(self):
@@ -305,7 +314,10 @@ class Booking(db.Model):
             "invitee_name": self.invitee_name,
             "invitee_email": self.invitee_email,
             "invitee_notes": self.invitee_notes,
-            "timezone": self.timezone
+            "timezone": self.timezone,
+            "meeting_id": self.meeting_id,
+            "meeting_url": self.meeting_url,
+            "has_recording": bool(self.recording_url)
         }
 
     def serialize(self):
