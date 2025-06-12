@@ -11,40 +11,6 @@ class VideoSDKService:
         self.api_endpoint = os.getenv('VIDEOSDK_API_ENDPOINT', 'https://api.videosdk.live/v2')
         
     def generate_token(self, permissions=None):
-    """Generate a token for VideoSDK"""
-    try:
-        api_key = os.getenv('VIDEOSDK_API_KEY')
-        secret_key = os.getenv('VIDEOSDK_SECRET_KEY')
-        
-        if not api_key or not secret_key:
-            raise ValueError("VideoSDK API key or secret key not found in environment variables")
-
-        # If no permissions specified, give full permissions
-        if permissions is None:
-            permissions = ['allow_join', 'allow_mod', 'allow_record']
-
-        # Create payload with necessary permissions
-        payload = {
-            'apikey': api_key,
-            'permissions': permissions,
-            'version': 2,
-            # Remove the 'roles' field - it's causing the error
-            'iat': datetime.utcnow(),
-            'exp': datetime.utcnow() + timedelta(hours=24)  # Token valid for 24 hours
-        }
-
-        # Generate JWT token
-        token = jwt.encode(payload, secret_key, algorithm='HS256')
-        
-        # If token is bytes, decode it
-        if isinstance(token, bytes):
-            token = token.decode('utf-8')
-            
-        return token
-
-    except Exception as e:
-        print(f"Error generating VideoSDK token: {str(e)}")
-        raise
         """Generate a token for VideoSDK"""
         try:
             api_key = os.getenv('VIDEOSDK_API_KEY')
@@ -62,7 +28,7 @@ class VideoSDKService:
                 'apikey': api_key,
                 'permissions': permissions,
                 'version': 2,
-                'roles': ['crawler'],  # Only use crawler role for V2 API
+                # Remove the 'roles' field - it's causing the error
                 'iat': datetime.utcnow(),
                 'exp': datetime.utcnow() + timedelta(hours=24)  # Token valid for 24 hours
             }
