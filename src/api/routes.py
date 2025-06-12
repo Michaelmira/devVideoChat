@@ -797,7 +797,7 @@ def get_booking_by_id(booking_id):
             })
         
         return jsonify({
-            "success": true,
+            "success": True,
             "booking": booking_data
         }), 200
         
