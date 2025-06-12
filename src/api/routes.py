@@ -2192,109 +2192,291 @@ def get_available_slots(mentor_id):
 @api.route('/finalize-booking', methods=['POST'])
 @jwt_required()
 def finalize_booking():
-    """Create a booking using the custom calendar system"""
-    data = request.get_json()
-    current_customer_id = get_jwt_identity()
-    customer = Customer.query.get(current_customer_id)
-    
-    if not customer:
-        return jsonify({"msg": "Customer not found"}), 404
-    
-    mentor_id = data.get('mentorId')
-    session_start_time = data.get('sessionStartTime')  # ISO format
-    session_end_time = data.get('sessionEndTime')      # ISO format
-    invitee_notes = data.get('notes', '')
-    stripe_payment_intent_id = data.get('paymentIntentId')
-    amount_paid = data.get('amountPaid')
-    
-    if not all([mentor_id, session_start_time, session_end_time, stripe_payment_intent_id]):
-        return jsonify({"msg": "Missing required booking information"}), 400
-    
-    mentor = Mentor.query.get(mentor_id)
-    if not mentor:
-        return jsonify({"msg": "Mentor not found"}), 404
-    
-    # Parse times
+    """Finalize a booking after successful payment"""
     try:
-        start_time = datetime.fromisoformat(session_start_time.replace('Z', '+00:00'))
-        end_time = datetime.fromisoformat(session_end_time.replace('Z', '+00:00'))
-    except ValueError:
-        return jsonify({"msg": "Invalid date format"}), 400
-    
-    # Validate slot is still available
-    # Check for conflicts
-    conflict = Booking.query.filter(
-        Booking.mentor_id == mentor_id,
-        Booking.session_start_time < end_time,
-        Booking.session_end_time > start_time,
-        Booking.status.in_([BookingStatus.PAID, BookingStatus.CONFIRMED])
-    ).first()
-    
-    if conflict:
-        return jsonify({"msg": "This time slot is no longer available"}), 409
-    
-    # Calculate fees
-    calculated_amount_paid = Decimal(amount_paid) if amount_paid else Decimal(mentor.price or 0)
-    calculated_platform_fee = calculated_amount_paid * Decimal('0.10')
-    calculated_mentor_payout = calculated_amount_paid - calculated_platform_fee
-    
-    # Get settings for session duration
-    settings = CalendarSettings.query.filter_by(mentor_id=mentor_id).first()
-    session_duration = settings.session_duration if settings else 60
-    
-    # Create booking
-    new_booking = Booking(
-        mentor_id=mentor_id,
-        customer_id=current_customer_id,
-        paid_at=datetime.utcnow(),
-        scheduled_at=datetime.utcnow(),
-        session_start_time=start_time,
-        session_end_time=end_time,
-        session_duration=session_duration,
-        timezone=settings.timezone if settings else 'America/Los_Angeles',
-        invitee_name=f"{customer.first_name} {customer.last_name}",
-        invitee_email=customer.email,
-        invitee_notes=invitee_notes,
-        stripe_payment_intent_id=stripe_payment_intent_id,
-        amount_paid=calculated_amount_paid,
-        currency='usd',
-        platform_fee=calculated_platform_fee,
-        mentor_payout_amount=calculated_mentor_payout,
-        status=BookingStatus.CONFIRMED
-    )
-    
-    try:
-        db.session.add(new_booking)
-        db.session.commit()
-        db.session.refresh(new_booking)
+        current_user_id = get_jwt_identity()
+        data = request.get_json()
         
-        # Create VideoSDK meeting
-        meeting_result = videosdk_service.create_meeting(
-            booking_id=new_booking.id,
-            mentor_name=f"{mentor.first_name} {mentor.last_name}",
-            customer_name=f"{customer.first_name} {customer.last_name}",
-            start_time=start_time,
-            duration_minutes=session_duration
+        # Extract booking details
+        mentor_id = data.get('mentor_id')
+        booking_datetime = data.get('booking_datetime')
+        duration = data.get('duration', 60)  # Default 60 minutes
+        price = data.get('price')
+        payment_intent_id = data.get('payment_intent_id')
+        
+        # Validate required fields
+        if not all([mentor_id, booking_datetime, price, payment_intent_id]):
+            return jsonify({"msg": "Missing required booking information"}), 400
+        
+        # Get customer and mentor
+        customer = Customer.query.get(current_user_id)
+        if not customer:
+            return jsonify({"msg": "Customer not found"}), 404
+            
+        mentor = Mentor.query.get(mentor_id)
+        if not mentor:
+            return jsonify({"msg": "Mentor not found"}), 404
+        
+        # Convert booking datetime string to datetime object
+        try:
+            booking_dt = datetime.strptime(booking_datetime, '%Y-%m-%dT%H:%M:%S')
+        except ValueError:
+            return jsonify({"msg": "Invalid datetime format"}), 400
+        
+        # Verify the payment intent with Stripe
+        try:
+            payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+            if payment_intent.status != 'succeeded':
+                return jsonify({"msg": "Payment not confirmed"}), 400
+        except stripe.error.StripeError as e:
+            return jsonify({"msg": f"Payment verification failed: {str(e)}"}), 400
+        
+        # Create the booking
+        new_booking = Booking(
+            mentor_id=mentor_id,
+            customer_id=current_user_id,
+            booking_datetime=booking_dt,
+            duration=duration,
+            price=price,
+            status='confirmed',
+            payment_status='paid',
+            payment_intent_id=payment_intent_id,
+            created_at=datetime.utcnow()
         )
         
-        if meeting_result["success"]:
-            new_booking.meeting_id = meeting_result["meeting_id"]
-            new_booking.meeting_url = meeting_result["meeting_url"]
-            new_booking.meeting_token = meeting_result["token"]
-            db.session.commit()
-        else:
-            current_app.logger.error(f"Failed to create VideoSDK meeting for booking {new_booking.id}: {meeting_result.get('error')}")
+        db.session.add(new_booking)
+        db.session.commit()
         
+        # Create VideoSDK meeting room
+        try:
+            videosdk_service = VideoSDKService()
+            meeting_result = videosdk_service.create_meeting(
+                booking_id=new_booking.id,
+                mentor_name=f"{mentor.first_name} {mentor.last_name}",
+                customer_name=f"{customer.first_name} {customer.last_name}",
+                start_time=booking_dt,
+                duration_minutes=duration
+            )
+            
+            if meeting_result['success']:
+                new_booking.meeting_id = meeting_result['meeting_id']
+                new_booking.meeting_url = meeting_result['meeting_url']
+                db.session.commit()
+                print(f"Meeting created successfully: {meeting_result['meeting_id']}")
+            else:
+                # Log the error but don't fail the booking
+                error_msg = meeting_result.get('error', 'Unknown error')
+                print(f"Failed to create VideoSDK meeting for booking {new_booking.id}: {error_msg}")
+                # The booking is still successful, user can create meeting later
+                
+        except Exception as e:
+            # Log the error but don't fail the booking
+            print(f"Exception creating VideoSDK meeting for booking {new_booking.id}: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            # The booking is still successful, user can create meeting later
+        
+        # Send confirmation emails
+        try:
+            # Send email to customer
+            send_booking_confirmation_email(
+                customer.email,
+                customer.first_name,
+                mentor.first_name + ' ' + mentor.last_name,
+                booking_dt,
+                duration,
+                price,
+                new_booking.meeting_url if hasattr(new_booking, 'meeting_url') else None
+            )
+            
+            # Send email to mentor
+            send_mentor_booking_notification(
+                mentor.email,
+                mentor.first_name,
+                customer.first_name + ' ' + customer.last_name,
+                booking_dt,
+                duration,
+                price,
+                new_booking.meeting_url if hasattr(new_booking, 'meeting_url') else None
+            )
+        except Exception as e:
+            print(f"Error sending booking confirmation emails: {str(e)}")
+            # Don't fail the booking if email sending fails
+        
+        # Return booking details
         return jsonify({
-            "success": True,
-            "message": "Booking confirmed successfully!",
-            "booking": new_booking.serialize()
+            "msg": "Booking created successfully",
+            "booking": {
+                "id": new_booking.id,
+                "mentor_id": new_booking.mentor_id,
+                "customer_id": new_booking.customer_id,
+                "booking_datetime": new_booking.booking_datetime.isoformat(),
+                "duration": new_booking.duration,
+                "price": float(new_booking.price),
+                "status": new_booking.status,
+                "payment_status": new_booking.payment_status,
+                "meeting_id": new_booking.meeting_id,
+                "meeting_url": new_booking.meeting_url if hasattr(new_booking, 'meeting_url') else None
+            }
         }), 201
         
     except Exception as e:
+        print(f"Error in finalize_booking: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
         db.session.rollback()
-        current_app.logger.error(f"Error creating booking: {str(e)}")
         return jsonify({"msg": "Failed to create booking"}), 500
+
+
+# Helper function to send booking confirmation email to customer
+def send_booking_confirmation_email(email, customer_name, mentor_name, booking_datetime, duration, price, meeting_url=None):
+    """Send booking confirmation email to customer"""
+    try:
+        msg = Message(
+            'Booking Confirmation - devMentor',
+            sender=os.getenv('MAIL_DEFAULT_SENDER', 'noreply@devmentor.com'),
+            recipients=[email]
+        )
+        
+        meeting_info = f"\n\nMeeting URL: {meeting_url}" if meeting_url else "\n\nA meeting room will be created for your session."
+        
+        msg.body = f"""
+Hi {customer_name},
+
+Your mentoring session has been confirmed!
+
+Details:
+- Mentor: {mentor_name}
+- Date & Time: {booking_datetime.strftime('%A, %B %d, %Y at %I:%M %p')}
+- Duration: {duration} minutes
+- Price: ${price:.2f}
+{meeting_info}
+
+We'll send you a reminder before your session.
+
+Best regards,
+The devMentor Team
+"""
+        
+        msg.html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{ font-family: Arial, sans-serif; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; }}
+        .details {{ background-color: #e9ecef; padding: 15px; border-radius: 5px; margin: 15px 0; }}
+        .button {{ display: inline-block; padding: 12px 24px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>Booking Confirmation</h2>
+        </div>
+        
+        <p>Hi {customer_name},</p>
+        
+        <p>Your mentoring session has been confirmed!</p>
+        
+        <div class="details">
+            <strong>Session Details:</strong><br>
+            Mentor: {mentor_name}<br>
+            Date & Time: {booking_datetime.strftime('%A, %B %d, %Y at %I:%M %p')}<br>
+            Duration: {duration} minutes<br>
+            Price: ${price:.2f}
+        </div>
+        
+        {f'<p>Your meeting room is ready:</p><a href="{meeting_url}" class="button">Join Meeting</a>' if meeting_url else '<p>A meeting room will be created for your session.</p>'}
+        
+        <p>We'll send you a reminder before your session.</p>
+        
+        <p>Best regards,<br>The devMentor Team</p>
+    </div>
+</body>
+</html>
+"""
+        
+        mail.send(msg)
+    except Exception as e:
+        print(f"Error sending booking confirmation email: {str(e)}")
+
+
+# Helper function to send booking notification email to mentor
+def send_mentor_booking_notification(email, mentor_name, customer_name, booking_datetime, duration, price, meeting_url=None):
+    """Send booking notification email to mentor"""
+    try:
+        msg = Message(
+            'New Booking - devMentor',
+            sender=os.getenv('MAIL_DEFAULT_SENDER', 'noreply@devmentor.com'),
+            recipients=[email]
+        )
+        
+        meeting_info = f"\n\nMeeting URL: {meeting_url}" if meeting_url else "\n\nA meeting room will be created for this session."
+        
+        msg.body = f"""
+Hi {mentor_name},
+
+You have a new booking!
+
+Details:
+- Customer: {customer_name}
+- Date & Time: {booking_datetime.strftime('%A, %B %d, %Y at %I:%M %p')}
+- Duration: {duration} minutes
+- Earnings: ${price * 0.8:.2f} (after 20% platform fee)
+{meeting_info}
+
+Please make sure to be available at the scheduled time.
+
+Best regards,
+The devMentor Team
+"""
+        
+        msg.html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{ font-family: Arial, sans-serif; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background-color: #28a745; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }}
+        .details {{ background-color: #e9ecef; padding: 15px; border-radius: 5px; margin: 15px 0; }}
+        .button {{ display: inline-block; padding: 12px 24px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>New Booking!</h2>
+        </div>
+        
+        <p>Hi {mentor_name},</p>
+        
+        <p>Great news! You have a new booking.</p>
+        
+        <div class="details">
+            <strong>Session Details:</strong><br>
+            Customer: {customer_name}<br>
+            Date & Time: {booking_datetime.strftime('%A, %B %d, %Y at %I:%M %p')}<br>
+            Duration: {duration} minutes<br>
+            Your Earnings: ${price * 0.8:.2f} (after 20% platform fee)
+        </div>
+        
+        {f'<p>Meeting room is ready:</p><a href="{meeting_url}" class="button">Join Meeting</a>' if meeting_url else '<p>A meeting room will be created for this session.</p>'}
+        
+        <p>Please make sure to be available at the scheduled time.</p>
+        
+        <p>Best regards,<br>The devMentor Team</p>
+    </div>
+</body>
+</html>
+"""
+        
+        mail.send(msg)
+    except Exception as e:
+        print(f"Error sending mentor booking notification: {str(e)}")
+
 
 @api.route('/mentor/dashboard', methods=['GET'])
 @mentor_required
@@ -2547,9 +2729,58 @@ def videosdk_webhook():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+
 @api.route('/videosdk/meeting-token/<meeting_id>', methods=['GET'])
 @jwt_required()
 def get_videosdk_meeting_token(meeting_id):
+    
+    """Get a token for joining a specific VideoSDK meeting"""
+    try:
+        # Get the current user
+        current_user_id = get_jwt_identity()
+        
+        # Find the booking associated with this meeting
+        booking = Booking.query.filter_by(meeting_id=meeting_id).first()
+        if not booking:
+            return jsonify({"msg": "Meeting not found"}), 404
+            
+        # Check if the current user is either the mentor or the customer
+        if not (booking.mentor_id == current_user_id or booking.customer_id == current_user_id):
+            return jsonify({"msg": "Unauthorized to join this meeting"}), 403
+            
+        # Generate a token for the meeting
+        videosdk_service = VideoSDKService()
+        
+        # Determine user role and permissions
+        is_mentor = booking.mentor_id == current_user_id
+        permissions = ['allow_join', 'allow_mod', 'allow_record'] if is_mentor else ['allow_join']
+        
+        token = videosdk_service.generate_token(permissions)
+        
+        # Get user name for the meeting
+        if is_mentor:
+            mentor = Mentor.query.get(current_user_id)
+            user_name = f"{mentor.first_name} {mentor.last_name}" if mentor else "Mentor"
+        else:
+            customer = Customer.query.get(current_user_id)
+            user_name = f"{customer.first_name} {customer.last_name}" if customer else "Customer"
+        
+        return jsonify({
+            "token": token,
+            "success": True,
+            "meetingId": meeting_id,
+            "userName": user_name,
+            "isModerator": is_mentor
+        })
+        
+    except Exception as e:
+        print(f"Error generating meeting token: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({
+            "msg": "Failed to generate meeting token",
+            "error": str(e)
+        }), 500
     """Get a token for joining a specific VideoSDK meeting"""
     try:
         # Get the current user
@@ -2626,3 +2857,155 @@ def get_videosdk_meeting_token(meeting_id):
             "msg": "Failed to generate meeting token",
             "error": str(e)
         }), 500
+
+# Add this route to your routes.py file
+
+@api.route('/booking/<int:booking_id>/create-meeting', methods=['POST'])
+@jwt_required()
+def create_meeting_for_booking(booking_id):
+    """Create a VideoSDK meeting for a specific booking"""
+    try:
+        current_user_id = get_jwt_identity()
+        
+        # Get the booking
+        booking = Booking.query.get(booking_id)
+        if not booking:
+            return jsonify({"msg": "Booking not found"}), 404
+        
+        # Check if the current user is authorized (either mentor or customer)
+        if booking.mentor_id != current_user_id and booking.customer_id != current_user_id:
+            return jsonify({"msg": "Unauthorized to create meeting for this booking"}), 403
+        
+        # Check if meeting already exists
+        if booking.meeting_id:
+            return jsonify({
+                "msg": "Meeting already exists",
+                "meeting_id": booking.meeting_id,
+                "meeting_url": f"{os.getenv('FRONTEND_URL')}/video-meeting/{booking.meeting_id}"
+            }), 200
+        
+        # Get mentor and customer details
+        mentor = Mentor.query.get(booking.mentor_id)
+        customer = Customer.query.get(booking.customer_id)
+        
+        # Create the meeting
+        videosdk_service = VideoSDKService()
+        meeting_result = videosdk_service.create_meeting(
+            booking_id=booking.id,
+            mentor_name=f"{mentor.first_name} {mentor.last_name}" if mentor else "Mentor",
+            customer_name=f"{customer.first_name} {customer.last_name}" if customer else "Customer",
+            start_time=booking.booking_datetime,
+            duration_minutes=booking.duration
+        )
+        
+        if meeting_result['success']:
+            # Update the booking with meeting details
+            booking.meeting_id = meeting_result['meeting_id']
+            booking.meeting_url = meeting_result['meeting_url']
+            db.session.commit()
+            
+            # Send notification emails about the meeting
+            try:
+                # Send to mentor
+                if mentor and mentor.email:
+                    send_meeting_created_email(
+                        mentor.email,
+                        mentor.first_name,
+                        booking.booking_datetime,
+                        meeting_result['meeting_url']
+                    )
+                
+                # Send to customer
+                if customer and customer.email:
+                    send_meeting_created_email(
+                        customer.email,
+                        customer.first_name,
+                        booking.booking_datetime,
+                        meeting_result['meeting_url']
+                    )
+            except Exception as email_error:
+                print(f"Error sending meeting creation emails: {str(email_error)}")
+                # Don't fail the request if email sending fails
+            
+            return jsonify({
+                "msg": "Meeting created successfully",
+                "meeting_id": meeting_result['meeting_id'],
+                "meeting_url": meeting_result['meeting_url']
+            }), 201
+        else:
+            error_msg = meeting_result.get('error', 'Unknown error')
+            print(f"Failed to create meeting: {error_msg}")
+            return jsonify({"msg": f"Failed to create meeting: {error_msg}"}), 500
+            
+    except Exception as e:
+        print(f"Error creating meeting for booking {booking_id}: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({"msg": "Internal server error"}), 500
+
+# Helper function to send meeting created email
+def send_meeting_created_email(email, name, meeting_time, meeting_url):
+    """Send email notification when meeting is created"""
+    try:
+        msg = Message(
+            'Your devMentor Meeting Room is Ready',
+            sender=os.getenv('MAIL_DEFAULT_SENDER', 'noreply@devmentor.com'),
+            recipients=[email]
+        )
+        
+        msg.body = f"""
+Hi {name},
+
+Your meeting room has been created for your devMentor session scheduled for:
+{meeting_time.strftime('%A, %B %d, %Y at %I:%M %p')}
+
+Meeting URL: {meeting_url}
+
+Please join the meeting a few minutes before the scheduled time.
+
+Best regards,
+The devMentor Team
+"""
+        
+        msg.html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{ font-family: Arial, sans-serif; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; }}
+        .button {{ display: inline-block; padding: 12px 24px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
+        .info {{ background-color: #e9ecef; padding: 15px; border-radius: 5px; margin: 15px 0; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>Your devMentor Meeting Room is Ready!</h2>
+        </div>
+        
+        <p>Hi {name},</p>
+        
+        <p>Your meeting room has been created for your devMentor session.</p>
+        
+        <div class="info">
+            <strong>Meeting Time:</strong><br>
+            {meeting_time.strftime('%A, %B %d, %Y at %I:%M %p')}
+        </div>
+        
+        <p>Click the button below to join your meeting:</p>
+        
+        <a href="{meeting_url}" class="button">Join Meeting</a>
+        
+        <p>Please join the meeting a few minutes before the scheduled time.</p>
+        
+        <p>Best regards,<br>The devMentor Team</p>
+    </div>
+</body>
+</html>
+"""
+        
+        mail.send(msg)
+    except Exception as e:
+        print(f"Error sending meeting created email to {email}: {str(e)}")

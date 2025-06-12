@@ -28,7 +28,7 @@ class VideoSDKService:
                 'apikey': api_key,
                 'permissions': permissions,
                 'version': 2,
-                'roles': ['crawler', 'rtc'],  # Add roles for better compatibility
+                'roles': ['crawler'],  # Only use crawler role for V2 API
                 'iat': datetime.utcnow(),
                 'exp': datetime.utcnow() + timedelta(hours=24)  # Token valid for 24 hours
             }
