@@ -17,7 +17,7 @@ export const MentorDetails = () => {
     const navigate = useNavigate();
     const [mentor, setMentor] = useState(null);
     const [loading, setLoading] = useState(true);
-
+    
     // Booking flow states
     const [showCalendar, setShowCalendar] = useState(true);
     const [showAuthForm, setShowAuthForm] = useState(false);
@@ -41,10 +41,10 @@ export const MentorDetails = () => {
         const token = urlParams.get('token');
         const userId = urlParams.get('user_id');
         const userType = urlParams.get('user_type');
-
+        
         if ((mvpGoogleAuth === 'success' || mvpGithubAuth === 'success') && token && userId && userType === 'customer') {
             console.log("Detected OAuth redirect, processing authentication");
-
+            
             // Process the OAuth verification
             const processOAuth = async () => {
                 try {
@@ -59,7 +59,7 @@ export const MentorDetails = () => {
                         console.log("OAuth verification successful");
                         // Clean URL
                         window.history.replaceState({}, '', window.location.pathname);
-
+                        
                         // Check if we have a pending booking
                         const pendingSlot = sessionStorage.getItem('pendingTimeSlot');
                         if (pendingSlot) {
@@ -77,7 +77,7 @@ export const MentorDetails = () => {
                     alert("An error occurred during authentication. Please try again.");
                 }
             };
-
+            
             setTimeout(processOAuth, 100);
         }
     }, [actions]);
@@ -120,7 +120,7 @@ export const MentorDetails = () => {
 
     const handleTimeSlotSelected = (slot) => {
         setSelectedTimeSlot(slot);
-
+        
         // Check if user is logged in
         if (store.token && store.customerId) {
             // User is logged in, proceed to payment
@@ -173,14 +173,8 @@ export const MentorDetails = () => {
             const result = await actions.finalizeBooking(bookingData);
 
             if (result.success) {
-                // Navigate to the booking confirmation page with the booking ID in the URL
-                navigate(`/booking-confirmed/${result.booking.id}`, {
-                    state: {
-                        bookingDetails: result.booking,
-                        mentorName: `${mentor.first_name} ${mentor.last_name}`,
-                        requiresManualConfirmation: result.booking.status !== 'confirmed'
-                    }
-                });
+                alert('Booking confirmed successfully!');
+                navigate('/customer-dashboard');
             } else {
                 alert('Failed to finalize booking. Please contact support.');
             }
@@ -268,21 +262,21 @@ export const MentorDetails = () => {
                 <div className="card border-0 shadow p-4">
                     <div className="card-body">
                         <h4 className="text-center mb-4">Authentication Required</h4>
-
+                        
                         {/* MVP OAuth Buttons */}
                         <div className="mb-4">
-                            <MVPGoogleOAuthButton
+                            <MVPGoogleOAuthButton 
                                 mentor={mentor}
                                 onSuccess={handleMVPOAuthSuccess}
                                 buttonText={activeAuthTab === 'login' ? 'Login with Google' : 'Sign up with Google'}
                             />
-
-                            <MVPGitHubOAuthButton
+                            
+                            <MVPGitHubOAuthButton 
                                 mentor={mentor}
                                 onSuccess={handleMVPOAuthSuccess}
                                 buttonText={activeAuthTab === 'login' ? 'Login with GitHub' : 'Sign up with GitHub'}
                             />
-
+                            
                             <div className="d-flex align-items-center my-3">
                                 <hr className="flex-grow-1" />
                                 <span className="px-3 text-secondary">or</span>
@@ -315,7 +309,7 @@ export const MentorDetails = () => {
                             <CustomerLogin
                                 onSuccess={handleLoginSuccess}
                                 switchToSignUp={() => setActiveAuthTab('signup')}
-                                onForgotPs={() => { }}
+                                onForgotPs={() => {}}
                             />
                         ) : (
                             <CustomerSignup
@@ -337,7 +331,7 @@ export const MentorDetails = () => {
                 <div className="card border-0 shadow p-4">
                     <div className="card-body">
                         <h4 className="text-center mb-4">Complete Your Booking</h4>
-
+                        
                         {selectedTimeSlot && (
                             <div className="mb-4">
                                 <h6>Session Details:</h6>
