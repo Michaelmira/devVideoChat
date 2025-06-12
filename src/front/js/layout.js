@@ -34,9 +34,22 @@ const Layout = () => {
 
     //useEffect to handle token exp. instances
     useEffect(() => {
-        if (store.token) {
-            actions.getCurrentUser();
-        }
+        // Check and validate token on mount
+        const validateToken = async () => {
+            const token = store.token || sessionStorage.getItem("token");
+            if (token) {
+                console.log("Validating token...");
+                const isValid = await actions.getCurrentUser();
+                if (!isValid) {
+                    console.log("Token validation failed, logging out...");
+                    actions.logOut();
+                }
+            } else {
+                console.log("No token found");
+            }
+        };
+
+        validateToken();
 
         const interval = setInterval(() => {
             if (store.token) {
@@ -45,7 +58,6 @@ const Layout = () => {
                 // Handle no token case
                 console.log('User not authenticated');
             }
-            // actions.getCurrentUser()
         }, 60000);
 
         // Cleanup function

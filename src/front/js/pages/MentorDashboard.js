@@ -24,21 +24,42 @@ export const MentorDashboard = () => {
 
 	const fetchDashboardData = async () => {
 		try {
+			// Debug logging
+			console.log("Token from store:", store.token);
+			console.log("Token from sessionStorage:", sessionStorage.getItem("token"));
+
+			const token = store.token || sessionStorage.getItem("token");
+			if (!token) {
+				setError("No authentication token found. Please log in again.");
+				setLoading(false);
+				return;
+			}
+
 			const response = await fetch(process.env.BACKEND_URL + '/api/mentor/dashboard', {
 				headers: {
-					'Authorization': 'Bearer ' + store.token
+					'Authorization': 'Bearer ' + token
 				}
 			});
+
+			// Debug logging
+			console.log("Response status:", response.status);
 			const data = await response.json();
+			console.log("Response data:", data);
 
 			if (response.ok) {
 				setDashboardData(data);
 			} else {
-				setError(data.msg || 'Failed to load dashboard data');
+				if (response.status === 422) {
+					// Token validation failed
+					actions.logOut();
+					setError("Your session has expired. Please log in again.");
+				} else {
+					setError(data.msg || 'Failed to load dashboard data');
+				}
 			}
 		} catch (err) {
+			console.error("Dashboard fetch error:", err);
 			setError('Error loading dashboard data');
-			console.error(err);
 		} finally {
 			setLoading(false);
 		}
