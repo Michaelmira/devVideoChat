@@ -2265,21 +2265,13 @@ def finalize_booking():
                 db.session.commit()
                 print(f"Meeting created successfully: {meeting_result['meeting_id']}")
             else:
-                # Log the error but don't fail the booking
                 error_msg = meeting_result.get('error', 'Unknown error')
                 print(f"Failed to create VideoSDK meeting for booking {new_booking.id}: {error_msg}")
-                # The booking is still successful, user can create meeting later
                 
         except Exception as e:
-            # Log the error but don't fail the booking
             print(f"Exception creating VideoSDK meeting for booking {new_booking.id}: {str(e)}")
             import traceback
             print(traceback.format_exc())
-            # The booking is still successful, user can create meeting later
-        
-        # Log email notifications (instead of sending them)
-        print(f"Would send booking confirmation to customer: {customer.email}")
-        print(f"Would send booking notification to mentor: {mentor.email}")
         
         # Return booking details
         return jsonify({
@@ -2388,6 +2380,16 @@ def get_mentor_dashboard():
         current_app.logger.error(f"Error in get_mentor_dashboard: {str(e)}")
         return jsonify({"error": "Failed to load dashboard data"}), 500
 
+# WWORKING WITH OPUS BELOW
+# WWORKING WITH OPUS BELOW
+# WWORKING WITH OPUS BELOW
+# WWORKING WITH OPUS BELOW
+## WWORKING WITH OPUS BELOW
+# WWORKING WITH OPUS BELOW
+# WWORKING WITH OPUS BELOW
+# WWORKING WITH OPUS BELOW
+# WWORKING WITH OPUS BELOW
+# WWORKING WITH OPUS BELOW
 
 @api.route('/mentor/unavailability', methods=['GET'])
 @mentor_required
@@ -2439,82 +2441,6 @@ def get_mentor_unavailabilities_public(mentor_id):
         current_app.logger.error(f"Error getting mentor unavailabilities: {str(e)}")
         return jsonify({"error": "Failed to fetch unavailabilities"}), 500
 
-
-videosdk_service = VideoSDKService()
-
-@api.route('/booking/<int:booking_id>/create-meeting', methods=['POST'])
-@jwt_required()
-def create_meeting_for_booking(booking_id):
-    """Create VideoSDK meeting when booking is confirmed"""
-    try:
-        # Get booking details
-        booking = Booking.query.get(booking_id)
-        if not booking:
-            return jsonify({"success": False, "msg": "Booking not found"}), 404
-        
-        # Verify the requester has permission
-        current_user_id = get_jwt_identity()
-        if str(booking.customer_id) != str(current_user_id) and str(booking.mentor_id) != str(current_user_id):
-            return jsonify({"success": False, "msg": "Unauthorized"}), 403
-        
-        # Create meeting
-        meeting_result = videosdk_service.create_meeting(
-            booking_id=booking.id,
-            mentor_name=f"{booking.mentor.first_name} {booking.mentor.last_name}",
-            customer_name=f"{booking.customer.first_name} {booking.customer.last_name}",
-            start_time=booking.session_start_time,
-            duration_minutes=booking.session_duration or 60
-        )
-        
-        if meeting_result["success"]:
-            # Update booking with meeting details
-            booking.meeting_id = meeting_result["meeting_id"]
-            booking.meeting_url = meeting_result["meeting_url"]
-            booking.meeting_token = meeting_result["token"]
-            db.session.commit()
-            
-            return jsonify({
-                "success": True,
-                "meeting_id": meeting_result["meeting_id"],
-                "meeting_url": meeting_result["meeting_url"]
-            }), 200
-        else:
-            return jsonify({"success": False, "msg": "Failed to create meeting", "error": meeting_result["error"]}), 500
-            
-    except Exception as e:
-        return jsonify({"success": False, "msg": str(e)}), 500
-
-@api.route('/meeting/<meeting_id>/token', methods=['GET'])
-@jwt_required()
-def get_meeting_token(meeting_id):
-    """Get a fresh token for joining a meeting"""
-    try:
-        # Verify user has access to this meeting
-        current_user_id = get_jwt_identity()
-        booking = Booking.query.filter_by(meeting_id=meeting_id).first()
-        
-        if not booking:
-            return jsonify({"success": False, "msg": "Meeting not found"}), 404
-            
-        if str(booking.customer_id) != str(current_user_id) and str(booking.mentor_id) != str(current_user_id):
-            return jsonify({"success": False, "msg": "Unauthorized"}), 403
-        
-        # Generate appropriate token based on user role
-        is_mentor = str(booking.mentor_id) == str(current_user_id)
-        permissions = ["allow_join", "allow_mod"] if is_mentor else ["allow_join"]
-        
-        token = videosdk_service.generate_token(permissions)
-        
-        return jsonify({
-            "success": True,
-            "token": token,
-            "meeting_id": meeting_id,
-            "is_moderator": is_mentor
-        }), 200
-        
-    except Exception as e:
-        return jsonify({"success": False, "msg": str(e)}), 500
-
 @api.route('/videosdk/webhook', methods=['POST'])
 def videosdk_webhook():
     """Handle VideoSDK webhooks for recording, etc."""
@@ -2555,8 +2481,6 @@ def videosdk_webhook():
     except Exception as e:
         current_app.logger.error(f"Webhook error: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
-
-
 
 @api.route('/videosdk/meeting-token/<meeting_id>', methods=['GET'])
 @jwt_required()
@@ -2608,130 +2532,3 @@ def get_videosdk_meeting_token(meeting_id):
             "msg": "Failed to generate meeting token",
             "error": str(e)
         }), 500
-
-@api.route('/booking/<int:booking_id>/create-meeting', methods=['POST'])
-@jwt_required()
-def create_meeting_for_booking(booking_id):
-    """Create a VideoSDK meeting for a specific booking"""
-    try:
-        current_user_id = get_jwt_identity()
-        
-        # Get the booking
-        booking = Booking.query.get(booking_id)
-        if not booking:
-            return jsonify({"msg": "Booking not found"}), 404
-        
-        # Check if the current user is authorized (either mentor or customer)
-        if booking.mentor_id != current_user_id and booking.customer_id != current_user_id:
-            return jsonify({"msg": "Unauthorized to create meeting for this booking"}), 403
-        
-        # Check if meeting already exists
-        if booking.meeting_id:
-            return jsonify({
-                "msg": "Meeting already exists",
-                "meeting_id": booking.meeting_id,
-                "meeting_url": f"{os.getenv('FRONTEND_URL')}/video-meeting/{booking.meeting_id}"
-            }), 200
-        
-        # Get mentor and customer details
-        mentor = Mentor.query.get(booking.mentor_id)
-        customer = Customer.query.get(booking.customer_id)
-        
-        # Create the meeting
-        videosdk_service = VideoSDKService()
-        meeting_result = videosdk_service.create_meeting(
-            booking_id=booking.id,
-            mentor_name=f"{mentor.first_name} {mentor.last_name}" if mentor else "Mentor",
-            customer_name=f"{customer.first_name} {customer.last_name}" if customer else "Customer",
-            start_time=booking.booking_datetime,
-            duration_minutes=booking.duration
-        )
-        
-        if meeting_result['success']:
-            # Update the booking with meeting details
-            booking.meeting_id = meeting_result['meeting_id']
-            booking.meeting_url = meeting_result['meeting_url']
-            db.session.commit()
-            
-            return jsonify({
-                "msg": "Meeting created successfully",
-                "meeting_id": meeting_result['meeting_id'],
-                "meeting_url": meeting_result['meeting_url']
-            }), 201
-        else:
-            error_msg = meeting_result.get('error', 'Unknown error')
-            print(f"Failed to create meeting: {error_msg}")
-            return jsonify({"msg": f"Failed to create meeting: {error_msg}"}), 500
-            
-    except Exception as e:
-        print(f"Error creating meeting for booking {booking_id}: {str(e)}")
-        import traceback
-        print(traceback.format_exc())
-        return jsonify({"msg": "Internal server error"}), 500
-
-# Helper function to send meeting created email
-def send_meeting_created_email(email, name, meeting_time, meeting_url):
-    """Send email notification when meeting is created"""
-    try:
-        msg = Message(
-            'Your devMentor Meeting Room is Ready',
-            sender=os.getenv('MAIL_DEFAULT_SENDER', 'noreply@devmentor.com'),
-            recipients=[email]
-        )
-        
-        msg.body = f"""
-Hi {name},
-
-Your meeting room has been created for your devMentor session scheduled for:
-{meeting_time.strftime('%A, %B %d, %Y at %I:%M %p')}
-
-Meeting URL: {meeting_url}
-
-Please join the meeting a few minutes before the scheduled time.
-
-Best regards,
-The devMentor Team
-"""
-        
-        msg.html = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {{ font-family: Arial, sans-serif; color: #333; }}
-        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-        .header {{ background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; }}
-        .button {{ display: inline-block; padding: 12px 24px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
-        .info {{ background-color: #e9ecef; padding: 15px; border-radius: 5px; margin: 15px 0; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h2>Your devMentor Meeting Room is Ready!</h2>
-        </div>
-        
-        <p>Hi {name},</p>
-        
-        <p>Your meeting room has been created for your devMentor session.</p>
-        
-        <div class="info">
-            <strong>Meeting Time:</strong><br>
-            {meeting_time.strftime('%A, %B %d, %Y at %I:%M %p')}
-        </div>
-        
-        <p>Click the button below to join your meeting:</p>
-        
-        <a href="{meeting_url}" class="button">Join Meeting</a>
-        
-        <p>Please join the meeting a few minutes before the scheduled time.</p>
-        
-        <p>Best regards,<br>The devMentor Team</p>
-    </div>
-</body>
-</html>
-"""
-        
-        mail.send(msg)
-    except Exception as e:
-        print(f"Error sending meeting created email to {email}: {str(e)}")
