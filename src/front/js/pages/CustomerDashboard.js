@@ -147,12 +147,32 @@ const CustomerDashboard = () => {
                                             <strong>Timezone:</strong> {booking.timezone}
                                         </p>
                                     )}
-                                    {booking.google_meet_link && (
+                                    {booking.meeting_url ? (
                                         <p className="mb-1">
                                             <strong>Meeting Link: </strong>
-                                            <a href={booking.google_meet_link} target="_blank" rel="noopener noreferrer">
-                                                {booking.google_meet_link}
+                                            <a href={booking.meeting_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="btn btn-primary btn-sm">
+                                                Join Video Meeting
                                             </a>
+                                        </p>
+                                    ) : booking.status === 'confirmed' && (
+                                        <p className="mb-1">
+                                            <button
+                                                onClick={async () => {
+                                                    const result = await actions.createMeetingForBooking(booking.id);
+                                                    if (result.success) {
+                                                        // Refresh bookings to get the new meeting URL
+                                                        await actions.getCurrentUser();
+                                                    } else {
+                                                        alert('Failed to create meeting room. Please try again.');
+                                                    }
+                                                }}
+                                                className="btn btn-primary btn-sm"
+                                            >
+                                                Create Meeting Room
+                                            </button>
                                         </p>
                                     )}
                                     {booking.invitee_notes && (

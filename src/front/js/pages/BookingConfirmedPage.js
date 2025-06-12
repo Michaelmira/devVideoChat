@@ -217,9 +217,12 @@ export const BookingConfirmedPage = () => {
                                             <a href={bookingData.meeting_url}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="ms-2">
-                                                Join Meeting
+                                                className="ms-2 btn btn-primary btn-sm">
+                                                Join Video Meeting
                                             </a>
+                                            <small className="d-block mt-1 text-muted">
+                                                Click to join your video meeting session. The meeting room will be available at your scheduled time.
+                                            </small>
                                         </li>
                                     ) : (
                                         <li className="mb-2">
@@ -241,6 +244,9 @@ export const BookingConfirmedPage = () => {
                                             >
                                                 Create Meeting Room
                                             </button>
+                                            <small className="d-block mt-1 text-muted">
+                                                Click to create your video meeting room.
+                                            </small>
                                         </li>
                                     )}
                                     <li className="mb-0">

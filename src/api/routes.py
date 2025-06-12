@@ -2260,8 +2260,7 @@ def finalize_booking():
         currency='usd',
         platform_fee=calculated_platform_fee,
         mentor_payout_amount=calculated_mentor_payout,
-        status=BookingStatus.CONFIRMED,
-        google_meet_link=f"https://meet.google.com/lookup/{stripe_payment_intent_id}"
+        status=BookingStatus.CONFIRMED
     )
     
     try:
@@ -2269,8 +2268,22 @@ def finalize_booking():
         db.session.commit()
         db.session.refresh(new_booking)
         
-        # Send confirmation emails
-        # TODO: Implement send_booking_confirmation_email(new_booking)
+        # Create VideoSDK meeting
+        meeting_result = videosdk_service.create_meeting(
+            booking_id=new_booking.id,
+            mentor_name=f"{mentor.first_name} {mentor.last_name}",
+            customer_name=f"{customer.first_name} {customer.last_name}",
+            start_time=start_time,
+            duration_minutes=session_duration
+        )
+        
+        if meeting_result["success"]:
+            new_booking.meeting_id = meeting_result["meeting_id"]
+            new_booking.meeting_url = meeting_result["meeting_url"]
+            new_booking.meeting_token = meeting_result["token"]
+            db.session.commit()
+        else:
+            current_app.logger.error(f"Failed to create VideoSDK meeting for booking {new_booking.id}: {meeting_result.get('error')}")
         
         return jsonify({
             "success": True,
