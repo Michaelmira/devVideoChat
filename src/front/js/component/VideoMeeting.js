@@ -243,7 +243,8 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         localScreenShareOn,
         localMicOn,
         localWebcamOn,
-        localParticipantId
+        localParticipantId,
+        meetingId: currentMeetingId
     } = useMeeting({
         onMeetingJoined: () => {
             console.log("🎉 MEETING JOINED successfully");
@@ -255,11 +256,25 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             setJoined('JOINED');
             setConnectionStatus('connected');
             
-            // FIXED: Store local participant ID in state when meeting is joined
-            if (localParticipantId) {
-                setLocalParticipantIdState(localParticipantId);
-                console.log("✅ Local participant ID set:", localParticipantId);
-            }
+            // FIXED: Multiple attempts to capture local participant ID
+            setTimeout(() => {
+                const currentLocalId = localParticipantId;
+                console.log("🔍 Checking local participant ID after 500ms:", currentLocalId);
+                if (currentLocalId && !localParticipantIdState) {
+                    setLocalParticipantIdState(currentLocalId);
+                    console.log("✅ Local participant ID set via timeout:", currentLocalId);
+                }
+            }, 500);
+            
+            // Try again after 1 second
+            setTimeout(() => {
+                const currentLocalId = localParticipantId;
+                console.log("🔍 Checking local participant ID after 1000ms:", currentLocalId);
+                if (currentLocalId && !localParticipantIdState) {
+                    setLocalParticipantIdState(currentLocalId);
+                    console.log("✅ Local participant ID set via second timeout:", currentLocalId);
+                }
+            }, 1000);
             
             startTokenRefreshTimer();
             startConnectionMonitoring();
@@ -351,13 +366,31 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         }
     });
 
-    // FIXED: Update local participant ID state when it becomes available
+    // FIXED: More aggressive local participant ID detection
     useEffect(() => {
         if (localParticipantId && !localParticipantIdState) {
             console.log("📊 Setting local participant ID from useMeeting hook:", localParticipantId);
             setLocalParticipantIdState(localParticipantId);
         }
-    }, [localParticipantId, localParticipantIdState]);
+        
+        // Also try to get it from the participants map
+        if (!localParticipantIdState && participants && participants.size > 0) {
+            for (const [participantId, participant] of participants.entries()) {
+                if (participant.isLocal) {
+                    console.log("📊 Found local participant in participants map:", participantId);
+                    setLocalParticipantIdState(participantId);
+                    break;
+                }
+            }
+        }
+        
+        // Fallback: use the meeting ID as a base to generate one
+        if (!localParticipantIdState && !localParticipantId && joined === 'JOINED') {
+            const fallbackId = `local_${Date.now()}`;
+            console.log("⚠️ Using fallback local participant ID:", fallbackId);
+            setLocalParticipantIdState(fallbackId);
+        }
+    }, [localParticipantId, localParticipantIdState, participants, joined]);
 
     // Use the state version if available, fallback to hook version
     const effectiveLocalParticipantId = localParticipantIdState || localParticipantId;
@@ -533,7 +566,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         join();
     };
 
-    // FIXED: Improved screen share handler with better error handling
+    // FIXED: Even more aggressive screen share handler
     const handleScreenShare = async () => {
         console.log("🖥️ SCREEN SHARE BUTTON CLICKED");
         console.log("📊 Current state:", {
@@ -541,8 +574,17 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             screenShareInProgress,
             localScreenShareOn,
             currentScreenSharer,
-            effectiveLocalParticipantId
+            effectiveLocalParticipantId,
+            localParticipantId,
+            localParticipantIdState
         });
+
+        // CRITICAL: Check for local participant ID before attempting screen share
+        if (!effectiveLocalParticipantId) {
+            console.error("❌ Cannot start screen share: No local participant ID");
+            setScreenShareError("Cannot start screen share: Missing participant ID. Please refresh the page and try again.");
+            return;
+        }
 
         try {
             setScreenShareError(null);
@@ -559,19 +601,20 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                 console.log("🖥️ Setting screen share in progress...");
                 setScreenShareInProgress(true);
                 
-                // FIXED: Reduced timeout to 8 seconds and better error handling
-                console.log("⏰ Setting 8-second timeout for screen share");
+                // FIXED: Reduced timeout to 6 seconds for faster feedback
+                console.log("⏰ Setting 6-second timeout for screen share");
                 screenShareTimeoutRef.current = setTimeout(() => {
                     console.log("⏰ SCREEN SHARE TIMEOUT TRIGGERED");
                     console.log("📊 Timeout state:", {
                         isScreenSharing,
                         screenShareInProgress,
                         localScreenShareOn,
-                        currentScreenSharer
+                        currentScreenSharer,
+                        effectiveLocalParticipantId
                     });
                     setScreenShareInProgress(false);
-                    setScreenShareError("Screen share request timed out. Please try again or check if you cancelled the screen share dialog.");
-                }, 8000); // 8 second timeout
+                    setScreenShareError("Screen share request timed out. This usually means you cancelled the screen share dialog or the browser blocked it. Please try again.");
+                }, 6000); // 6 second timeout
                 
                 console.log("🔄 Calling toggleScreenShare()...");
                 
@@ -588,7 +631,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                 screenShareTimeoutRef.current = setTimeout(() => {
                     console.log("⏰ Screen share stop timeout");
                     setScreenShareInProgress(false);
-                }, 5000);
+                }, 3000);
                 
                 console.log("🔄 Calling toggleScreenShare() to stop...");
                 await toggleScreenShare();
@@ -612,6 +655,8 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                 errorMessage = 'Screen sharing is not supported in this browser.';
             } else if (error.name === 'AbortError') {
                 errorMessage = 'Screen sharing was cancelled by the user.';
+            } else if (error.message?.includes('permission')) {
+                errorMessage = 'Screen sharing permission was denied. Please allow screen sharing in your browser settings.';
             }
             
             setScreenShareError(errorMessage);
@@ -860,11 +905,43 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                         )}
                         
                         <span className="badge bg-secondary">
-                            {effectiveLocalParticipantId ? `ID: ${effectiveLocalParticipantId.slice(-4)}` : 'No ID'}
+                            {effectiveLocalParticipantId ? `ID: ${effectiveLocalParticipantId.slice(-4)}` : 'No ID - ERROR'}
                         </span>
+                        
+                        {/* Debug info for participant ID issues */}
+                        {!effectiveLocalParticipantId && (
+                            <span className="badge bg-danger">
+                                ❌ Missing Local ID
+                            </span>
+                        )}
                     </div>
                 </div>
             </div>
+
+            {/* Debug overlay for participant ID issues */}
+            {process.env.NODE_ENV === 'development' && !effectiveLocalParticipantId && (
+                <div className="position-fixed top-50 start-50 translate-middle" style={{ zIndex: 9999 }}>
+                    <div className="alert alert-danger">
+                        <h6>🚨 DEBUG: Missing Local Participant ID</h6>
+                        <small>
+                            localParticipantId: {localParticipantId || 'undefined'}<br/>
+                            localParticipantIdState: {localParticipantIdState || 'undefined'}<br/>
+                            Participants: {participants.size}<br/>
+                            Joined: {joined}
+                        </small>
+                        <button 
+                            className="btn btn-sm btn-warning mt-2"
+                            onClick={() => {
+                                const fallbackId = `manual_${Date.now()}`;
+                                setLocalParticipantIdState(fallbackId);
+                                console.log("🔧 Manual fallback ID set:", fallbackId);
+                            }}
+                        >
+                            Force Set ID
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Main Meeting Layout */}
             <div className="d-flex h-100">
