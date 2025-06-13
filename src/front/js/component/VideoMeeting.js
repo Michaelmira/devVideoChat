@@ -1,17 +1,15 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { MeetingProvider, useMeeting, useParticipant, Constants, MeetingConsumer } from '@videosdk.live/react-sdk';
 
-function ParticipantView({ participantId }) {
+function ParticipantView({ participantId, viewMode = 'normal', isLocal = false }) {
     const { 
         webcamStream, 
         micStream, 
         webcamOn, 
         micOn, 
-        isLocal, 
         displayName,
         screenShareStream,
-        screenShareOn,
-        mode
+        screenShareOn
     } = useParticipant(participantId);
     
     const videoRef = React.useRef(null);
@@ -19,7 +17,7 @@ function ParticipantView({ participantId }) {
 
     // Handle webcam stream
     useEffect(() => {
-        if (webcamStream && videoRef.current && !screenShareOn) {
+        if (webcamStream && videoRef.current) {
             const mediaStream = new MediaStream();
             mediaStream.addTrack(webcamStream.track);
             videoRef.current.srcObject = mediaStream;
@@ -27,10 +25,10 @@ function ParticipantView({ participantId }) {
             videoRef.current.play().catch(error => {
                 console.error("Error playing video:", error);
             });
-        } else if (videoRef.current && !screenShareOn) {
+        } else if (videoRef.current) {
             videoRef.current.srcObject = null;
         }
-    }, [webcamStream, screenShareOn]);
+    }, [webcamStream]);
 
     // Handle screen share stream
     useEffect(() => {
@@ -47,105 +45,90 @@ function ParticipantView({ participantId }) {
         }
     }, [screenShareStream]);
 
-    // If this participant is sharing screen, show screen share prominently
-    if (screenShareOn && screenShareStream) {
+    // If this participant is sharing screen and we're in screen share mode
+    if (screenShareOn && screenShareStream && viewMode === 'screenShare') {
         return (
-            <div className="participant-view screen-share-view" style={{ 
+            <div className="screen-share-view" style={{ 
+                width: '100%',
+                height: '100%',
                 position: 'relative',
                 backgroundColor: '#000',
-                borderRadius: '8px',
-                overflow: 'hidden',
-                minHeight: '400px',
                 display: 'flex',
-                flexDirection: 'column'
+                alignItems: 'center',
+                justifyContent: 'center'
             }}>
-                {/* Screen share video - main view */}
-                <div style={{ flex: 1, position: 'relative' }}>
-                    <video
-                        ref={screenShareRef}
-                        autoPlay
-                        playsInline
-                        style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'contain',
-                            backgroundColor: '#000'
-                        }}
-                    />
-                    
-                    {/* Screen share indicator */}
-                    <div style={{
-                        position: 'absolute',
-                        top: '10px',
-                        left: '10px',
-                        backgroundColor: 'rgba(255, 0, 0, 0.8)',
-                        color: 'white',
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        fontWeight: 'bold'
-                    }}>
-                        🖥️ Screen Sharing
-                    </div>
-                </div>
-
-                {/* Small webcam view in corner */}
-                {webcamOn && webcamStream && (
-                    <div style={{
-                        position: 'absolute',
-                        bottom: '15px',
-                        right: '15px',
-                        width: '150px',
-                        height: '100px',
-                        borderRadius: '8px',
-                        overflow: 'hidden',
-                        border: '2px solid #fff',
-                        backgroundColor: '#1a1a1a'
-                    }}>
-                        <video
-                            ref={videoRef}
-                            autoPlay
-                            playsInline
-                            muted={isLocal}
-                            style={{
-                                width: '100%',
-                                height: '100%',
-                                objectFit: 'cover'
-                            }}
-                        />
-                    </div>
-                )}
-
-                {/* Participant name and status */}
+                <video
+                    ref={screenShareRef}
+                    autoPlay
+                    playsInline
+                    style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                        backgroundColor: '#000'
+                    }}
+                />
+                
+                {/* Screen share indicator */}
                 <div style={{
                     position: 'absolute',
-                    bottom: '10px',
+                    top: '10px',
                     left: '10px',
-                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    backgroundColor: 'rgba(255, 0, 0, 0.8)',
                     color: 'white',
                     padding: '4px 8px',
                     borderRadius: '4px',
-                    fontSize: '14px'
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    zIndex: 10
                 }}>
-                    {displayName || 'Participant'} {isLocal && '(You)'}
-                    {!micOn && ' 🔇'}
+                    🖥️ {displayName || 'Participant'} is sharing screen
                 </div>
             </div>
         );
     }
 
-    // Regular participant view (no screen sharing)
+    // Regular participant view (webcam)
+    const getViewStyle = () => {
+        switch (viewMode) {
+            case 'pinned':
+                return {
+                    width: '100%',
+                    height: '100%',
+                    position: 'relative',
+                    backgroundColor: '#1a1a1a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                };
+            case 'sidebar':
+                return {
+                    width: '100%',
+                    height: '150px',
+                    position: 'relative',
+                    backgroundColor: '#1a1a1a',
+                    marginBottom: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                };
+            default:
+                return {
+                    width: '100%',
+                    height: '200px',
+                    position: 'relative',
+                    backgroundColor: '#1a1a1a',
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                };
+        }
+    };
+
     return (
-        <div className="participant-view" style={{ 
-            position: 'relative',
-            backgroundColor: '#1a1a1a',
-            borderRadius: '8px',
-            overflow: 'hidden',
-            minHeight: '200px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-        }}>
+        <div className="participant-view" style={getViewStyle()}>
             {webcamOn ? (
                 <video
                     ref={videoRef}
@@ -160,29 +143,34 @@ function ParticipantView({ participantId }) {
                 />
             ) : (
                 <div style={{
-                    width: '100px',
-                    height: '100px',
+                    width: viewMode === 'sidebar' ? '60px' : '100px',
+                    height: viewMode === 'sidebar' ? '60px' : '100px',
                     borderRadius: '50%',
                     backgroundColor: '#333',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: '36px',
+                    fontSize: viewMode === 'sidebar' ? '24px' : '36px',
                     color: '#fff'
                 }}>
                     {displayName?.charAt(0).toUpperCase() || 'U'}
                 </div>
             )}
             
+            {/* Participant info overlay */}
             <div style={{
                 position: 'absolute',
-                bottom: '10px',
-                left: '10px',
+                bottom: '5px',
+                left: '5px',
                 backgroundColor: 'rgba(0, 0, 0, 0.7)',
                 color: 'white',
-                padding: '4px 8px',
+                padding: viewMode === 'sidebar' ? '2px 6px' : '4px 8px',
                 borderRadius: '4px',
-                fontSize: '14px'
+                fontSize: viewMode === 'sidebar' ? '10px' : '12px',
+                maxWidth: 'calc(100% - 10px)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
             }}>
                 {displayName || 'Participant'} {isLocal && '(You)'}
                 {!micOn && ' 🔇'}
@@ -191,12 +179,13 @@ function ParticipantView({ participantId }) {
     );
 }
 
-function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh }) {
+function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isModerator }) {
     const [joined, setJoined] = useState(null);
     const [isScreenSharing, setIsScreenSharing] = useState(false);
     const [screenShareError, setScreenShareError] = useState(null);
     const [connectionStatus, setConnectionStatus] = useState('connected');
     const [tokenExpiryWarning, setTokenExpiryWarning] = useState(false);
+    const [currentScreenSharer, setCurrentScreenSharer] = useState(null);
     
     // Refs for intervals
     const tokenRefreshInterval = useRef(null);
@@ -211,7 +200,8 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh }) {
         participants, 
         localScreenShareOn,
         localMicOn,
-        localWebcamOn
+        localWebcamOn,
+        localParticipantId
     } = useMeeting({
         onMeetingJoined: () => {
             console.log("Meeting joined successfully");
@@ -229,7 +219,6 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh }) {
             console.error("Meeting error:", error);
             setConnectionStatus('error');
             
-            // Handle specific error types
             if (error.message && error.message.includes('token')) {
                 setTokenExpiryWarning(true);
                 handleTokenRefresh();
@@ -245,14 +234,33 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh }) {
         onScreenShareStopped: () => {
             console.log("Screen share stopped");
             setIsScreenSharing(false);
+            setCurrentScreenSharer(null);
         },
         onParticipantJoined: (participant) => {
             console.log("Participant joined:", participant.displayName);
         },
         onParticipantLeft: (participant) => {
             console.log("Participant left:", participant.displayName);
+            // If the screen sharer left, clear the current screen sharer
+            if (currentScreenSharer === participant.id) {
+                setCurrentScreenSharer(null);
+            }
         }
     });
+
+    // Monitor for screen sharing changes
+    useEffect(() => {
+        const screenSharingParticipants = [...participants.values()].filter(p => p.screenShareOn);
+        
+        if (screenSharingParticipants.length > 0) {
+            const newScreenSharer = screenSharingParticipants[0].id;
+            if (currentScreenSharer !== newScreenSharer) {
+                setCurrentScreenSharer(newScreenSharer);
+            }
+        } else {
+            setCurrentScreenSharer(null);
+        }
+    }, [participants, currentScreenSharer]);
 
     // Clear all intervals
     const clearIntervals = useCallback(() => {
@@ -277,7 +285,6 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh }) {
     // Monitor connection status
     const startConnectionMonitoring = useCallback(() => {
         connectionCheckInterval.current = setInterval(() => {
-            // Check if we still have participants (including ourselves)
             if (participants.size === 0) {
                 console.warn("No participants detected, checking connection...");
                 setConnectionStatus('checking');
@@ -305,7 +312,6 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh }) {
                     console.log("Token refreshed successfully");
                     setTokenExpiryWarning(false);
                     
-                    // Notify parent component about token refresh
                     if (onTokenRefresh) {
                         onTokenRefresh(data.token);
                     }
@@ -343,6 +349,12 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh }) {
                     throw new Error('Screen sharing is not supported in this browser');
                 }
                 
+                // If someone else is sharing, stop their share first
+                if (currentScreenSharer && currentScreenSharer !== localParticipantId) {
+                    console.log("Stopping other participant's screen share...");
+                    // VideoSDK will handle stopping the other participant's share when we start ours
+                }
+                
                 console.log("Starting screen share...");
                 await toggleScreenShare();
             } else {
@@ -359,14 +371,16 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh }) {
     // Sync local screen share state with VideoSDK state
     useEffect(() => {
         setIsScreenSharing(localScreenShareOn);
-    }, [localScreenShareOn]);
+        if (localScreenShareOn) {
+            setCurrentScreenSharer(localParticipantId);
+        }
+    }, [localScreenShareOn, localParticipantId]);
 
     if (!joined || joined === 'JOINING') {
         return (
             <div className="d-flex flex-column align-items-center justify-content-center" style={{ height: '80vh' }}>
                 <h3 className="mb-4">Ready to join the meeting?</h3>
                 
-                {/* Connection status indicator */}
                 {connectionStatus === 'connecting' && (
                     <div className="alert alert-info mb-3">
                         <div className="d-flex align-items-center">
@@ -394,35 +408,65 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh }) {
         );
     }
 
-    // Check if anyone is screen sharing
-    const screenSharingParticipants = [...participants.values()].filter(p => p.screenShareOn);
-    const hasScreenShare = screenSharingParticipants.length > 0;
+    // Determine layout based on screen sharing and user role
+    const getLayoutConfig = () => {
+        const participantList = [...participants.values()];
+        const isScreenShareActive = currentScreenSharer !== null;
+        
+        if (isScreenShareActive) {
+            // Screen sharing layout
+            const screenSharerParticipant = participantList.find(p => p.id === currentScreenSharer);
+            const otherParticipants = participantList.filter(p => p.id !== currentScreenSharer);
+            
+            return {
+                type: 'screenShare',
+                pinnedParticipant: screenSharerParticipant,
+                sidebarParticipants: otherParticipants
+            };
+        } else {
+            // Regular layout - pin the opposite role
+            const localParticipant = participantList.find(p => p.id === localParticipantId);
+            const remoteParticipants = participantList.filter(p => p.id !== localParticipantId);
+            
+            // Pin the first remote participant (should be the opposite role)
+            const pinnedParticipant = remoteParticipants.length > 0 ? remoteParticipants[0] : null;
+            const sidebarParticipants = [localParticipant, ...remoteParticipants.slice(1)].filter(Boolean);
+            
+            return {
+                type: 'regular',
+                pinnedParticipant,
+                sidebarParticipants
+            };
+        }
+    };
+
+    const layoutConfig = getLayoutConfig();
 
     return (
-        <div className="container-fluid p-3">
+        <div className="container-fluid p-0" style={{ height: '100vh', overflow: 'hidden' }}>
             {/* Status Indicators */}
             {(tokenExpiryWarning || connectionStatus !== 'connected') && (
-                <div className="row mb-2">
-                    <div className="col-12">
+                <div className="position-fixed top-0 start-0 end-0 z-3" style={{ zIndex: 1050 }}>
+                    <div className="container-fluid p-2">
                         {tokenExpiryWarning && (
-                            <div className="alert alert-warning alert-dismissible fade show" role="alert">
+                            <div className="alert alert-warning alert-dismissible fade show mb-1" role="alert">
                                 <small>🔄 Refreshing connection token...</small>
                                 <button 
                                     type="button" 
-                                    className="btn-close" 
+                                    className="btn-close btn-close-sm" 
                                     onClick={() => setTokenExpiryWarning(false)}
                                 ></button>
                             </div>
                         )}
                         
                         {connectionStatus === 'error' && (
-                            <div className="alert alert-danger" role="alert">
+                            <div className="alert alert-danger mb-1" role="alert">
                                 <small>⚠️ Connection issue detected. Attempting to reconnect...</small>
                             </div>
                         )}
                         
                         {connectionStatus === 'checking' && (
-                            <div className="alert alert-info" role="alert">
+                            <div className="alert alert-info mb-1" role="alert">
                                 <small>🔍 Checking connection status...</small>
                             </div>
                         )}
@@ -431,176 +475,132 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh }) {
             )}
 
             {/* Meeting Controls */}
-            <div className="row mb-3">
-                <div className="col-12">
-                    <div className="d-flex justify-content-between align-items-center flex-wrap">
-                        <div className="d-flex align-items-center">
-                            <h4 className="mb-0 me-3">Meeting ID: {meetingId}</h4>
-                            
-                            {/* Connection status indicator */}
-                            <span className={`badge ${
-                                connectionStatus === 'connected' ? 'bg-success' : 
-                                connectionStatus === 'connecting' ? 'bg-warning' : 'bg-danger'
-                            }`}>
-                                {connectionStatus === 'connected' ? '🟢 Connected' : 
-                                 connectionStatus === 'connecting' ? '🟡 Connecting' : '🔴 Connection Issue'}
-                            </span>
-                        </div>
-                        
-                        <div className="d-flex flex-wrap gap-2 mt-2 mt-md-0">
-                            <button
-                                className={`btn ${localMicOn ? 'btn-success' : 'btn-secondary'}`}
-                                onClick={() => toggleMic()}
-                                title="Toggle Microphone"
-                            >
-                                {localMicOn ? '🎤 Mic On' : '🎤 Mic Off'}
-                            </button>
-                            <button
-                                className={`btn ${localWebcamOn ? 'btn-success' : 'btn-secondary'}`}
-                                onClick={() => toggleWebcam()}
-                                title="Toggle Camera"
-                            >
-                                {localWebcamOn ? '📹 Cam On' : '📹 Cam Off'}
-                            </button>
-                            <button
-                                className={`btn ${isScreenSharing ? 'btn-warning' : 'btn-info'}`}
-                                onClick={handleScreenShare}
-                                title={isScreenSharing ? 'Stop Screen Sharing' : 'Start Screen Sharing'}
-                                disabled={screenShareError !== null}
-                            >
-                                {isScreenSharing ? (
-                                    <>🛑 Stop Sharing</>
-                                ) : (
-                                    <>🖥️ Share Screen</>
-                                )}
-                            </button>
-                            <button
-                                className="btn btn-outline-secondary"
-                                onClick={handleTokenRefresh}
-                                title="Refresh Connection"
-                            >
-                                🔄 Refresh
-                            </button>
-                            <button
-                                className="btn btn-danger"
-                                onClick={() => leave()}
-                                title="Leave Meeting"
-                            >
-                                📞 Leave
-                            </button>
-                        </div>
-                    </div>
+            <div className="position-fixed bottom-0 start-0 end-0 bg-dark bg-opacity-75 p-2" style={{ zIndex: 1040 }}>
+                <div className="d-flex justify-content-center align-items-center flex-wrap gap-2">
+                    <button
+                        className={`btn btn-sm ${localMicOn ? 'btn-success' : 'btn-secondary'}`}
+                        onClick={() => toggleMic()}
+                        title="Toggle Microphone"
+                    >
+                        {localMicOn ? '🎤' : '🎤'}
+                    </button>
+                    <button
+                        className={`btn btn-sm ${localWebcamOn ? 'btn-success' : 'btn-secondary'}`}
+                        onClick={() => toggleWebcam()}
+                        title="Toggle Camera"
+                    >
+                        {localWebcamOn ? '📹' : '📹'}
+                    </button>
+                    <button
+                        className={`btn btn-sm ${isScreenSharing ? 'btn-warning' : 'btn-info'}`}
+                        onClick={handleScreenShare}
+                        title={isScreenSharing ? 'Stop Screen Sharing' : 'Start Screen Sharing'}
+                    >
+                        {isScreenSharing ? '🛑' : '🖥️'}
+                    </button>
+                    <button
+                        className="btn btn-sm btn-outline-light"
+                        onClick={handleTokenRefresh}
+                        title="Refresh Connection"
+                    >
+                        🔄
+                    </button>
+                    <button
+                        className="btn btn-sm btn-danger"
+                        onClick={() => leave()}
+                        title="Leave Meeting"
+                    >
+                        📞
+                    </button>
                     
-                    {/* Screen share error display */}
-                    {screenShareError && (
-                        <div className="alert alert-warning mt-2 mb-0" role="alert">
-                            <small>Screen Share Error: {screenShareError}</small>
-                            <button 
-                                className="btn btn-sm btn-outline-warning ms-2"
-                                onClick={() => setScreenShareError(null)}
-                            >
-                                Dismiss
-                            </button>
-                        </div>
-                    )}
+                    {/* Connection status */}
+                    <span className={`badge ${
+                        connectionStatus === 'connected' ? 'bg-success' : 
+                        connectionStatus === 'connecting' ? 'bg-warning' : 'bg-danger'
+                    }`}>
+                        {connectionStatus === 'connected' ? '🟢' : 
+                         connectionStatus === 'connecting' ? '🟡' : '🔴'}
+                    </span>
                 </div>
-            </div>
-
-            {/* Meeting Statistics */}
-            <div className="row mb-3">
-                <div className="col-12">
-                    <div className="d-flex justify-content-between align-items-center small text-muted">
-                        <span>Participants: {participants.size}</span>
-                        <span>Screen Sharing: {hasScreenShare ? 'Active' : 'Inactive'}</span>
-                        <span>Duration: <MeetingTimer /></span>
+                
+                {/* Screen share error */}
+                {screenShareError && (
+                    <div className="text-center mt-1">
+                        <small className="text-warning">Screen Share Error: {screenShareError}</small>
+                        <button 
+                            className="btn btn-sm btn-link text-warning p-0 ms-2"
+                            onClick={() => setScreenShareError(null)}
+                        >
+                            ✕
+                        </button>
                     </div>
-                </div>
+                )}
             </div>
 
-            {/* Screen Share Layout */}
-            {hasScreenShare ? (
-                <div className="row">
-                    {/* Screen sharing participant(s) - full width */}
-                    <div className="col-12 mb-3">
-                        <div className="row">
-                            {screenSharingParticipants.map((participant) => (
-                                <div key={participant.id} className="col-12 mb-3">
-                                    <ParticipantView participantId={participant.id} />
+            {/* Main Meeting Layout */}
+            <div className="d-flex h-100">
+                {/* Main Content Area - 80% */}
+                <div className="flex-grow-1" style={{ width: '80%', height: '100%' }}>
+                    {layoutConfig.pinnedParticipant ? (
+                        layoutConfig.type === 'screenShare' ? (
+                            <ParticipantView 
+                                participantId={layoutConfig.pinnedParticipant.id} 
+                                viewMode="screenShare"
+                                isLocal={layoutConfig.pinnedParticipant.id === localParticipantId}
+                            />
+                        ) : (
+                            <ParticipantView 
+                                participantId={layoutConfig.pinnedParticipant.id} 
+                                viewMode="pinned"
+                                isLocal={layoutConfig.pinnedParticipant.id === localParticipantId}
+                            />
+                        )
+                    ) : (
+                        <div className="d-flex align-items-center justify-content-center h-100 bg-dark">
+                            <div className="text-center text-light">
+                                <div className="spinner-border mb-3" role="status">
+                                    <span className="visually-hidden">Loading...</span>
                                 </div>
-                            ))}
-                        </div>
-                    </div>
-                    
-                    {/* Other participants - smaller grid */}
-                    {[...participants.keys()]
-                        .filter(id => !screenSharingParticipants.find(p => p.id === id))
-                        .length > 0 && (
-                        <div className="col-12">
-                            <h6 className="mb-3">Other Participants:</h6>
-                            <div className="row">
-                                {[...participants.keys()]
-                                    .filter(id => !screenSharingParticipants.find(p => p.id === id))
-                                    .map((participantId) => (
-                                    <div key={participantId} className="col-md-4 col-lg-3 mb-3">
-                                        <ParticipantView participantId={participantId} />
-                                    </div>
-                                ))}
+                                <p>Waiting for other participants to join...</p>
                             </div>
                         </div>
                     )}
                 </div>
-            ) : (
-                /* Regular Grid Layout - No Screen Sharing */
-                <div className="row">
-                    {[...participants.keys()].map((participantId) => (
-                        <div key={participantId} className="col-md-6 col-lg-4 mb-3">
-                            <ParticipantView participantId={participantId} />
+
+                {/* Sidebar - 20% */}
+                <div 
+                    className="bg-dark p-2 d-flex flex-column"
+                    style={{ 
+                        width: '20%', 
+                        height: '100%',
+                        margin: 0,
+                        padding: '8px',
+                        borderLeft: '1px solid #333'
+                    }}
+                >
+                    {layoutConfig.sidebarParticipants.map((participant, index) => (
+                        <div key={participant.id} className="mb-2">
+                            <ParticipantView 
+                                participantId={participant.id} 
+                                viewMode="sidebar"
+                                isLocal={participant.id === localParticipantId}
+                            />
                         </div>
                     ))}
-                </div>
-            )}
-
-            {/* No participants message */}
-            {participants.size === 0 && (
-                <div className="text-center py-5">
-                    <div className="spinner-border text-primary mb-3" role="status">
-                        <span className="visually-hidden">Loading...</span>
-                    </div>
-                    <p className="text-muted">Waiting for other participants to join...</p>
-                    <small className="text-muted">
-                        If this persists, try refreshing your connection using the 🔄 Refresh button above.
-                    </small>
-                </div>
-            )}
-
-            {/* Meeting Tips */}
-            {!hasScreenShare && participants.size > 0 && (
-                <div className="row mt-4">
-                    <div className="col-12">
-                        <div className="card bg-light">
-                            <div className="card-body">
-                                <h6 className="card-title">💡 Meeting Tips:</h6>
-                                <div className="row">
-                                    <div className="col-md-6">
-                                        <ul className="mb-0 small text-muted">
-                                            <li>Click "🖥️ Share Screen" to share your screen</li>
-                                            <li>Use "🔄 Refresh" if you experience connection issues</li>
-                                            <li>Your camera will appear in a corner when screen sharing</li>
-                                        </ul>
-                                    </div>
-                                    <div className="col-md-6">
-                                        <ul className="mb-0 small text-muted">
-                                            <li>Meeting tokens auto-refresh every 3 hours</li>
-                                            <li>Connection status is shown in the top-right</li>
-                                            <li>All participants can see screen sharing</li>
-                                        </ul>
-                                    </div>
-                                </div>
+                    
+                    {/* Meeting info */}
+                    <div className="mt-auto">
+                        <div className="text-light small text-center">
+                            <div className="mb-1">
+                                <MeetingTimer />
+                            </div>
+                            <div className="text-muted">
+                                {participants.size} participant{participants.size !== 1 ? 's' : ''}
                             </div>
                         </div>
                     </div>
                 </div>
-            )}
+            </div>
         </div>
     );
 }
@@ -639,7 +639,6 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
     const [meetingConfig, setMeetingConfig] = useState(null);
 
     useEffect(() => {
-        // Initialize meeting configuration
         setMeetingConfig({
             meetingId,
             micEnabled: true,
@@ -661,7 +660,7 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
 
     if (meetingEnded) {
         return (
-            <div className="d-flex flex-column align-items-center justify-content-center" style={{ height: '80vh' }}>
+            <div className="d-flex flex-column align-items-center justify-content-center" style={{ height: '100vh' }}>
                 <div className="text-center">
                     <h3 className="mb-3">Meeting Ended</h3>
                     <p className="text-muted mb-4">Thank you for participating in the session!</p>
@@ -696,26 +695,20 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
 
     if (!meetingId || !currentToken || !meetingConfig) {
         return (
-            <div className="d-flex flex-column align-items-center justify-content-center" style={{ height: '80vh' }}>
+            <div className="d-flex flex-column align-items-center justify-content-center" style={{ height: '100vh' }}>
                 <div className="text-center">
                     <div className="spinner-border text-primary mb-3" role="status">
                         <span className="visually-hidden">Loading...</span>
                     </div>
                     <h3>Setting up meeting...</h3>
                     <p className="text-muted">Please wait while we prepare your video session.</p>
-                    
-                    {(!meetingId || !currentToken) && (
-                        <div className="alert alert-warning mt-3">
-                            <small>Missing meeting configuration. Please try refreshing the page.</small>
-                        </div>
-                    )}
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="video-meeting-container">
+        <div className="video-meeting-container" style={{ height: '100vh', overflow: 'hidden' }}>
             <MeetingProvider
                 config={meetingConfig}
                 token={currentToken}
@@ -728,6 +721,8 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
                             onMeetingLeave={onMeetingLeave} 
                             meetingId={meetingId}
                             onTokenRefresh={handleTokenRefresh}
+                            userName={userName}
+                            isModerator={isModerator}
                         />
                     )}
                 </MeetingConsumer>
