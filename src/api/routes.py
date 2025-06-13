@@ -69,6 +69,7 @@ def generate_verification_code():
 
 @api.route('/current/user')
 @jwt_required()
+@cross_origin(origins=[os.getenv("FRONTEND_URL") or "http://localhost:3000"])
 def get_current_user():
     user_id = get_jwt_identity()
     role = get_jwt()['role']

@@ -226,6 +226,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
     const [tokenExpiryWarning, setTokenExpiryWarning] = useState(false);
     const [currentScreenSharer, setCurrentScreenSharer] = useState(null);
     const [screenShareInProgress, setScreenShareInProgress] = useState(false);
+    const [localParticipantIdState, setLocalParticipantIdState] = useState(null);
     
     // Refs for intervals
     const tokenRefreshInterval = useRef(null);
@@ -253,6 +254,13 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             });
             setJoined('JOINED');
             setConnectionStatus('connected');
+            
+            // FIXED: Store local participant ID in state when meeting is joined
+            if (localParticipantId) {
+                setLocalParticipantIdState(localParticipantId);
+                console.log("✅ Local participant ID set:", localParticipantId);
+            }
+            
             startTokenRefreshTimer();
             startConnectionMonitoring();
         },
@@ -291,7 +299,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         onScreenShareStarted: () => {
             console.log("🖥️ LOCAL SCREEN SHARE STARTED!");
             console.log("📊 Screen Share State:", {
-                localParticipantId,
+                localParticipantId: localParticipantIdState || localParticipantId,
                 localScreenShareOn: true,
                 currentTime: new Date().toISOString()
             });
@@ -300,15 +308,17 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             setScreenShareInProgress(false);
             clearScreenShareTimeout();
             
-            // FIXED: Use localParticipantId directly
-            if (localParticipantId) {
-                setCurrentScreenSharer(localParticipantId);
+            // FIXED: Use either state or direct value for local participant ID
+            const currentLocalId = localParticipantIdState || localParticipantId;
+            if (currentLocalId) {
+                setCurrentScreenSharer(currentLocalId);
+                console.log("✅ Set current screen sharer to local participant:", currentLocalId);
             }
         },
         onScreenShareStopped: () => {
             console.log("🖥️ LOCAL SCREEN SHARE STOPPED!");
             console.log("📊 Screen Share State:", {
-                localParticipantId,
+                localParticipantId: localParticipantIdState || localParticipantId,
                 localScreenShareOn: false,
                 currentTime: new Date().toISOString()
             });
@@ -317,8 +327,10 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             clearScreenShareTimeout();
             
             // FIXED: Clear screen sharer if it was the local participant
-            if (currentScreenSharer === localParticipantId) {
+            const currentLocalId = localParticipantIdState || localParticipantId;
+            if (currentScreenSharer === currentLocalId) {
                 setCurrentScreenSharer(null);
+                console.log("✅ Cleared local participant as screen sharer");
             }
         },
         onParticipantJoined: (participant) => {
@@ -339,6 +351,17 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         }
     });
 
+    // FIXED: Update local participant ID state when it becomes available
+    useEffect(() => {
+        if (localParticipantId && !localParticipantIdState) {
+            console.log("📊 Setting local participant ID from useMeeting hook:", localParticipantId);
+            setLocalParticipantIdState(localParticipantId);
+        }
+    }, [localParticipantId, localParticipantIdState]);
+
+    // Use the state version if available, fallback to hook version
+    const effectiveLocalParticipantId = localParticipantIdState || localParticipantId;
+
     // DEBUG: Log all state changes
     useEffect(() => {
         console.log("📊 MEETING STATE UPDATE:", {
@@ -348,18 +371,20 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             connectionStatus,
             currentScreenSharer,
             localParticipantId,
+            localParticipantIdState,
+            effectiveLocalParticipantId,
             localScreenShareOn,
             participantCount: participants.size,
             participantIds: [...participants.keys()]
         });
-    }, [joined, isScreenSharing, screenShareInProgress, connectionStatus, currentScreenSharer, localParticipantId, localScreenShareOn, participants]);
+    }, [joined, isScreenSharing, screenShareInProgress, connectionStatus, currentScreenSharer, localParticipantId, localParticipantIdState, effectiveLocalParticipantId, localScreenShareOn, participants]);
 
     // FIXED: Monitor for screen sharing changes from all participants
     useEffect(() => {
         console.log("🔍 CHECKING SCREEN SHARE STATE:");
         console.log("📊 Local screen share:", {
             localScreenShareOn,
-            localParticipantId
+            effectiveLocalParticipantId
         });
         console.log("📊 Remote participants:", [...participants.entries()].map(([id, p]) => ({
             id,
@@ -369,10 +394,10 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
 
         let newScreenSharer = null;
         
-        // Check local screen sharing first - FIXED: Properly check if local participant is sharing
-        if (localScreenShareOn && localParticipantId) {
+        // Check local screen sharing first - FIXED: Use effective local participant ID
+        if (localScreenShareOn && effectiveLocalParticipantId) {
             console.log("🖥️ Local participant is sharing screen");
-            newScreenSharer = localParticipantId;
+            newScreenSharer = effectiveLocalParticipantId;
         } else {
             // Check remote participants
             for (const [participantId, participant] of participants.entries()) {
@@ -398,7 +423,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         } else {
             console.log("📊 Screen sharer unchanged:", currentScreenSharer);
         }
-    }, [participants, localScreenShareOn, localParticipantId, currentScreenSharer]);
+    }, [participants, localScreenShareOn, effectiveLocalParticipantId, currentScreenSharer]);
 
     // Clear screen share timeout
     const clearScreenShareTimeout = useCallback(() => {
@@ -441,7 +466,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             console.log("📡 Connection check:", {
                 remoteParticipantCount,
                 connectionStatus,
-                hasLocalParticipant: !!localParticipantId
+                hasLocalParticipant: !!effectiveLocalParticipantId
             });
             
             // Only show warning if no remote participants AND we've been joined for a while
@@ -452,7 +477,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                 setConnectionStatus('connected');
             }
         }, 30000); // Check every 30 seconds
-    }, [participants, connectionStatus, joined, localParticipantId]);
+    }, [participants, connectionStatus, joined, effectiveLocalParticipantId]);
 
     // Handle token refresh
     const handleTokenRefresh = useCallback(async () => {
@@ -516,7 +541,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             screenShareInProgress,
             localScreenShareOn,
             currentScreenSharer,
-            localParticipantId
+            effectiveLocalParticipantId
         });
 
         try {
@@ -534,13 +559,19 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                 console.log("🖥️ Setting screen share in progress...");
                 setScreenShareInProgress(true);
                 
-                // FIXED: Reduced timeout to 10 seconds and better error handling
-                console.log("⏰ Setting 10-second timeout for screen share");
+                // FIXED: Reduced timeout to 8 seconds and better error handling
+                console.log("⏰ Setting 8-second timeout for screen share");
                 screenShareTimeoutRef.current = setTimeout(() => {
                     console.log("⏰ SCREEN SHARE TIMEOUT TRIGGERED");
+                    console.log("📊 Timeout state:", {
+                        isScreenSharing,
+                        screenShareInProgress,
+                        localScreenShareOn,
+                        currentScreenSharer
+                    });
                     setScreenShareInProgress(false);
-                    setScreenShareError("Screen share request timed out. The user may have cancelled the screen share dialog.");
-                }, 10000); // 10 second timeout
+                    setScreenShareError("Screen share request timed out. Please try again or check if you cancelled the screen share dialog.");
+                }, 8000); // 8 second timeout
                 
                 console.log("🔄 Calling toggleScreenShare()...");
                 
@@ -639,7 +670,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         console.log("📊 Layout state:", {
             isScreenShareActive,
             currentScreenSharer,
-            localParticipantId,
+            effectiveLocalParticipantId,
             participantCount: participantList.length,
             participantIds: participantList.map(p => p.id)
         });
@@ -648,22 +679,22 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             console.log("🎨 Using SCREEN SHARE layout");
             // Screen sharing layout
             const screenSharerParticipant = participantList.find(p => p.id === currentScreenSharer) || 
-                                          (currentScreenSharer === localParticipantId ? { id: localParticipantId, displayName: userName } : null);
+                                          (currentScreenSharer === effectiveLocalParticipantId ? { id: effectiveLocalParticipantId, displayName: userName } : null);
             
             console.log("📊 Screen sharer participant:", screenSharerParticipant);
             
             const otherParticipants = participantList.filter(p => p.id !== currentScreenSharer);
             // Add local participant to sidebar if they're not the screen sharer
-            if (currentScreenSharer !== localParticipantId && localParticipantId) {
+            if (currentScreenSharer !== effectiveLocalParticipantId && effectiveLocalParticipantId) {
                 // Add local participant info
                 otherParticipants.unshift({ 
-                    id: localParticipantId, 
+                    id: effectiveLocalParticipantId, 
                     displayName: userName + " (You)"
                 });
-            } else if (localParticipantId) {
+            } else if (effectiveLocalParticipantId) {
                 // If local is sharing, add them to sidebar as well for self-view
                 otherParticipants.unshift({ 
-                    id: localParticipantId, 
+                    id: effectiveLocalParticipantId, 
                     displayName: userName + " (You)"
                 });
             }
@@ -677,15 +708,22 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             };
         } else {
             console.log("🎨 Using REGULAR layout");
-            // Regular layout - pin the opposite role
-            const localParticipant = localParticipantId ? { id: localParticipantId, displayName: userName + " (You)" } : null;
-            const remoteParticipants = participantList.filter(p => p.id !== localParticipantId);
+            // Regular layout - pin the first remote participant and show local in sidebar
+            const localParticipant = effectiveLocalParticipantId ? { id: effectiveLocalParticipantId, displayName: userName + " (You)" } : null;
+            const remoteParticipants = participantList.filter(p => p.id !== effectiveLocalParticipantId);
             
             console.log("📊 Remote participants:", remoteParticipants.map(p => ({ id: p.id, name: p.displayName })));
             
             // Pin the first remote participant (should be the opposite role)
             const pinnedParticipant = remoteParticipants.length > 0 ? remoteParticipants[0] : null;
-            const sidebarParticipants = [localParticipant, ...remoteParticipants.slice(1)].filter(Boolean);
+            
+            // FIXED: Always include local participant in sidebar, plus other remotes
+            const sidebarParticipants = [];
+            if (localParticipant) {
+                sidebarParticipants.push(localParticipant);
+            }
+            // Add remaining remote participants to sidebar
+            sidebarParticipants.push(...remoteParticipants.slice(1));
             
             console.log("📊 Pinned participant:", pinnedParticipant ? { id: pinnedParticipant.id, name: pinnedParticipant.displayName } : null);
             console.log("📊 Sidebar participants:", sidebarParticipants.map(p => ({ id: p.id, name: p.displayName })));
@@ -822,7 +860,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                         )}
                         
                         <span className="badge bg-secondary">
-                            {localParticipantId ? `ID: ${localParticipantId.slice(-4)}` : 'No ID'}
+                            {effectiveLocalParticipantId ? `ID: ${effectiveLocalParticipantId.slice(-4)}` : 'No ID'}
                         </span>
                     </div>
                 </div>
@@ -839,7 +877,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                                 <ParticipantView 
                                     participantId={layoutConfig.pinnedParticipant.id} 
                                     viewMode="screenShare"
-                                    isLocal={layoutConfig.pinnedParticipant.id === localParticipantId}
+                                    isLocal={layoutConfig.pinnedParticipant.id === effectiveLocalParticipantId}
                                 />
                             </>
                         ) : (
@@ -848,7 +886,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                                 <ParticipantView 
                                     participantId={layoutConfig.pinnedParticipant.id} 
                                     viewMode="pinned"
-                                    isLocal={layoutConfig.pinnedParticipant.id === localParticipantId}
+                                    isLocal={layoutConfig.pinnedParticipant.id === effectiveLocalParticipantId}
                                 />
                             </>
                         )
@@ -860,9 +898,9 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                                 </div>
                                 <p>Waiting for other participants to join...</p>
                                 <small className="text-muted">Meeting ID: {meetingId}</small>
-                                {localParticipantId && (
+                                {effectiveLocalParticipantId && (
                                     <div className="mt-2">
-                                        <small className="text-info">Your ID: {localParticipantId}</small>
+                                        <small className="text-info">Your ID: {effectiveLocalParticipantId}</small>
                                     </div>
                                 )}
                             </div>
@@ -886,14 +924,14 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                             console.log(`🎨 Rendering sidebar participant ${index}:`, {
                                 id: participant.id,
                                 displayName: participant.displayName,
-                                isLocal: participant.id === localParticipantId
+                                isLocal: participant.id === effectiveLocalParticipantId
                             });
                             return (
                                 <div key={participant.id || index} className="mb-1">
                                     <ParticipantView 
                                         participantId={participant.id} 
                                         viewMode="sidebar"
-                                        isLocal={participant.id === localParticipantId}
+                                        isLocal={participant.id === effectiveLocalParticipantId}
                                     />
                                 </div>
                             );
@@ -907,11 +945,11 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                                 <MeetingTimer />
                             </div>
                             <div className="text-muted" style={{ fontSize: '10px' }}>
-                                {participants.size + (localParticipantId ? 1 : 0)} participant{participants.size !== 0 ? 's' : ''}
+                                {participants.size + (effectiveLocalParticipantId ? 1 : 0)} participant{participants.size !== 0 ? 's' : ''}
                             </div>
                             {currentScreenSharer && (
                                 <div className="text-info" style={{ fontSize: '10px' }}>
-                                    Screen sharing active ({currentScreenSharer === localParticipantId ? 'You' : 'Remote'})
+                                    Screen sharing active ({currentScreenSharer === effectiveLocalParticipantId ? 'You' : 'Remote'})
                                 </div>
                             )}
                             
@@ -924,7 +962,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                                     <br />
                                     Local SS: {localScreenShareOn ? 'ON' : 'OFF'}
                                     <br />
-                                    Local ID: {localParticipantId || 'none'}
+                                    Local ID: {effectiveLocalParticipantId || 'none'}
                                 </div>
                             )}
                         </div>
