@@ -10,6 +10,7 @@ export const VideoMeetingPage = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [userName, setUserName] = useState('Participant');
+    const [isModerator, setIsModerator] = useState(false);
 
     useEffect(() => {
         const initializeMeeting = async () => {
@@ -40,10 +41,10 @@ export const VideoMeetingPage = () => {
                 const data = await response.json();
                 console.log('Meeting token result:', data); // Debug log
                 
-                
                 if (data.success) {
                     setToken(data.token);
                     setUserName(data.userName || 'Participant');
+                    setIsModerator(data.isModerator || false);
                 } else {
                     setError('Failed to get meeting access. Please try again.');
                 }
@@ -58,7 +59,7 @@ export const VideoMeetingPage = () => {
         if (meetingId) {
             initializeMeeting();
         }
-    }, [meetingId, store.token]);
+    }, [meetingId, store.token, actions]);
 
     if (loading) {
         return (
@@ -109,13 +110,14 @@ export const VideoMeetingPage = () => {
         );
     }
 
-    // Pass userName to VideoMeeting component via config
+    // Pass all necessary props to VideoMeeting component
     return (
         <div className="video-meeting-page">
             <VideoMeeting 
                 meetingId={meetingId} 
                 token={token}
                 userName={userName}
+                isModerator={isModerator}
             />
         </div>
     );
