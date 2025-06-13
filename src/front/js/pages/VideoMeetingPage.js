@@ -40,6 +40,7 @@ export const VideoMeetingPage = () => {
                 const data = await response.json();
                 console.log('Meeting token result:', data); // Debug log
                 
+                
                 if (data.success) {
                     setToken(data.token);
                     setUserName(data.userName || 'Participant');
