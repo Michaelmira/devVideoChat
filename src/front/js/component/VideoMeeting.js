@@ -19,7 +19,7 @@ function ParticipantView({ participantId, viewMode = 'normal', isLocal = false }
     // FIXED: Better screen share detection using multiple sources
     const effectiveScreenShareOn = screenShareOn || 
                                    !!screenShareStream || 
-                                   !!participant?.streams?.find(s => s.kind === 'share');
+                                   !!(participant && Array.isArray(participant.streams) && participant.streams.find(s => s.kind === 'share'));
 
     // DEBUG: Log participant state changes
     useEffect(() => {
@@ -35,7 +35,7 @@ function ParticipantView({ participantId, viewMode = 'normal', isLocal = false }
             hasWebcamStream: !!webcamStream,
             hasScreenShareStream: !!screenShareStream,
             participant: {
-                streams: participant?.streams?.map(s => s.kind) || [],
+                streams: (participant && Array.isArray(participant.streams)) ? participant.streams.map(s => s.kind) : [],
                 screenShareOn: participant?.screenShareOn
             }
         });
@@ -508,19 +508,19 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             screenShareOn: p.screenShareOn,
             isLocal: p.isLocal,
             screenShareStream: !!p.screenShareStream,
-            // FIXED: Access screen share directly from participant object
-            hasScreenShareStream: !!p.streams?.find(s => s.kind === 'share'),
-            streamCount: p.streams?.length || 0
+            // FIXED: Safe access to streams array
+            hasScreenShareStream: !!(Array.isArray(p.streams) && p.streams.find(s => s.kind === 'share')),
+            streamCount: Array.isArray(p.streams) ? p.streams.length : 0
         })));
 
         let newScreenSharer = null;
         
         // First check remote participants for screen sharing
         for (const [participantId, participant] of participants.entries()) {
-            // FIXED: Check multiple ways to detect screen sharing
+            // FIXED: Check multiple ways to detect screen sharing with safe array access
             const hasScreenShare = participant.screenShareOn || 
                                    !!participant.screenShareStream || 
-                                   !!participant.streams?.find(s => s.kind === 'share');
+                                   !!(Array.isArray(participant.streams) && participant.streams.find(s => s.kind === 'share'));
             
             const isLocalParticipant = participantId === effectiveLocalParticipantId || participant.isLocal;
             
@@ -530,7 +530,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                 isLocal: isLocalParticipant,
                 hasScreenShareStream: !!participant.screenShareStream,
                 hasScreenShare,
-                streams: participant.streams?.map(s => s.kind) || []
+                streams: Array.isArray(participant.streams) ? participant.streams.map(s => s.kind) : []
             });
             
             // Check for screen sharing - prioritize remote participants
