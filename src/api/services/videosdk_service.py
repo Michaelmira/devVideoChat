@@ -50,13 +50,15 @@ class VideoSDKService:
                 'exp': exp_time
             }
             
-            logger.info(f"📊 JWT Payload: {json.dumps({
+            # Fixed the f-string syntax error here
+            payload_for_logging = {
                 'apikey': api_key[:10] + '...',
                 'permissions': payload['permissions'],
                 'version': payload['version'],
                 'iat': payload['iat'].isoformat(),
                 'exp': payload['exp'].isoformat()
-            }, indent=2)}")
+            }
+            logger.info(f"📊 JWT Payload: {json.dumps(payload_for_logging, indent=2)}")
 
             # Generate JWT token
             logger.info("🔄 Encoding JWT token...")
@@ -92,7 +94,9 @@ class VideoSDKService:
                 "Content-Type": "application/json"
             }
             
-            logger.info(f"📊 Request headers: {json.dumps({k: v[:50] + '...' if k == 'Authorization' else v for k, v in headers.items()}, indent=2)}")
+            # Fixed f-string here too
+            headers_for_logging = {k: v[:50] + '...' if k == 'Authorization' else v for k, v in headers.items()}
+            logger.info(f"📊 Request headers: {json.dumps(headers_for_logging, indent=2)}")
             
             # Custom meeting ID based on booking
             custom_id = f"booking_{booking_id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
@@ -181,7 +185,9 @@ class VideoSDKService:
                     "meeting_url": meeting_url
                 }
                 
-                logger.info(f"✅ Returning success result: {json.dumps({k: v if k != 'token' else v[:50] + '...' for k, v in result.items()}, indent=2)}")
+                # Fixed f-string here
+                result_for_logging = {k: v if k != 'token' else v[:50] + '...' for k, v in result.items()}
+                logger.info(f"✅ Returning success result: {json.dumps(result_for_logging, indent=2)}")
                 return result
             else:
                 logger.error(f"❌ Failed to create meeting. Status: {response.status_code}")
