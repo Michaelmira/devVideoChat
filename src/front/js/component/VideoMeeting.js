@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { MeetingProvider, useMeeting, useParticipant, Constants, MeetingConsumer } from '@videosdk.live/react-sdk';
 
 function ParticipantView({ participantId }) {
@@ -191,10 +191,16 @@ function ParticipantView({ participantId }) {
     );
 }
 
-function MeetingView({ onMeetingLeave }) {
+function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh }) {
     const [joined, setJoined] = useState(null);
     const [isScreenSharing, setIsScreenSharing] = useState(false);
     const [screenShareError, setScreenShareError] = useState(null);
+    const [connectionStatus, setConnectionStatus] = useState('connected');
+    const [tokenExpiryWarning, setTokenExpiryWarning] = useState(false);
+    
+    // Refs for intervals
+    const tokenRefreshInterval = useRef(null);
+    const connectionCheckInterval = useRef(null);
     
     const { 
         join, 
@@ -203,18 +209,33 @@ function MeetingView({ onMeetingLeave }) {
         toggleWebcam, 
         toggleScreenShare,
         participants, 
-        meetingId,
-        localScreenShareOn
+        localScreenShareOn,
+        localMicOn,
+        localWebcamOn
     } = useMeeting({
         onMeetingJoined: () => {
+            console.log("Meeting joined successfully");
             setJoined('JOINED');
+            setConnectionStatus('connected');
+            startTokenRefreshTimer();
+            startConnectionMonitoring();
         },
         onMeetingLeft: () => {
+            console.log("Meeting left");
+            clearIntervals();
             onMeetingLeave();
         },
         onError: (error) => {
             console.error("Meeting error:", error);
-            alert(`Meeting Error: ${error.message || 'Unknown error occurred'}`);
+            setConnectionStatus('error');
+            
+            // Handle specific error types
+            if (error.message && error.message.includes('token')) {
+                setTokenExpiryWarning(true);
+                handleTokenRefresh();
+            } else {
+                alert(`Meeting Error: ${error.message || 'Unknown error occurred'}`);
+            }
         },
         onScreenShareStarted: () => {
             console.log("Screen share started");
@@ -225,10 +246,90 @@ function MeetingView({ onMeetingLeave }) {
             console.log("Screen share stopped");
             setIsScreenSharing(false);
         },
+        onParticipantJoined: (participant) => {
+            console.log("Participant joined:", participant.displayName);
+        },
+        onParticipantLeft: (participant) => {
+            console.log("Participant left:", participant.displayName);
+        }
     });
+
+    // Clear all intervals
+    const clearIntervals = useCallback(() => {
+        if (tokenRefreshInterval.current) {
+            clearInterval(tokenRefreshInterval.current);
+            tokenRefreshInterval.current = null;
+        }
+        if (connectionCheckInterval.current) {
+            clearInterval(connectionCheckInterval.current);
+            connectionCheckInterval.current = null;
+        }
+    }, []);
+
+    // Start token refresh timer (refresh every 3 hours)
+    const startTokenRefreshTimer = useCallback(() => {
+        tokenRefreshInterval.current = setInterval(() => {
+            console.log("Refreshing token proactively...");
+            handleTokenRefresh();
+        }, 3 * 60 * 60 * 1000); // 3 hours
+    }, []);
+
+    // Monitor connection status
+    const startConnectionMonitoring = useCallback(() => {
+        connectionCheckInterval.current = setInterval(() => {
+            // Check if we still have participants (including ourselves)
+            if (participants.size === 0) {
+                console.warn("No participants detected, checking connection...");
+                setConnectionStatus('checking');
+            } else {
+                setConnectionStatus('connected');
+            }
+        }, 30000); // Check every 30 seconds
+    }, [participants]);
+
+    // Handle token refresh
+    const handleTokenRefresh = useCallback(async () => {
+        try {
+            setTokenExpiryWarning(true);
+            
+            const response = await fetch(`${process.env.BACKEND_URL}/api/videosdk/refresh-token/${meetingId}`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + (sessionStorage.getItem('token') || '')
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    console.log("Token refreshed successfully");
+                    setTokenExpiryWarning(false);
+                    
+                    // Notify parent component about token refresh
+                    if (onTokenRefresh) {
+                        onTokenRefresh(data.token);
+                    }
+                } else {
+                    console.error("Failed to refresh token:", data.msg);
+                }
+            } else {
+                console.error("Token refresh request failed");
+            }
+        } catch (error) {
+            console.error("Error refreshing token:", error);
+        }
+    }, [meetingId, onTokenRefresh]);
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            clearIntervals();
+        };
+    }, [clearIntervals]);
 
     const joinMeeting = () => {
         setJoined('JOINING');
+        setConnectionStatus('connecting');
         join();
     };
 
@@ -251,8 +352,6 @@ function MeetingView({ onMeetingLeave }) {
         } catch (error) {
             console.error("Screen share error:", error);
             setScreenShareError(error.message || 'Failed to toggle screen share');
-            
-            // Reset screen sharing state on error
             setIsScreenSharing(false);
         }
     };
@@ -266,6 +365,17 @@ function MeetingView({ onMeetingLeave }) {
         return (
             <div className="d-flex flex-column align-items-center justify-content-center" style={{ height: '80vh' }}>
                 <h3 className="mb-4">Ready to join the meeting?</h3>
+                
+                {/* Connection status indicator */}
+                {connectionStatus === 'connecting' && (
+                    <div className="alert alert-info mb-3">
+                        <div className="d-flex align-items-center">
+                            <div className="spinner-border spinner-border-sm me-2" role="status"></div>
+                            Connecting to meeting...
+                        </div>
+                    </div>
+                )}
+                
                 <button 
                     className="btn btn-primary btn-lg"
                     onClick={joinMeeting}
@@ -290,36 +400,86 @@ function MeetingView({ onMeetingLeave }) {
 
     return (
         <div className="container-fluid p-3">
+            {/* Status Indicators */}
+            {(tokenExpiryWarning || connectionStatus !== 'connected') && (
+                <div className="row mb-2">
+                    <div className="col-12">
+                        {tokenExpiryWarning && (
+                            <div className="alert alert-warning alert-dismissible fade show" role="alert">
+                                <small>🔄 Refreshing connection token...</small>
+                                <button 
+                                    type="button" 
+                                    className="btn-close" 
+                                    onClick={() => setTokenExpiryWarning(false)}
+                                ></button>
+                            </div>
+                        )}
+                        
+                        {connectionStatus === 'error' && (
+                            <div className="alert alert-danger" role="alert">
+                                <small>⚠️ Connection issue detected. Attempting to reconnect...</small>
+                            </div>
+                        )}
+                        
+                        {connectionStatus === 'checking' && (
+                            <div className="alert alert-info" role="alert">
+                                <small>🔍 Checking connection status...</small>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Meeting Controls */}
             <div className="row mb-3">
                 <div className="col-12">
                     <div className="d-flex justify-content-between align-items-center flex-wrap">
-                        <h4 className="mb-2 mb-md-0">Meeting ID: {meetingId}</h4>
-                        <div className="d-flex flex-wrap gap-2">
+                        <div className="d-flex align-items-center">
+                            <h4 className="mb-0 me-3">Meeting ID: {meetingId}</h4>
+                            
+                            {/* Connection status indicator */}
+                            <span className={`badge ${
+                                connectionStatus === 'connected' ? 'bg-success' : 
+                                connectionStatus === 'connecting' ? 'bg-warning' : 'bg-danger'
+                            }`}>
+                                {connectionStatus === 'connected' ? '🟢 Connected' : 
+                                 connectionStatus === 'connecting' ? '🟡 Connecting' : '🔴 Connection Issue'}
+                            </span>
+                        </div>
+                        
+                        <div className="d-flex flex-wrap gap-2 mt-2 mt-md-0">
                             <button
-                                className="btn btn-secondary"
+                                className={`btn ${localMicOn ? 'btn-success' : 'btn-secondary'}`}
                                 onClick={() => toggleMic()}
                                 title="Toggle Microphone"
                             >
-                                🎤 Toggle Mic
+                                {localMicOn ? '🎤 Mic On' : '🎤 Mic Off'}
                             </button>
                             <button
-                                className="btn btn-secondary"
+                                className={`btn ${localWebcamOn ? 'btn-success' : 'btn-secondary'}`}
                                 onClick={() => toggleWebcam()}
                                 title="Toggle Camera"
                             >
-                                📹 Toggle Camera
+                                {localWebcamOn ? '📹 Cam On' : '📹 Cam Off'}
                             </button>
                             <button
                                 className={`btn ${isScreenSharing ? 'btn-warning' : 'btn-info'}`}
                                 onClick={handleScreenShare}
                                 title={isScreenSharing ? 'Stop Screen Sharing' : 'Start Screen Sharing'}
+                                disabled={screenShareError !== null}
                             >
                                 {isScreenSharing ? (
                                     <>🛑 Stop Sharing</>
                                 ) : (
                                     <>🖥️ Share Screen</>
                                 )}
+                            </button>
+                            <button
+                                className="btn btn-outline-secondary"
+                                onClick={handleTokenRefresh}
+                                title="Refresh Connection"
+                            >
+                                🔄 Refresh
                             </button>
                             <button
                                 className="btn btn-danger"
@@ -335,8 +495,25 @@ function MeetingView({ onMeetingLeave }) {
                     {screenShareError && (
                         <div className="alert alert-warning mt-2 mb-0" role="alert">
                             <small>Screen Share Error: {screenShareError}</small>
+                            <button 
+                                className="btn btn-sm btn-outline-warning ms-2"
+                                onClick={() => setScreenShareError(null)}
+                            >
+                                Dismiss
+                            </button>
                         </div>
                     )}
+                </div>
+            </div>
+
+            {/* Meeting Statistics */}
+            <div className="row mb-3">
+                <div className="col-12">
+                    <div className="d-flex justify-content-between align-items-center small text-muted">
+                        <span>Participants: {participants.size}</span>
+                        <span>Screen Sharing: {hasScreenShare ? 'Active' : 'Inactive'}</span>
+                        <span>Duration: <MeetingTimer /></span>
+                    </div>
                 </div>
             </div>
 
@@ -386,24 +563,39 @@ function MeetingView({ onMeetingLeave }) {
             {/* No participants message */}
             {participants.size === 0 && (
                 <div className="text-center py-5">
+                    <div className="spinner-border text-primary mb-3" role="status">
+                        <span className="visually-hidden">Loading...</span>
+                    </div>
                     <p className="text-muted">Waiting for other participants to join...</p>
+                    <small className="text-muted">
+                        If this persists, try refreshing your connection using the 🔄 Refresh button above.
+                    </small>
                 </div>
             )}
 
-            {/* Screen sharing instructions */}
-            {!hasScreenShare && (
+            {/* Meeting Tips */}
+            {!hasScreenShare && participants.size > 0 && (
                 <div className="row mt-4">
                     <div className="col-12">
                         <div className="card bg-light">
                             <div className="card-body">
-                                <h6 className="card-title">💡 Screen Sharing Tips:</h6>
-                                <ul className="mb-0 small text-muted">
-                                    <li>Click "🖥️ Share Screen" to share your screen with other participants</li>
-                                    <li>You can share your entire screen, a specific window, or a browser tab</li>
-                                    <li>Your camera will appear in a small window when screen sharing</li>
-                                    <li>Click "🛑 Stop Sharing" to stop screen sharing</li>
-                                    <li>Only one person can share their screen at a time</li>
-                                </ul>
+                                <h6 className="card-title">💡 Meeting Tips:</h6>
+                                <div className="row">
+                                    <div className="col-md-6">
+                                        <ul className="mb-0 small text-muted">
+                                            <li>Click "🖥️ Share Screen" to share your screen</li>
+                                            <li>Use "🔄 Refresh" if you experience connection issues</li>
+                                            <li>Your camera will appear in a corner when screen sharing</li>
+                                        </ul>
+                                    </div>
+                                    <div className="col-md-6">
+                                        <ul className="mb-0 small text-muted">
+                                            <li>Meeting tokens auto-refresh every 3 hours</li>
+                                            <li>Connection status is shown in the top-right</li>
+                                            <li>All participants can see screen sharing</li>
+                                        </ul>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -413,71 +605,134 @@ function MeetingView({ onMeetingLeave }) {
     );
 }
 
-const VideoMeeting = ({ meetingId, token, userName }) => {
+// Meeting Timer Component
+function MeetingTimer() {
+    const [duration, setDuration] = useState(0);
+    
+    useEffect(() => {
+        const startTime = Date.now();
+        const interval = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            setDuration(elapsed);
+        }, 1000);
+        
+        return () => clearInterval(interval);
+    }, []);
+    
+    const formatTime = (seconds) => {
+        const hrs = Math.floor(seconds / 3600);
+        const mins = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        
+        if (hrs > 0) {
+            return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+    
+    return <span>{formatTime(duration)}</span>;
+}
+
+const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
     const [meetingEnded, setMeetingEnded] = useState(false);
+    const [currentToken, setCurrentToken] = useState(token);
+    const [meetingConfig, setMeetingConfig] = useState(null);
+
+    useEffect(() => {
+        // Initialize meeting configuration
+        setMeetingConfig({
+            meetingId,
+            micEnabled: true,
+            webcamEnabled: true,
+            name: userName || "Participant",
+            mode: Constants.modes.CONFERENCE,
+            multiStream: true,
+        });
+    }, [meetingId, userName]);
 
     const onMeetingLeave = () => {
         setMeetingEnded(true);
     };
 
+    const handleTokenRefresh = (newToken) => {
+        console.log("Updating meeting token");
+        setCurrentToken(newToken);
+    };
+
     if (meetingEnded) {
         return (
             <div className="d-flex flex-column align-items-center justify-content-center" style={{ height: '80vh' }}>
-                <h3>Meeting has ended</h3>
-                <p>Thank you for participating!</p>
-                <div className="d-flex gap-2">
-                    <button 
-                        className="btn btn-primary"
-                        onClick={() => window.location.href = '/customer-dashboard'}
-                    >
-                        Customer Dashboard
-                    </button>
-                    <button 
-                        className="btn btn-secondary"
-                        onClick={() => window.location.href = '/mentor-dashboard'}
-                    >
-                        Mentor Dashboard
-                    </button>
+                <div className="text-center">
+                    <h3 className="mb-3">Meeting Ended</h3>
+                    <p className="text-muted mb-4">Thank you for participating in the session!</p>
+                    
+                    <div className="d-flex gap-2 justify-content-center">
+                        <button 
+                            className="btn btn-primary"
+                            onClick={() => window.location.href = '/customer-dashboard'}
+                        >
+                            Customer Dashboard
+                        </button>
+                        <button 
+                            className="btn btn-secondary"
+                            onClick={() => window.location.href = '/mentor-dashboard'}
+                        >
+                            Mentor Dashboard
+                        </button>
+                    </div>
+                    
+                    <div className="mt-3">
+                        <button 
+                            className="btn btn-outline-primary btn-sm"
+                            onClick={() => window.location.reload()}
+                        >
+                            Rejoin Meeting
+                        </button>
+                    </div>
                 </div>
             </div>
         );
     }
 
-    if (!meetingId || !token) {
+    if (!meetingId || !currentToken || !meetingConfig) {
         return (
             <div className="d-flex flex-column align-items-center justify-content-center" style={{ height: '80vh' }}>
-                <h3>Invalid meeting configuration</h3>
-                <p>Meeting ID or token is missing</p>
-                <button 
-                    className="btn btn-primary"
-                    onClick={() => window.history.back()}
-                >
-                    Go Back
-                </button>
+                <div className="text-center">
+                    <div className="spinner-border text-primary mb-3" role="status">
+                        <span className="visually-hidden">Loading...</span>
+                    </div>
+                    <h3>Setting up meeting...</h3>
+                    <p className="text-muted">Please wait while we prepare your video session.</p>
+                    
+                    {(!meetingId || !currentToken) && (
+                        <div className="alert alert-warning mt-3">
+                            <small>Missing meeting configuration. Please try refreshing the page.</small>
+                        </div>
+                    )}
+                </div>
             </div>
         );
     }
 
     return (
-        <MeetingProvider
-            config={{
-                meetingId,
-                micEnabled: true,
-                webcamEnabled: true,
-                name: userName || "Participant",
-                mode: Constants.modes.CONFERENCE,
-                multiStream: true,
-            }}
-            token={token}
-            reinitialiseMeetingOnConfigChange={true}
-            joinWithoutUserInteraction={false}
-        >
-            <MeetingConsumer>
-                {() => (
-                    <MeetingView onMeetingLeave={onMeetingLeave} />
-                )}
-            </MeetingConsumer>
-        </MeetingProvider>
+        <div className="video-meeting-container">
+            <MeetingProvider
+                config={meetingConfig}
+                token={currentToken}
+                reinitialiseMeetingOnConfigChange={true}
+                joinWithoutUserInteraction={false}
+            >
+                <MeetingConsumer>
+                    {() => (
+                        <MeetingView 
+                            onMeetingLeave={onMeetingLeave} 
+                            meetingId={meetingId}
+                            onTokenRefresh={handleTokenRefresh}
+                        />
+                    )}
+                </MeetingConsumer>
+            </MeetingProvider>
+        </div>
     );
 };
 

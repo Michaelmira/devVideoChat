@@ -10,8 +10,8 @@ class VideoSDKService:
         self.secret_key = os.getenv('VIDEOSDK_SECRET_KEY')
         self.api_endpoint = os.getenv('VIDEOSDK_API_ENDPOINT', 'https://api.videosdk.live/v2')
         
-    def generate_token(self, permissions=None):
-        """Generate a token for VideoSDK"""
+    def generate_token(self, permissions=None, duration_hours=4):
+        """Generate a token for VideoSDK with configurable duration"""
         try:
             api_key = os.getenv('VIDEOSDK_API_KEY')
             secret_key = os.getenv('VIDEOSDK_SECRET_KEY')
@@ -23,14 +23,13 @@ class VideoSDKService:
             if permissions is None:
                 permissions = ['allow_join', 'allow_mod', 'allow_record']
 
-            # Create payload with necessary permissions
+            # Create payload with necessary permissions and longer expiration
             payload = {
                 'apikey': api_key,
                 'permissions': permissions,
                 'version': 2,
-                # Remove the 'roles' field - it's causing the error
                 'iat': datetime.utcnow(),
-                'exp': datetime.utcnow() + timedelta(hours=24)  # Token valid for 24 hours
+                'exp': datetime.utcnow() + timedelta(hours=duration_hours)  # Configurable duration
             }
 
             # Generate JWT token
@@ -47,9 +46,10 @@ class VideoSDKService:
             raise
     
     def create_meeting(self, booking_id, mentor_name, customer_name, start_time, duration_minutes=60):
-        """Create a meeting room for a booking"""
+        """Create a meeting room for a booking with improved configuration"""
         try:
-            token = self.generate_token()
+            # Generate token with longer duration for meeting creation
+            token = self.generate_token(duration_hours=6)
             
             headers = {
                 "Authorization": token,
@@ -62,7 +62,7 @@ class VideoSDKService:
             meeting_data = {
                 "customRoomId": custom_id,
                 "description": f"Mentoring session: {mentor_name} with {customer_name}",
-                "autoStartRecording": os.getenv('VIDEOSDK_RECORDING_ENABLED', 'true').lower() == 'true',
+                "autoStartRecording": os.getenv('VIDEOSDK_RECORDING_ENABLED', 'false').lower() == 'true',
                 "webhookUrl": f"{os.getenv('BACKEND_URL')}/api/videosdk/webhook" if os.getenv('BACKEND_URL') else None,
                 "permissions": {
                     "askToJoin": False,
@@ -92,11 +92,16 @@ class VideoSDKService:
                 "audioEnabled": True,
                 "videoEnabled": True,
                 "hdMeetingEnabled": True,
+                # Add these settings to prevent automatic ending
+                "maintainVideoOrder": True,
+                "meetingDuration": duration_minutes * 2,  # Set duration to 2x expected duration
                 "notify": {
                     "participantJoined": True,
                     "participantLeft": True,
                     "recordingStarted": True,
-                    "recordingStopped": True
+                    "recordingStopped": True,
+                    "meetingStarted": True,
+                    "meetingEnded": True
                 }
             }
             
@@ -106,7 +111,8 @@ class VideoSDKService:
             response = requests.post(
                 f"{self.api_endpoint}/rooms",
                 headers=headers,
-                json=meeting_data
+                json=meeting_data,
+                timeout=30  # Add timeout
             )
             
             if response.status_code == 200:
@@ -135,29 +141,46 @@ class VideoSDKService:
     
     def get_meeting_details(self, meeting_id):
         """Get details of a specific meeting"""
-        token = self.generate_token()
-        headers = {"Authorization": token}
-        
-        response = requests.get(
-            f"{self.api_endpoint}/rooms/{meeting_id}",
-            headers=headers
-        )
-        
-        if response.status_code == 200:
-            return {"success": True, "data": response.json()}
-        else:
-            return {"success": False, "error": response.json()}
+        try:
+            token = self.generate_token(duration_hours=2)
+            headers = {"Authorization": token}
+            
+            response = requests.get(
+                f"{self.api_endpoint}/rooms/{meeting_id}",
+                headers=headers,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                return {"success": True, "data": response.json()}
+            else:
+                return {"success": False, "error": response.json() if response.text else {"message": "Unknown error"}}
+        except Exception as e:
+            print(f"Error getting meeting details: {str(e)}")
+            return {"success": False, "error": str(e)}
     
     def end_meeting(self, meeting_id):
         """End an active meeting"""
-        token = self.generate_token()
-        headers = {"Authorization": token}
-        
-        response = requests.post(
-            f"{self.api_endpoint}/rooms/{meeting_id}/end",
-            headers=headers
-        )
-        
-        return response.status_code == 200
+        try:
+            token = self.generate_token(duration_hours=1)
+            headers = {"Authorization": token}
+            
+            response = requests.post(
+                f"{self.api_endpoint}/rooms/{meeting_id}/end",
+                headers=headers,
+                timeout=30
+            )
+            
+            return response.status_code == 200
+        except Exception as e:
+            print(f"Error ending meeting: {str(e)}")
+            return False
 
-        
+    def refresh_meeting_token(self, meeting_id, permissions=None):
+        """Generate a fresh token for an existing meeting"""
+        try:
+            # Generate a new token with extended duration
+            return self.generate_token(permissions=permissions, duration_hours=4)
+        except Exception as e:
+            print(f"Error refreshing meeting token: {str(e)}")
+            return None

@@ -1806,6 +1806,112 @@ const getState = ({ getStore, getActions, setStore }) => {
                 }
             },
 
+            // Add these actions to your existing flux.js file
+
+            // In the actions object, add these new methods:
+
+            refreshMeetingToken: async (meetingId) => {
+                try {
+                    const store = getStore();
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/videosdk/refresh-token/${meetingId}`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer ' + store.token
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to refresh meeting token');
+                    }
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        return {
+                            success: true,
+                            token: data.token,
+                            expiryHours: data.tokenExpiryHours
+                        };
+                    } else {
+                        throw new Error(data.msg || 'Token refresh failed');
+                    }
+                } catch (error) {
+                    console.error('Error refreshing meeting token:', error);
+                    return {
+                        success: false,
+                        error: error.message
+                    };
+                }
+            },
+
+            getMeetingStatus: async (meetingId) => {
+                try {
+                    const store = getStore();
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/videosdk/meeting-status/${meetingId}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': 'Bearer ' + store.token
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to get meeting status');
+                    }
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        return {
+                            success: true,
+                            status: data.status,
+                            details: data.details
+                        };
+                    } else {
+                        throw new Error(data.msg || 'Failed to get meeting status');
+                    }
+                } catch (error) {
+                    console.error('Error getting meeting status:', error);
+                    return {
+                        success: false,
+                        error: error.message
+                    };
+                }
+            },
+
+            endMeeting: async (meetingId) => {
+                try {
+                    const store = getStore();
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/videosdk/end-meeting/${meetingId}`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer ' + store.token
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to end meeting');
+                    }
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        return {
+                            success: true,
+                            message: data.msg
+                        };
+                    } else {
+                        throw new Error(data.msg || 'Failed to end meeting');
+                    }
+                } catch (error) {
+                    console.error('Error ending meeting:', error);
+                    return {
+                        success: false,
+                        error: error.message
+                    };
+                }
+            },
+
+            // Enhanced getMeetingToken with better error handling
             getMeetingToken: async (meetingId) => {
                 try {
                     const store = getStore();
@@ -1816,14 +1922,23 @@ const getState = ({ getStore, getActions, setStore }) => {
                     });
 
                     if (!response.ok) {
-                        throw new Error('Failed to get meeting token');
+                        const errorData = await response.json();
+                        throw new Error(errorData.msg || 'Failed to get meeting token');
                     }
 
                     const data = await response.json();
-                    return {
-                        success: true,
-                        token: data.token
-                    };
+
+                    if (data.success) {
+                        return {
+                            success: true,
+                            token: data.token,
+                            userName: data.userName,
+                            isModerator: data.isModerator,
+                            tokenExpiryHours: data.tokenExpiryHours
+                        };
+                    } else {
+                        throw new Error('Invalid response from server');
+                    }
                 } catch (error) {
                     console.error('Error getting meeting token:', error);
                     return {

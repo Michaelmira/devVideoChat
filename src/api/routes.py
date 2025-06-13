@@ -2626,3 +2626,184 @@ def get_videosdk_meeting_token(meeting_id):
             "msg": "Failed to generate meeting token",
             "error": str(e)
         }), 500
+
+
+# Add these routes to your existing routes.py file
+
+@api.route('/videosdk/meeting-token/<meeting_id>', methods=['GET'])
+@jwt_required()
+def get_videosdk_meeting_token(meeting_id):
+    """Get a token for joining a specific VideoSDK meeting with extended duration"""
+    try:
+        # Get the current user
+        current_user_id = get_jwt_identity()
+        
+        # Find the booking associated with this meeting
+        booking = Booking.query.filter_by(meeting_id=meeting_id).first()
+        if not booking:
+            return jsonify({"msg": "Meeting not found"}), 404
+            
+        # Check if the current user is either the mentor or the customer
+        if not (booking.mentor_id == current_user_id or booking.customer_id == current_user_id):
+            return jsonify({"msg": "Unauthorized to join this meeting"}), 403
+            
+        # Generate a token for the meeting with extended duration
+        videosdk_service = VideoSDKService()
+        
+        # Determine user role and permissions
+        is_mentor = booking.mentor_id == current_user_id
+        permissions = ['allow_join', 'allow_mod', 'allow_record'] if is_mentor else ['allow_join']
+        
+        # Generate token with 4-hour duration to prevent expiration during meeting
+        token = videosdk_service.generate_token(permissions, duration_hours=4)
+        
+        # Get user name for the meeting
+        if is_mentor:
+            mentor = Mentor.query.get(current_user_id)
+            user_name = f"{mentor.first_name} {mentor.last_name}" if mentor else "Mentor"
+        else:
+            customer = Customer.query.get(current_user_id)
+            user_name = f"{customer.first_name} {customer.last_name}" if customer else "Customer"
+        
+        return jsonify({
+            "token": token,
+            "success": True,
+            "meetingId": meeting_id,
+            "userName": user_name,
+            "isModerator": is_mentor,
+            "tokenExpiryHours": 4  # Inform frontend about token duration
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error generating meeting token: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({
+            "msg": "Failed to generate meeting token",
+            "error": str(e)
+        }), 500
+
+@api.route('/videosdk/refresh-token/<meeting_id>', methods=['POST'])
+@jwt_required()
+def refresh_videosdk_token(meeting_id):
+    """Refresh VideoSDK token for an ongoing meeting"""
+    try:
+        current_user_id = get_jwt_identity()
+        
+        # Find the booking associated with this meeting
+        booking = Booking.query.filter_by(meeting_id=meeting_id).first()
+        if not booking:
+            return jsonify({"success": False, "msg": "Meeting not found"}), 404
+            
+        # Check authorization
+        if not (booking.mentor_id == current_user_id or booking.customer_id == current_user_id):
+            return jsonify({"success": False, "msg": "Unauthorized"}), 403
+            
+        # Generate fresh token
+        videosdk_service = VideoSDKService()
+        is_mentor = booking.mentor_id == current_user_id
+        permissions = ['allow_join', 'allow_mod', 'allow_record'] if is_mentor else ['allow_join']
+        
+        fresh_token = videosdk_service.refresh_meeting_token(meeting_id, permissions)
+        
+        if fresh_token:
+            return jsonify({
+                "success": True,
+                "token": fresh_token,
+                "tokenExpiryHours": 4
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "msg": "Failed to refresh token"
+            }), 500
+            
+    except Exception as e:
+        current_app.logger.error(f"Error refreshing token: {str(e)}")
+        return jsonify({
+            "success": False,
+            "msg": "Failed to refresh token"
+        }), 500
+
+@api.route('/videosdk/meeting-status/<meeting_id>', methods=['GET'])
+@jwt_required()
+def get_meeting_status(meeting_id):
+    """Get the current status of a VideoSDK meeting"""
+    try:
+        current_user_id = get_jwt_identity()
+        
+        # Find the booking associated with this meeting
+        booking = Booking.query.filter_by(meeting_id=meeting_id).first()
+        if not booking:
+            return jsonify({"success": False, "msg": "Meeting not found"}), 404
+            
+        # Check authorization
+        if not (booking.mentor_id == current_user_id or booking.customer_id == current_user_id):
+            return jsonify({"success": False, "msg": "Unauthorized"}), 403
+            
+        # Get meeting details from VideoSDK
+        videosdk_service = VideoSDKService()
+        meeting_details = videosdk_service.get_meeting_details(meeting_id)
+        
+        if meeting_details['success']:
+            return jsonify({
+                "success": True,
+                "meetingId": meeting_id,
+                "status": "active",
+                "details": meeting_details['data']
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "msg": "Failed to get meeting status",
+                "error": meeting_details.get('error')
+            }), 500
+            
+    except Exception as e:
+        current_app.logger.error(f"Error getting meeting status: {str(e)}")
+        return jsonify({
+            "success": False,
+            "msg": "Failed to get meeting status"
+        }), 500
+
+@api.route('/videosdk/end-meeting/<meeting_id>', methods=['POST'])
+@jwt_required()
+def end_videosdk_meeting(meeting_id):
+    """End a VideoSDK meeting (for moderators only)"""
+    try:
+        current_user_id = get_jwt_identity()
+        
+        # Find the booking associated with this meeting
+        booking = Booking.query.filter_by(meeting_id=meeting_id).first()
+        if not booking:
+            return jsonify({"success": False, "msg": "Meeting not found"}), 404
+            
+        # Only mentors can end meetings
+        if booking.mentor_id != current_user_id:
+            return jsonify({"success": False, "msg": "Only mentors can end meetings"}), 403
+            
+        # End the meeting
+        videosdk_service = VideoSDKService()
+        success = videosdk_service.end_meeting(meeting_id)
+        
+        if success:
+            # Update booking status
+            booking.status = BookingStatus.COMPLETED
+            db.session.commit()
+            
+            return jsonify({
+                "success": True,
+                "msg": "Meeting ended successfully"
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "msg": "Failed to end meeting"
+            }), 500
+            
+    except Exception as e:
+        current_app.logger.error(f"Error ending meeting: {str(e)}")
+        return jsonify({
+            "success": False,
+            "msg": "Failed to end meeting"
+        }), 500
