@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, date, time as datetime_time
 import stripe
 
 from flask import Flask, request, jsonify, url_for, Blueprint, current_app, redirect, session
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin
 import jwt
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, get_jwt
 from werkzeug.security import generate_password_hash, check_password_hash
