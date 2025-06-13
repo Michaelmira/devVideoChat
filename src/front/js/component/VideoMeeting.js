@@ -284,6 +284,16 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         onPresenterChanged: (_presenterId) => {
             console.log("🖥️ PRESENTER CHANGED:", _presenterId);
             setPresenterId(_presenterId);
+            
+            // Clear any in-progress screen share states when presenter changes
+            setScreenShareInProgress(false);
+            clearScreenShareTimeout();
+            
+            // If presenter changed to null, ensure we clear screen share state
+            if (!_presenterId) {
+                console.log("🔄 No presenter - clearing all screen share states");
+                setIsScreenSharing(false);
+            }
         },
         onError: (error) => {
             console.error("❌ MEETING ERROR:", error);
@@ -310,12 +320,31 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
 
     // Update local screen sharing state based on presenter
     useEffect(() => {
-        if (localParticipant && effectivePresenterId === localParticipant.id) {
-            setIsScreenSharing(true);
-        } else {
-            setIsScreenSharing(false);
+        console.log("🔄 PRESENTER STATE SYNC:", {
+            effectivePresenterId,
+            localParticipantId: localParticipant?.id,
+            isLocalPresenting: localParticipant && effectivePresenterId === localParticipant.id
+        });
+        
+        if (localParticipant) {
+            if (effectivePresenterId === localParticipant.id) {
+                // Local participant is presenting
+                if (!isScreenSharing) {
+                    console.log("🔄 Setting local screen share to TRUE");
+                    setIsScreenSharing(true);
+                }
+            } else {
+                // Someone else is presenting or no one is presenting
+                if (isScreenSharing) {
+                    console.log("🔄 Setting local screen share to FALSE (someone else is presenting)");
+                    setIsScreenSharing(false);
+                    // Clear any in-progress state
+                    setScreenShareInProgress(false);
+                    clearScreenShareTimeout();
+                }
+            }
         }
-    }, [effectivePresenterId, localParticipant]);
+    }, [effectivePresenterId, localParticipant, isScreenSharing]);
 
     // Clear screen share timeout
     const clearScreenShareTimeout = useCallback(() => {
@@ -412,11 +441,17 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             isScreenSharing,
             screenShareInProgress,
             localScreenShareOn,
-            presenterId: effectivePresenterId
+            presenterId: effectivePresenterId,
+            localParticipantId: localParticipant?.id
         });
 
         try {
             setScreenShareError(null);
+            
+            // Check if someone else is currently presenting
+            if (effectivePresenterId && localParticipant && effectivePresenterId !== localParticipant.id) {
+                console.log("⚠️ Someone else is already presenting, their share will be stopped automatically");
+            }
             
             if (!isScreenSharing && !screenShareInProgress) {
                 console.log("🖥️ Starting screen share process...");
@@ -438,7 +473,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                 await toggleScreenShare();
                 console.log("✅ toggleScreenShare() completed");
                 
-                setScreenShareInProgress(false);
+                // Don't manually set states here - let the onPresenterChanged event handle it
                 clearScreenShareTimeout();
                 
             } else if (isScreenSharing) {
@@ -448,7 +483,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                 await toggleScreenShare();
                 console.log("✅ Screen share stopped");
                 
-                setScreenShareInProgress(false);
+                // Don't manually set states here - let the onPresenterChanged event handle it
             }
         } catch (error) {
             console.error("❌ SCREEN SHARE ERROR:", error);
