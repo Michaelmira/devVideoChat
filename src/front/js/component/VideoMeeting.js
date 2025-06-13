@@ -124,6 +124,50 @@ function ParticipantView({ participantId, viewMode = 'normal', isLocal = false }
         );
     }
 
+    // FIXED: Also render screen share in pinned mode if participant is sharing
+    if (viewMode === 'pinned' && screenShareOn && screenShareStream) {
+        console.log(`🖥️ ParticipantView [${participantId}] Rendering PINNED SCREEN SHARE mode`);
+        return (
+            <div className="screen-share-view" style={{ 
+                width: '100%',
+                height: '100%',
+                position: 'relative',
+                backgroundColor: '#000',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+            }}>
+                <video
+                    ref={screenShareRef}
+                    autoPlay
+                    playsInline
+                    style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                        backgroundColor: '#000'
+                    }}
+                />
+                
+                {/* Screen share indicator */}
+                <div style={{
+                    position: 'absolute',
+                    top: '10px',
+                    left: '10px',
+                    backgroundColor: 'rgba(255, 0, 0, 0.8)',
+                    color: 'white',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    zIndex: 10
+                }}>
+                    🖥️ {displayName || 'Participant'} is sharing screen
+                </div>
+            </div>
+        );
+    }
+
     // Regular participant view (webcam only)
     const getViewStyle = () => {
         const style = {};
@@ -412,38 +456,46 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         });
     }, [joined, isScreenSharing, screenShareInProgress, connectionStatus, currentScreenSharer, localParticipantId, localParticipantIdState, effectiveLocalParticipantId, localScreenShareOn, participants]);
 
-    // FIXED: Monitor for screen sharing changes from all participants
+    // FIXED: Better screen sharing detection for remote participants
     useEffect(() => {
         console.log("🔍 CHECKING SCREEN SHARE STATE:");
         console.log("📊 Local screen share:", {
             localScreenShareOn,
             effectiveLocalParticipantId
         });
-        console.log("📊 Remote participants:", [...participants.entries()].map(([id, p]) => ({
+        
+        const participantArray = [...participants.entries()];
+        console.log("📊 All participants:", participantArray.map(([id, p]) => ({
             id,
             displayName: p.displayName,
-            screenShareOn: p.screenShareOn
+            screenShareOn: p.screenShareOn,
+            isLocal: p.isLocal,
+            screenShareStream: !!p.screenShareStream
         })));
 
         let newScreenSharer = null;
         
-        // Check local screen sharing first - FIXED: Use effective local participant ID
-        if (localScreenShareOn && effectiveLocalParticipantId) {
+        // First check remote participants for screen sharing
+        for (const [participantId, participant] of participants.entries()) {
+            console.log(`🔍 Checking participant ${participantId}:`, {
+                displayName: participant.displayName,
+                screenShareOn: participant.screenShareOn,
+                isLocal: participant.isLocal,
+                hasScreenShareStream: !!participant.screenShareStream
+            });
+            
+            // Check for screen sharing - prioritize remote participants
+            if (participant.screenShareOn && !participant.isLocal) {
+                console.log(`🖥️ Remote participant ${participantId} is sharing screen`);
+                newScreenSharer = participantId;
+                break; // Remote screen share takes priority
+            }
+        }
+        
+        // If no remote screen sharing, check local
+        if (!newScreenSharer && localScreenShareOn && effectiveLocalParticipantId) {
             console.log("🖥️ Local participant is sharing screen");
             newScreenSharer = effectiveLocalParticipantId;
-        } else {
-            // Check remote participants
-            for (const [participantId, participant] of participants.entries()) {
-                console.log(`🔍 Checking participant ${participantId}:`, {
-                    displayName: participant.displayName,
-                    screenShareOn: participant.screenShareOn
-                });
-                if (participant.screenShareOn) {
-                    console.log(`🖥️ Remote participant ${participantId} is sharing screen`);
-                    newScreenSharer = participantId;
-                    break; // Only one can share at a time
-                }
-            }
         }
         
         if (newScreenSharer !== currentScreenSharer) {
@@ -1040,6 +1092,10 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                                     Local SS: {localScreenShareOn ? 'ON' : 'OFF'}
                                     <br />
                                     Local ID: {effectiveLocalParticipantId || 'none'}
+                                    <br />
+                                    Participants: {[...participants.entries()].map(([id, p]) => 
+                                        `${id.slice(-4)}:${p.screenShareOn ? 'SS' : 'NO'}`
+                                    ).join(', ')}
                                 </div>
                             )}
                         </div>
