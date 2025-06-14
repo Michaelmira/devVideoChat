@@ -764,6 +764,7 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
         );
     }
 
+    
     if (!meetingId || !currentToken || !meetingConfig) {
         console.log("⏳ VideoMeeting: Waiting for config:", {
             hasMeetingId: !!meetingId,
