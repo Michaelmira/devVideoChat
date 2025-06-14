@@ -247,6 +247,10 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
     const [connectionStatus, setConnectionStatus] = useState('connected');
     const [tokenExpiryWarning, setTokenExpiryWarning] = useState(false);
     const [screenShareError, setScreenShareError] = useState(null);
+    const [viewMode, setViewMode] = useState('default'); // 'default', 'expanded', 'fullscreen'
+    const [overlayPosition, setOverlayPosition] = useState({ x: window.innerWidth - 250, y: 20 });
+    const [isDragging, setIsDragging] = useState(false);
+    const dragStartPos = useRef({ x: 0, y: 0 });
     
     // Refs for intervals
     const tokenRefreshInterval = useRef(null);
@@ -297,6 +301,69 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             console.log("👥 PARTICIPANT LEFT:", participant.displayName || participant.id);
         }
     });
+
+    // Handle double-click on presenter view
+    const handlePresenterDoubleClick = useCallback(() => {
+        const isScreenShareActive = !!presenterId;
+        if (!isScreenShareActive) return; // Only work during screen share
+        
+        // Cycle through view modes
+        if (viewMode === 'default') {
+            setViewMode('expanded');
+        } else if (viewMode === 'expanded') {
+            setViewMode('fullscreen');
+            // Reset overlay position to top-right
+            setOverlayPosition({ x: window.innerWidth - 250, y: 20 });
+        } else {
+            setViewMode('default');
+        }
+    }, [viewMode, presenterId]);
+
+    // Handle drag start
+    const handleDragStart = useCallback((e) => {
+        if (viewMode !== 'fullscreen') return;
+        setIsDragging(true);
+        dragStartPos.current = {
+            x: e.clientX - overlayPosition.x,
+            y: e.clientY - overlayPosition.y
+        };
+        e.preventDefault();
+    }, [viewMode, overlayPosition]);
+
+    // Handle drag move
+    const handleDragMove = useCallback((e) => {
+        if (!isDragging) return;
+        
+        const newX = e.clientX - dragStartPos.current.x;
+        const newY = e.clientY - dragStartPos.current.y;
+        
+        // Boundary constraints
+        const maxX = window.innerWidth - 250; // Assuming 250px width for overlay
+        const maxY = window.innerHeight - 300; // Assuming 300px height for overlay
+        
+        setOverlayPosition({
+            x: Math.max(0, Math.min(newX, maxX)),
+            y: Math.max(0, Math.min(newY, maxY))
+        });
+    }, [isDragging]);
+
+    // Handle drag end
+    const handleDragEnd = useCallback(() => {
+        setIsDragging(false);
+    }, []);
+
+    // Add global mouse event listeners for dragging
+    useEffect(() => {
+        if (isDragging) {
+            document.addEventListener('mousemove', handleDragMove);
+            document.addEventListener('mouseup', handleDragEnd);
+            
+            return () => {
+                document.removeEventListener('mousemove', handleDragMove);
+                document.removeEventListener('mouseup', handleDragEnd);
+            };
+        }
+    }, [isDragging, handleDragMove, handleDragEnd]);
 
     // Clear all intervals
     const clearIntervals = useCallback(() => {
@@ -493,6 +560,26 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         }
     };
 
+    // Determine layout dimensions based on view mode
+    const getLayoutDimensions = () => {
+        const isScreenShareActive = !!presenterId;
+        
+        if (!isScreenShareActive) {
+            // No screen share, always use default layout
+            return { mainWidth: '80%', sidebarWidth: '20%', overlayMode: false };
+        }
+        
+        switch (viewMode) {
+            case 'expanded':
+                return { mainWidth: '90%', sidebarWidth: '10%', overlayMode: false };
+            case 'fullscreen':
+                return { mainWidth: '100%', sidebarWidth: '15%', overlayMode: true };
+            default:
+                return { mainWidth: '80%', sidebarWidth: '20%', overlayMode: false };
+        }
+    };
+
+    const layoutDimensions = getLayoutDimensions();
     const layoutConfig = getLayoutConfig();
     console.log("🎨 Final layout config:", layoutConfig);
 
@@ -518,8 +605,6 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                                 <small>⚠️ Connection issue detected. Attempting to reconnect...</small>
                             </div>
                         )}
-
-
 
                         {screenShareError && (
                             <div className="alert alert-warning alert-dismissible fade show mb-1" role="alert">
@@ -605,9 +690,17 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             </div>
 
             {/* Main Meeting Layout */}
-            <div className="d-flex h-100">
-                {/* Main Content Area - 80% */}
-                <div className="flex-grow-1" style={{ width: '80%', height: '100%' }}>
+            <div className="d-flex h-100" style={{ position: 'relative' }}>
+                {/* Main Content Area */}
+                <div 
+                    className="flex-grow-1" 
+                    style={{ 
+                        width: layoutDimensions.mainWidth, 
+                        height: '100%',
+                        transition: 'width 0.3s ease'
+                    }}
+                    onDoubleClick={handlePresenterDoubleClick}
+                >
                     {layoutConfig.pinnedParticipant ? (
                         <ParticipantView 
                             participantId={layoutConfig.pinnedParticipant.id} 
@@ -627,17 +720,31 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                     )}
                 </div>
 
-                {/* Sidebar - 20% */}
+                {/* Sidebar - Regular or Overlay mode */}
                 <div 
-                    className="bg-dark d-flex flex-column"
+                    className={`bg-dark d-flex flex-column ${layoutDimensions.overlayMode ? 'position-absolute' : ''}`}
                     style={{ 
-                        width: '20%', 
-                        height: '100%',
+                        width: layoutDimensions.overlayMode ? '250px' : layoutDimensions.sidebarWidth, 
+                        height: layoutDimensions.overlayMode ? 'auto' : '100%',
+                        maxHeight: layoutDimensions.overlayMode ? '80vh' : '100%',
                         padding: '8px',
-                        borderLeft: '1px solid #333'
+                        borderLeft: !layoutDimensions.overlayMode ? '1px solid #333' : 'none',
+                        transition: !layoutDimensions.overlayMode ? 'width 0.3s ease' : 'none',
+                        ...(layoutDimensions.overlayMode ? {
+                            position: 'absolute',
+                            left: `${overlayPosition.x}px`,
+                            top: `${overlayPosition.y}px`,
+                            backgroundColor: 'rgba(33, 37, 41, 0.95)',
+                            borderRadius: '8px',
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+                            cursor: isDragging ? 'grabbing' : 'grab',
+                            zIndex: 1000,
+                            overflow: 'auto'
+                        } : {})
                     }}
+                    onMouseDown={layoutDimensions.overlayMode ? handleDragStart : undefined}
                 >
-                    <div className="flex-grow-1">
+                    <div className="flex-grow-1" style={{ minHeight: 0 }}>
                         {layoutConfig.sidebarParticipants && layoutConfig.sidebarParticipants.map((participant, index) => (
                             <div key={participant.id || index} className="mb-1">
                                 <ParticipantView 
@@ -658,6 +765,11 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                             <div className="text-muted" style={{ fontSize: '10px' }}>
                                 {participants.size + (localParticipant ? 1 : 0)} participant{participants.size !== 0 ? 's' : ''}
                             </div>
+                            {layoutDimensions.overlayMode && (
+                                <div className="text-info" style={{ fontSize: '10px', marginTop: '4px' }}>
+                                    Drag to move
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -766,7 +878,6 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
         );
     }
 
-    
     if (!meetingId || !currentToken || !meetingConfig) {
         console.log("⏳ VideoMeeting: Waiting for config:", {
             hasMeetingId: !!meetingId,
@@ -807,14 +918,11 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
                             <MeetingView 
                                 onMeetingLeave={onMeetingLeave} 
                                 meetingId={meetingId}
-                            />
-                        );
-                    }}
+                                on                    }}
                 </MeetingConsumer>
             </MeetingProvider>
         </div>
     );
 };
-
 
 export default VideoMeeting;
