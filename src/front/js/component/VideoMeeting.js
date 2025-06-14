@@ -804,7 +804,9 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
                             <MeetingView 
                                 onMeetingLeave={onMeetingLeave} 
                                 meetingId={meetingId}
-                                on                    }}
+                            />
+                        );
+                    }}
                 </MeetingConsumer>
             </MeetingProvider>
         </div>
