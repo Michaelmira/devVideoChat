@@ -1105,7 +1105,6 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
         </div>
     );
     
-    
 };
 
 export default VideoMeeting;
