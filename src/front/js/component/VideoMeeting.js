@@ -250,7 +250,12 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
     const [viewMode, setViewMode] = useState('default'); // 'default', 'expanded', 'fullscreen'
     const [overlayPosition, setOverlayPosition] = useState({ x: window.innerWidth - 250, y: 20 });
     const [isDragging, setIsDragging] = useState(false);
+    const [zoomLevel, setZoomLevel] = useState(1);
+    const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+    const [isPanning, setIsPanning] = useState(false);
     const dragStartPos = useRef({ x: 0, y: 0 });
+    const panStartPos = useRef({ x: 0, y: 0 });
+    const mainContentRef = useRef(null);
     
     // Refs for intervals
     const tokenRefreshInterval = useRef(null);
@@ -303,7 +308,10 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
     });
 
     // Handle double-click on presenter view
-    const handlePresenterDoubleClick = useCallback(() => {
+    const handlePresenterDoubleClick = useCallback((e) => {
+        // Prevent double-click from interfering with pan
+        if (isPanning) return;
+        
         const isScreenShareActive = !!presenterId;
         if (!isScreenShareActive) return; // Only work during screen share
         
@@ -314,12 +322,97 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             setViewMode('fullscreen');
             // Reset overlay position to top-right
             setOverlayPosition({ x: window.innerWidth - 250, y: 20 });
+            // Reset zoom and pan
+            setZoomLevel(1);
+            setPanOffset({ x: 0, y: 0 });
         } else {
             setViewMode('default');
+            // Reset zoom and pan when leaving fullscreen
+            setZoomLevel(1);
+            setPanOffset({ x: 0, y: 0 });
         }
-    }, [viewMode, presenterId]);
+    }, [viewMode, presenterId, isPanning]);
 
-    // Handle drag start
+    // Handle zoom with mouse wheel
+    const handleWheel = useCallback((e) => {
+        if (viewMode !== 'fullscreen' || !presenterId) return;
+        
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        const newZoom = Math.max(1, Math.min(4, zoomLevel * delta));
+        
+        if (newZoom !== zoomLevel) {
+            // Calculate zoom origin based on mouse position
+            const rect = mainContentRef.current?.getBoundingClientRect();
+            if (rect) {
+                const x = (e.clientX - rect.left) / rect.width;
+                const y = (e.clientY - rect.top) / rect.height;
+                
+                // Adjust pan to keep the zoom centered on cursor
+                const zoomRatio = newZoom / zoomLevel;
+                setPanOffset(prev => ({
+                    x: prev.x * zoomRatio + (1 - zoomRatio) * (x - 0.5) * rect.width,
+                    y: prev.y * zoomRatio + (1 - zoomRatio) * (y - 0.5) * rect.height
+                }));
+            }
+            
+            setZoomLevel(newZoom);
+        }
+    }, [viewMode, presenterId, zoomLevel]);
+
+    // Handle pan start
+    const handlePanStart = useCallback((e) => {
+        if (viewMode !== 'fullscreen' || zoomLevel <= 1 || !presenterId) return;
+        
+        // Only start pan with left mouse button
+        if (e.button !== 0) return;
+        
+        setIsPanning(true);
+        panStartPos.current = {
+            x: e.clientX - panOffset.x,
+            y: e.clientY - panOffset.y
+        };
+        e.preventDefault();
+    }, [viewMode, zoomLevel, panOffset, presenterId]);
+
+    // Handle pan move
+    const handlePanMove = useCallback((e) => {
+        if (!isPanning) return;
+        
+        const newX = e.clientX - panStartPos.current.x;
+        const newY = e.clientY - panStartPos.current.y;
+        
+        // Calculate boundaries based on zoom level
+        const rect = mainContentRef.current?.getBoundingClientRect();
+        if (rect) {
+            const maxPanX = (rect.width * (zoomLevel - 1)) / 2;
+            const maxPanY = (rect.height * (zoomLevel - 1)) / 2;
+            
+            setPanOffset({
+                x: Math.max(-maxPanX, Math.min(maxPanX, newX)),
+                y: Math.max(-maxPanY, Math.min(maxPanY, newY))
+            });
+        }
+    }, [isPanning, zoomLevel]);
+
+    // Handle pan end
+    const handlePanEnd = useCallback(() => {
+        setIsPanning(false);
+    }, []);
+
+    // Zoom controls
+    const handleZoomIn = useCallback(() => {
+        setZoomLevel(prev => Math.min(4, prev * 1.2));
+    }, []);
+
+    const handleZoomOut = useCallback(() => {
+        setZoomLevel(prev => Math.max(1, prev / 1.2));
+    }, []);
+
+    const handleZoomReset = useCallback(() => {
+        setZoomLevel(1);
+        setPanOffset({ x: 0, y: 0 });
+    }, []);
     const handleDragStart = useCallback((e) => {
         if (viewMode !== 'fullscreen') return;
         setIsDragging(true);
@@ -364,6 +457,19 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             };
         }
     }, [isDragging, handleDragMove, handleDragEnd]);
+
+    // Add global mouse event listeners for panning
+    useEffect(() => {
+        if (isPanning) {
+            document.addEventListener('mousemove', handlePanMove);
+            document.addEventListener('mouseup', handlePanEnd);
+            
+            return () => {
+                document.removeEventListener('mousemove', handlePanMove);
+                document.removeEventListener('mouseup', handlePanEnd);
+            };
+        }
+    }, [isPanning, handlePanMove, handlePanEnd]);
 
     // Clear all intervals
     const clearIntervals = useCallback(() => {
@@ -693,29 +799,102 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             <div className="d-flex h-100" style={{ position: 'relative' }}>
                 {/* Main Content Area */}
                 <div 
+                    ref={mainContentRef}
                     className="flex-grow-1" 
                     style={{ 
                         width: layoutDimensions.mainWidth, 
                         height: '100%',
-                        transition: 'width 0.3s ease'
+                        transition: 'width 0.3s ease',
+                        overflow: 'hidden',
+                        position: 'relative',
+                        cursor: viewMode === 'fullscreen' && zoomLevel > 1 ? (isPanning ? 'grabbing' : 'grab') : 'default'
                     }}
                     onDoubleClick={handlePresenterDoubleClick}
+                    onWheel={handleWheel}
+                    onMouseDown={handlePanStart}
                 >
-                    {layoutConfig.pinnedParticipant ? (
-                        <ParticipantView 
-                            participantId={layoutConfig.pinnedParticipant.id} 
-                            viewMode={layoutConfig.type === 'screenShare' ? 'screenShare' : 'pinned'}
-                            isLocal={localParticipant && layoutConfig.pinnedParticipant.id === localParticipant.id}
-                        />
-                    ) : (
-                        <div className="d-flex align-items-center justify-content-center h-100 bg-dark">
-                            <div className="text-center text-light">
-                                <div className="spinner-border mb-3" role="status">
-                                    <span className="visually-hidden">Loading...</span>
+                    <div
+                        style={{
+                            width: '100%',
+                            height: '100%',
+                            transform: `scale(${zoomLevel}) translate(${panOffset.x / zoomLevel}px, ${panOffset.y / zoomLevel}px)`,
+                            transformOrigin: 'center center',
+                            transition: isPanning ? 'none' : 'transform 0.2s ease'
+                        }}
+                    >
+                        {layoutConfig.pinnedParticipant ? (
+                            <ParticipantView 
+                                participantId={layoutConfig.pinnedParticipant.id} 
+                                viewMode={layoutConfig.type === 'screenShare' ? 'screenShare' : 'pinned'}
+                                isLocal={localParticipant && layoutConfig.pinnedParticipant.id === localParticipant.id}
+                            />
+                        ) : (
+                            <div className="d-flex align-items-center justify-content-center h-100 bg-dark">
+                                <div className="text-center text-light">
+                                    <div className="spinner-border mb-3" role="status">
+                                        <span className="visually-hidden">Loading...</span>
+                                    </div>
+                                    <p>Waiting for other participants to join...</p>
+                                    <small className="text-muted">Meeting ID: {meetingId}</small>
                                 </div>
-                                <p>Waiting for other participants to join...</p>
-                                <small className="text-muted">Meeting ID: {meetingId}</small>
                             </div>
+                        )}
+                    </div>
+                    
+                    {/* Zoom Controls */}
+                    {viewMode === 'fullscreen' && presenterId && (
+                        <div 
+                            className="position-absolute"
+                            style={{
+                                bottom: '20px',
+                                right: '20px',
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                borderRadius: '8px',
+                                padding: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                zIndex: 100
+                            }}
+                        >
+                            <button
+                                className="btn btn-sm btn-dark"
+                                onClick={handleZoomOut}
+                                disabled={zoomLevel <= 1}
+                                title="Zoom Out"
+                                style={{ width: '32px', height: '32px', padding: '4px' }}
+                            >
+                                ➖
+                            </button>
+                            <span 
+                                className="text-white" 
+                                style={{ 
+                                    minWidth: '50px', 
+                                    textAlign: 'center',
+                                    fontSize: '14px',
+                                    userSelect: 'none'
+                                }}
+                            >
+                                {Math.round(zoomLevel * 100)}%
+                            </span>
+                            <button
+                                className="btn btn-sm btn-dark"
+                                onClick={handleZoomIn}
+                                disabled={zoomLevel >= 4}
+                                title="Zoom In"
+                                style={{ width: '32px', height: '32px', padding: '4px' }}
+                            >
+                                ➕
+                            </button>
+                            <button
+                                className="btn btn-sm btn-outline-light"
+                                onClick={handleZoomReset}
+                                disabled={zoomLevel === 1}
+                                title="Reset Zoom"
+                                style={{ marginLeft: '5px' }}
+                            >
+                                Reset
+                            </button>
                         </div>
                     )}
                 </div>
@@ -918,14 +1097,11 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
                             <MeetingView 
                                 onMeetingLeave={onMeetingLeave} 
                                 meetingId={meetingId}
-                            />
-                        );
-                    }}
+                                on                    }}
                 </MeetingConsumer>
             </MeetingProvider>
         </div>
     );
-    
 };
 
 export default VideoMeeting;
