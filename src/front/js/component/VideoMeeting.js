@@ -244,17 +244,13 @@ function ParticipantView({ participantId, viewMode = 'normal', isLocal = false }
 
 function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isModerator }) {
     const [joined, setJoined] = useState(null);
-    const [isScreenSharing, setIsScreenSharing] = useState(false);
-    const [screenShareError, setScreenShareError] = useState(null);
     const [connectionStatus, setConnectionStatus] = useState('connected');
     const [tokenExpiryWarning, setTokenExpiryWarning] = useState(false);
-    const [presenterId, setPresenterId] = useState(null);
-    const [screenShareInProgress, setScreenShareInProgress] = useState(false);
+    const [screenShareError, setScreenShareError] = useState(null);
     
     // Refs for intervals
     const tokenRefreshInterval = useRef(null);
     const connectionCheckInterval = useRef(null);
-    const screenShareTimeoutRef = useRef(null);
     
     const { 
         join, 
@@ -267,7 +263,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         localMicOn,
         localWebcamOn,
         localParticipant,
-        presenterId: meetingPresenterId
+        presenterId
     } = useMeeting({
         onMeetingJoined: () => {
             console.log("🎉 MEETING JOINED successfully");
@@ -283,23 +279,10 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         },
         onPresenterChanged: (_presenterId) => {
             console.log("🖥️ PRESENTER CHANGED:", _presenterId);
-            setPresenterId(_presenterId);
-            
-            // Clear any in-progress screen share states when presenter changes
-            setScreenShareInProgress(false);
-            clearScreenShareTimeout();
-            
-            // If presenter changed to null, ensure we clear screen share state
-            if (!_presenterId) {
-                console.log("🔄 No presenter - clearing all screen share states");
-                setIsScreenSharing(false);
-            }
         },
         onError: (error) => {
             console.error("❌ MEETING ERROR:", error);
             setConnectionStatus('error');
-            setScreenShareInProgress(false);
-            clearScreenShareTimeout();
             
             if (error.message && error.message.includes('token')) {
                 console.log("🔑 Token-related error detected, refreshing...");
@@ -315,46 +298,6 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         }
     });
 
-    // Get the effective presenter ID
-    const effectivePresenterId = presenterId || meetingPresenterId;
-
-    // Update local screen sharing state based on presenter
-    useEffect(() => {
-        console.log("🔄 PRESENTER STATE SYNC:", {
-            effectivePresenterId,
-            localParticipantId: localParticipant?.id,
-            isLocalPresenting: localParticipant && effectivePresenterId === localParticipant.id
-        });
-        
-        if (localParticipant) {
-            if (effectivePresenterId === localParticipant.id) {
-                // Local participant is presenting
-                if (!isScreenSharing) {
-                    console.log("🔄 Setting local screen share to TRUE");
-                    setIsScreenSharing(true);
-                }
-            } else {
-                // Someone else is presenting or no one is presenting
-                if (isScreenSharing) {
-                    console.log("🔄 Setting local screen share to FALSE (someone else is presenting)");
-                    setIsScreenSharing(false);
-                    // Clear any in-progress state
-                    setScreenShareInProgress(false);
-                    clearScreenShareTimeout();
-                }
-            }
-        }
-    }, [effectivePresenterId, localParticipant, isScreenSharing]);
-
-    // Clear screen share timeout
-    const clearScreenShareTimeout = useCallback(() => {
-        if (screenShareTimeoutRef.current) {
-            console.log("⏰ Clearing screen share timeout");
-            clearTimeout(screenShareTimeoutRef.current);
-            screenShareTimeoutRef.current = null;
-        }
-    }, []);
-
     // Clear all intervals
     const clearIntervals = useCallback(() => {
         console.log("🧹 Cleaning up intervals");
@@ -366,8 +309,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             clearInterval(connectionCheckInterval.current);
             connectionCheckInterval.current = null;
         }
-        clearScreenShareTimeout();
-    }, [clearScreenShareTimeout]);
+    }, []);
 
     // Start token refresh timer (refresh every 3 hours)
     const startTokenRefreshTimer = useCallback(() => {
@@ -437,61 +379,27 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
     // Handle screen share
     const handleScreenShare = async () => {
         console.log("🖥️ SCREEN SHARE BUTTON CLICKED");
-        console.log("📊 Current state:", {
-            isScreenSharing,
-            screenShareInProgress,
-            localScreenShareOn,
-            presenterId: effectivePresenterId,
-            localParticipantId: localParticipant?.id
-        });
-
+        
         try {
             setScreenShareError(null);
             
-            // Check if someone else is currently presenting
-            if (effectivePresenterId && localParticipant && effectivePresenterId !== localParticipant.id) {
-                console.log("⚠️ Someone else is already presenting, their share will be stopped automatically");
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+                throw new Error('Screen sharing is not supported in this browser');
             }
             
-            if (!isScreenSharing && !screenShareInProgress) {
-                console.log("🖥️ Starting screen share process...");
-                
-                if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-                    throw new Error('Screen sharing is not supported in this browser');
-                }
-                
-                setScreenShareInProgress(true);
-                
-                // Set timeout
-                screenShareTimeoutRef.current = setTimeout(() => {
-                    console.log("⏰ SCREEN SHARE TIMEOUT TRIGGERED");
-                    setScreenShareInProgress(false);
-                    setScreenShareError("Screen share request timed out. Please try again.");
-                }, 10000); // 10 second timeout
-                
-                console.log("🔄 Calling toggleScreenShare()...");
-                await toggleScreenShare();
-                console.log("✅ toggleScreenShare() completed");
-                
-                // Don't manually set states here - let the onPresenterChanged event handle it
-                clearScreenShareTimeout();
-                
-            } else if (isScreenSharing) {
-                console.log("🖥️ Stopping screen share...");
-                setScreenShareInProgress(true);
-                
-                await toggleScreenShare();
-                console.log("✅ Screen share stopped");
-                
-                // Don't manually set states here - let the onPresenterChanged event handle it
-            }
+            console.log("🔄 Calling toggleScreenShare()...");
+            await toggleScreenShare();
+            console.log("✅ toggleScreenShare() completed");
+            
         } catch (error) {
             console.error("❌ SCREEN SHARE ERROR:", error);
             setScreenShareError(error.message || 'Failed to toggle screen share');
-            setScreenShareInProgress(false);
-            clearScreenShareTimeout();
         }
     };
+
+    // Check if someone else is presenting
+    const isSomeoneElsePresenting = presenterId && localParticipant && presenterId !== localParticipant.id;
+    const isLocalPresenting = presenterId && localParticipant && presenterId === localParticipant.id;
 
     if (!joined || joined === 'JOINING') {
         return (
@@ -528,20 +436,20 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
     // Determine layout based on screen sharing
     const getLayoutConfig = () => {
         const participantArray = [...participants.values()];
-        const isScreenShareActive = !!effectivePresenterId;
+        const isScreenShareActive = !!presenterId;
         
         console.log("🎨 LAYOUT CALCULATION:", {
             isScreenShareActive,
-            presenterId: effectivePresenterId,
+            presenterId: presenterId,
             participantCount: participantArray.length
         });
         
         if (isScreenShareActive) {
             // Find the presenter
-            let presenter = participantArray.find(p => p.id === effectivePresenterId);
+            let presenter = participantArray.find(p => p.id === presenterId);
             
             // If presenter is local participant
-            if (!presenter && localParticipant && localParticipant.id === effectivePresenterId) {
+            if (!presenter && localParticipant && localParticipant.id === presenterId) {
                 presenter = localParticipant;
             }
             
@@ -643,18 +551,19 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                         {localWebcamOn ? '📹 On' : '📹 Off'}
                     </button>
                     <button
-                        className={`btn ${isScreenSharing ? 'btn-warning' : 'btn-info'} ${screenShareInProgress ? 'disabled' : ''}`}
+                        className={`btn ${isLocalPresenting ? 'btn-warning' : isSomeoneElsePresenting ? 'btn-secondary' : 'btn-info'}`}
                         onClick={handleScreenShare}
-                        disabled={screenShareInProgress}
-                        title={isScreenSharing ? 'Stop Screen Sharing' : 'Start Screen Sharing'}
+                        disabled={isSomeoneElsePresenting}
+                        title={
+                            isLocalPresenting ? 'Stop Screen Sharing' : 
+                            isSomeoneElsePresenting ? 'Someone else is presenting' : 
+                            'Start Screen Sharing'
+                        }
                     >
-                        {screenShareInProgress ? (
-                            <>
-                                <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                                Processing...
-                            </>
-                        ) : isScreenSharing ? (
+                        {isLocalPresenting ? (
                             '🛑 Stop Share'
+                        ) : isSomeoneElsePresenting ? (
+                            '🔒 Presentation in Progress'
                         ) : (
                             '🖥️ Share Screen'
                         )}
@@ -684,7 +593,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                              connectionStatus === 'connecting' ? '🟡' : '🔴'}
                         </span>
                         
-                        {effectivePresenterId && (
+                        {presenterId && (
                             <span className="badge bg-info">
                                 🖥️ Screen Active
                             </span>
@@ -895,12 +804,7 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
                             <MeetingView 
                                 onMeetingLeave={onMeetingLeave} 
                                 meetingId={meetingId}
-                                onTokenRefresh={handleTokenRefresh}
-                                userName={userName}
-                                isModerator={isModerator}
-                            />
-                        );
-                    }}
+                                on                    }}
                 </MeetingConsumer>
             </MeetingProvider>
         </div>
