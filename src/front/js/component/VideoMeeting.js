@@ -1197,6 +1197,7 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
                 </MeetingConsumer>
             </MeetingProvider>
         </div>
+        
     );
     
 };
