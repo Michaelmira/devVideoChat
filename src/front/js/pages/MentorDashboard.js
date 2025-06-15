@@ -18,33 +18,34 @@ export const MentorDashboard = () => {
 		}
 	});
 
+	// First useEffect to ensure auth state is synchronized
 	useEffect(() => {
-		fetchDashboardData();
+		const initializeAuth = async () => {
+			if (!store.token && sessionStorage.getItem("token")) {
+				await actions.checkStorageMentor();
+			}
+		};
+		initializeAuth();
 	}, []);
+
+	// Second useEffect to fetch dashboard data once auth is ready
+	useEffect(() => {
+		if (store.token && store.isMentorLoggedIn) {
+			fetchDashboardData();
+		} else if (!loading) {
+			setError("Please log in as a mentor to view your dashboard.");
+		}
+	}, [store.token, store.isMentorLoggedIn]);
 
 	const fetchDashboardData = async () => {
 		try {
-			// Debug logging
-			console.log("Token from store:", store.token);
-			console.log("Token from sessionStorage:", sessionStorage.getItem("token"));
-
-			const token = store.token || sessionStorage.getItem("token");
-			if (!token) {
-				setError("No authentication token found. Please log in again.");
-				setLoading(false);
-				return;
-			}
-
 			const response = await fetch(process.env.BACKEND_URL + '/api/mentor/dashboard', {
 				headers: {
-					'Authorization': 'Bearer ' + token
+					'Authorization': 'Bearer ' + store.token
 				}
 			});
 
-			// Debug logging
-			console.log("Response status:", response.status);
 			const data = await response.json();
-			console.log("Response data:", data);
 
 			if (response.ok) {
 				setDashboardData(data);
@@ -69,10 +70,16 @@ export const MentorDashboard = () => {
 		return <div className="text-center">Loading...</div>;
 	}
 
+	if (!store.token || !store.isMentorLoggedIn) {
+		return <div className="container"><h2>Please log in as a mentor to view your dashboard.</h2></div>;
+	}
+
+	if (error) {
+		return <div className="container alert alert-danger"><h2>Error</h2><p>{error}</p></div>;
+	}
+
 	return (
 		<div className="container py-4">
-			{error && <div className="alert alert-danger">{error}</div>}
-
 			<div className="row">
 				<div className="col-md-3">
 					<div className="list-group">
