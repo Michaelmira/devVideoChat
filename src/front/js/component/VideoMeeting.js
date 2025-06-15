@@ -84,7 +84,7 @@ function ParticipantView({ participantId, viewMode = 'normal', isLocal = false }
         }
     }, [screenShareStream, participantId]);
 
-    // Screen share view
+    // Screen share view - FIXED: Better sizing and scaling
     if ((viewMode === 'screenShare' || viewMode === 'pinned') && isScreenSharing && screenShareStream) {
         console.log(`🖥️ ParticipantView [${participantId}] Rendering SCREEN SHARE mode`);
         return (
@@ -95,7 +95,8 @@ function ParticipantView({ participantId, viewMode = 'normal', isLocal = false }
                 backgroundColor: '#000',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                overflow: 'hidden'  // Prevent any overflow
             }}>
                 <video
                     ref={screenShareRef}
@@ -104,7 +105,7 @@ function ParticipantView({ participantId, viewMode = 'normal', isLocal = false }
                     style={{
                         width: '100%',
                         height: '100%',
-                        objectFit: 'contain',
+                        objectFit: 'contain',  // This will show the full content but may add letterboxing
                         backgroundColor: '#000'
                     }}
                 />
@@ -666,22 +667,47 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         }
     };
 
-    // Determine layout dimensions based on view mode
+    // FIXED: Determine layout dimensions based on view mode
     const getLayoutDimensions = () => {
         const isScreenShareActive = !!presenterId;
         
         if (!isScreenShareActive) {
             // No screen share, always use default layout
-            return { mainWidth: '80%', sidebarWidth: '20%', overlayMode: false };
+            return { 
+                mainWidth: '75%', 
+                sidebarWidth: '25%', 
+                overlayMode: false,
+                mainHeight: '100vh',
+                sidebarHeight: '100vh'
+            };
         }
         
         switch (viewMode) {
             case 'expanded':
-                return { mainWidth: '90%', sidebarWidth: '10%', overlayMode: false };
+                // Expand both horizontally AND vertically for better use of space
+                return { 
+                    mainWidth: '85%', 
+                    sidebarWidth: '15%', 
+                    overlayMode: false,
+                    mainHeight: '100vh',
+                    sidebarHeight: '100vh'
+                };
             case 'fullscreen':
-                return { mainWidth: '100%', sidebarWidth: '15%', overlayMode: true };
+                return { 
+                    mainWidth: '100%', 
+                    sidebarWidth: '250px', 
+                    overlayMode: true,
+                    mainHeight: '100vh',
+                    sidebarHeight: 'auto'
+                };
             default:
-                return { mainWidth: '80%', sidebarWidth: '20%', overlayMode: false };
+                return { 
+                    mainWidth: '75%', 
+                    sidebarWidth: '25%', 
+                    overlayMode: false,
+                    mainHeight: '100vh',
+                    sidebarHeight: '100vh'
+                };
         }
     };
 
@@ -791,19 +817,27 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                                 🖥️ Screen Active
                             </span>
                         )}
+                        
+                        {/* View mode indicator for screen sharing */}
+                        {presenterId && (
+                            <span className="badge bg-secondary">
+                                {viewMode === 'default' ? '📱 Default' : 
+                                 viewMode === 'expanded' ? '📺 Expanded' : '🖥️ Fullscreen'}
+                            </span>
+                        )}
                     </div>
                 </div>
             </div>
 
             {/* Main Meeting Layout */}
             <div className="d-flex h-100" style={{ position: 'relative' }}>
-                {/* Main Content Area */}
+                {/* Main Content Area - FIXED: Better height and width management */}
                 <div 
                     ref={mainContentRef}
                     className="flex-grow-1" 
                     style={{ 
                         width: layoutDimensions.mainWidth, 
-                        height: '100%',
+                        height: layoutDimensions.mainHeight,
                         transition: 'width 0.3s ease',
                         overflow: 'hidden',
                         position: 'relative',
@@ -897,14 +931,34 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                             </button>
                         </div>
                     )}
+                    
+                    {/* View Mode Toggle Hint */}
+                    {presenterId && viewMode !== 'fullscreen' && (
+                        <div 
+                            className="position-absolute"
+                            style={{
+                                top: '20px',
+                                right: '20px',
+                                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                                borderRadius: '6px',
+                                padding: '6px 12px',
+                                fontSize: '12px',
+                                color: 'white',
+                                zIndex: 100,
+                                userSelect: 'none'
+                            }}
+                        >
+                            Double-click to {viewMode === 'default' ? 'expand' : 'go fullscreen'}
+                        </div>
+                    )}
                 </div>
 
-                {/* Sidebar - Regular or Overlay mode */}
+                {/* Sidebar - Regular or Overlay mode - FIXED: Better responsive sizing */}
                 <div 
                     className={`bg-dark d-flex flex-column ${layoutDimensions.overlayMode ? 'position-absolute' : ''}`}
                     style={{ 
                         width: layoutDimensions.overlayMode ? '250px' : layoutDimensions.sidebarWidth, 
-                        height: layoutDimensions.overlayMode ? 'auto' : '100%',
+                        height: layoutDimensions.overlayMode ? 'auto' : layoutDimensions.sidebarHeight,
                         maxHeight: layoutDimensions.overlayMode ? '80vh' : '100%',
                         padding: '8px',
                         borderLeft: !layoutDimensions.overlayMode ? '1px solid #333' : 'none',
@@ -923,9 +977,19 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                     }}
                     onMouseDown={layoutDimensions.overlayMode ? handleDragStart : undefined}
                 >
-                    <div className="flex-grow-1" style={{ minHeight: 0 }}>
+                    {/* Sidebar Content - FIXED: Better spacing and sizing */}
+                    <div className="flex-grow-1" style={{ 
+                        minHeight: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: layoutDimensions.overlayMode ? '4px' : '6px'
+                    }}>
                         {layoutConfig.sidebarParticipants && layoutConfig.sidebarParticipants.map((participant, index) => (
-                            <div key={participant.id || index} className="mb-1">
+                            <div key={participant.id || index} style={{
+                                // Adjust participant size based on view mode
+                                height: layoutDimensions.overlayMode ? '100px' : 
+                                       (viewMode === 'expanded' ? '140px' : '120px')
+                            }}>
                                 <ParticipantView 
                                     participantId={participant.id} 
                                     viewMode="sidebar"
@@ -1097,6 +1161,9 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
                             <MeetingView 
                                 onMeetingLeave={onMeetingLeave} 
                                 meetingId={meetingId}
+                                onTokenRefresh={handleTokenRefresh}
+                                userName={userName}
+                                isModerator={isModerator}
                             />
                         );
                     }}
