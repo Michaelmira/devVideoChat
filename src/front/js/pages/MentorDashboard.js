@@ -109,36 +109,36 @@ export const MentorDashboard = () => {
 						<div>
 							<h2 className="mb-4">Dashboard Overview</h2>
 
-							<div className="row">
+							<div className="row mb-4">
 								<div className="col-md-3">
-									<div className="card text-center mb-3">
-										<div className="card-body">
+									<div className="card">
+										<div className="card-body text-center">
 											<h5 className="card-title">Total Sessions</h5>
-											<p className="card-text h2">{dashboardData.stats.totalSessions}</p>
+											<p className="h2">{dashboardData.stats.totalSessions}</p>
 										</div>
 									</div>
 								</div>
 								<div className="col-md-3">
-									<div className="card text-center mb-3">
-										<div className="card-body">
+									<div className="card">
+										<div className="card-body text-center">
 											<h5 className="card-title">Total Hours</h5>
-											<p className="card-text h2">{dashboardData.stats.totalHours}</p>
+											<p className="h2">{dashboardData.stats.totalHours}</p>
 										</div>
 									</div>
 								</div>
 								<div className="col-md-3">
-									<div className="card text-center mb-3">
-										<div className="card-body">
-											<h5 className="card-title">Average Rating</h5>
-											<p className="card-text h2">{dashboardData.stats.averageRating.toFixed(1)}</p>
+									<div className="card">
+										<div className="card-body text-center">
+											<h5 className="card-title">Avg. Rating</h5>
+											<p className="h2">{dashboardData.stats.averageRating.toFixed(1)} ⭐</p>
 										</div>
 									</div>
 								</div>
 								<div className="col-md-3">
-									<div className="card text-center mb-3">
-										<div className="card-body">
+									<div className="card">
+										<div className="card-body text-center">
 											<h5 className="card-title">Completion Rate</h5>
-											<p className="card-text h2">{dashboardData.stats.completionRate}%</p>
+											<p className="h2">{dashboardData.stats.completionRate}%</p>
 										</div>
 									</div>
 								</div>
@@ -161,6 +161,7 @@ export const MentorDashboard = () => {
 														<th>Time</th>
 														<th>Duration</th>
 														<th>Status</th>
+														<th>Meeting</th>
 													</tr>
 												</thead>
 												<tbody>
@@ -174,6 +175,35 @@ export const MentorDashboard = () => {
 																<span className={`badge bg-${booking.status === 'confirmed' ? 'success' : 'warning'}`}>
 																	{booking.status}
 																</span>
+															</td>
+															<td>
+																{booking.meeting_url ? (
+																	<a href={booking.meeting_url}
+																		target="_blank"
+																		rel="noopener noreferrer"
+																		className="btn btn-primary btn-sm">
+																		Join Meeting
+																	</a>
+																) : (
+																	<button
+																		onClick={async () => {
+																			try {
+																				const result = await actions.createMeetingForBooking(booking.id);
+																				if (result.success) {
+																					await fetchDashboardData();
+																				} else {
+																					alert('Failed to create meeting room. Please try again.');
+																				}
+																			} catch (error) {
+																				console.error('Error creating meeting:', error);
+																				alert('Failed to create meeting room. Please try again.');
+																			}
+																		}}
+																		className="btn btn-outline-primary btn-sm"
+																	>
+																		Create Meeting
+																	</button>
+																)}
 															</td>
 														</tr>
 													))}
