@@ -289,6 +289,14 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         },
         onPresenterChanged: (_presenterId) => {
             console.log("🖥️ PRESENTER CHANGED:", _presenterId);
+            
+            // Reset view mode and zoom when screen sharing stops
+            if (!_presenterId) {
+                console.log("🔄 Screen sharing stopped, resetting view mode and zoom");
+                setViewMode('default');
+                setZoomLevel(1);
+                setPanOffset({ x: 0, y: 0 });
+            }
         },
         onError: (error) => {
             console.error("❌ MEETING ERROR:", error);
@@ -308,7 +316,15 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         }
     });
 
-    // Handle double-click on presenter view
+    // Watch for presenter changes and reset zoom when screen sharing stops
+    useEffect(() => {
+        if (!presenterId) {
+            console.log("🔄 No presenter detected, ensuring default state");
+            setViewMode('default');
+            setZoomLevel(1);
+            setPanOffset({ x: 0, y: 0 });
+        }
+    }, [presenterId]);
     const handlePresenterDoubleClick = useCallback((e) => {
         // Prevent double-click from interfering with pan
         if (isPanning) return;
