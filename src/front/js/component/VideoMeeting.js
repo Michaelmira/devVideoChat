@@ -300,12 +300,24 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         },
         onError: (error) => {
             console.error("❌ MEETING ERROR:", error);
-            setConnectionStatus('error');
             
-            if (error.message && error.message.includes('token')) {
-                console.log("🔑 Token-related error detected, refreshing...");
-                setTokenExpiryWarning(true);
-                handleTokenRefresh();
+            // Only show connection error for actual connection issues
+            if (error.message && (
+                error.message.includes('token') ||
+                error.message.includes('connection') ||
+                error.message.includes('network') ||
+                error.message.includes('disconnected')
+            )) {
+                setConnectionStatus('error');
+                
+                if (error.message.includes('token')) {
+                    console.log("🔑 Token-related error detected, refreshing...");
+                    setTokenExpiryWarning(true);
+                    handleTokenRefresh();
+                }
+            } else {
+                // For other errors (like permission denied, etc.), don't show connection error
+                console.log("ℹ️ Non-connection error, not changing connection status:", error.message);
             }
         },
         onParticipantJoined: (participant) => {
@@ -510,17 +522,27 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         }, 3 * 60 * 60 * 1000); // 3 hours
     }, []);
 
-    // Monitor connection status
+    // Monitor connection status - FIXED: Better connection detection
     const startConnectionMonitoring = useCallback(() => {
-        console.log("📡 Starting connection monitoring (30 seconds)");
+        console.log("📡 Starting connection monitoring (60 seconds)");
         connectionCheckInterval.current = setInterval(() => {
             const participantCount = participants.size;
+            const hasLocalParticipant = !!localParticipant;
+            
             console.log("📡 Connection check:", {
                 participantCount,
+                hasLocalParticipant,
                 connectionStatus
             });
-        }, 30000); // Check every 30 seconds
-    }, [participants, connectionStatus]);
+            
+            // Only reset to connected if we were in error state and things look good
+            if (connectionStatus === 'error' && hasLocalParticipant) {
+                console.log("✅ Connection appears to be restored");
+                setConnectionStatus('connected');
+            }
+            
+        }, 60000); // Check every 60 seconds instead of 30
+    }, [participants, connectionStatus, localParticipant]);
 
     // Handle token refresh
     const handleTokenRefresh = useCallback(async () => {
@@ -551,7 +573,20 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         }
     }, [meetingId, onTokenRefresh]);
 
-    // Cleanup on unmount
+    // Auto-hide connection error after successful operations
+    useEffect(() => {
+        if (connectionStatus === 'error') {
+            // Auto-clear error status after 10 seconds if no new errors
+            const timeout = setTimeout(() => {
+                if (localParticipant && participants.size >= 0) {
+                    console.log("🔄 Auto-clearing connection error status");
+                    setConnectionStatus('connected');
+                }
+            }, 10000);
+            
+            return () => clearTimeout(timeout);
+        }
+    }, [connectionStatus, localParticipant, participants.size]);
     useEffect(() => {
         return () => {
             console.log("🧹 Component unmounting, cleaning up");
@@ -1197,7 +1232,6 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
                 </MeetingConsumer>
             </MeetingProvider>
         </div>
-        
     );
     
 };
