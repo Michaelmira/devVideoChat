@@ -670,6 +670,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
     // FIXED: Determine layout dimensions based on view mode
     const getLayoutDimensions = () => {
         const isScreenShareActive = !!presenterId;
+        const controlsHeight = 80; // Approximate height of bottom controls
         
         if (!isScreenShareActive) {
             // No screen share, always use default layout
@@ -677,8 +678,8 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                 mainWidth: '75%', 
                 sidebarWidth: '25%', 
                 overlayMode: false,
-                mainHeight: '100vh',
-                sidebarHeight: '100vh'
+                mainHeight: `calc(100vh - ${controlsHeight}px)`,
+                sidebarHeight: `calc(100vh - ${controlsHeight}px)`
             };
         }
         
@@ -689,24 +690,26 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                     mainWidth: '85%', 
                     sidebarWidth: '15%', 
                     overlayMode: false,
-                    mainHeight: '100vh',
-                    sidebarHeight: '100vh'
+                    mainHeight: `calc(100vh - ${controlsHeight}px)`,
+                    sidebarHeight: `calc(100vh - ${controlsHeight}px)`
                 };
             case 'fullscreen':
+                // Use absolute positioning to cover the entire viewport
                 return { 
-                    mainWidth: '100%', 
+                    mainWidth: '100vw', 
                     sidebarWidth: '250px', 
                     overlayMode: true,
-                    mainHeight: '100vh',
-                    sidebarHeight: 'auto'
+                    mainHeight: '100vh',  // Full height, will layer over controls
+                    sidebarHeight: 'auto',
+                    isAbsoluteFullscreen: true
                 };
             default:
                 return { 
                     mainWidth: '75%', 
                     sidebarWidth: '25%', 
                     overlayMode: false,
-                    mainHeight: '100vh',
-                    sidebarHeight: '100vh'
+                    mainHeight: `calc(100vh - ${controlsHeight}px)`,
+                    sidebarHeight: `calc(100vh - ${controlsHeight}px)`
                 };
         }
     };
@@ -752,8 +755,10 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                 </div>
             )}
 
-            {/* Meeting Controls */}
-            <div className="position-fixed bottom-0 start-0 end-0 bg-dark bg-opacity-90 p-3" style={{ zIndex: 1040 }}>
+            {/* Meeting Controls - FIXED: Higher z-index for fullscreen mode */}
+            <div className="position-fixed bottom-0 start-0 end-0 bg-dark bg-opacity-90 p-3" style={{ 
+                zIndex: layoutDimensions.isAbsoluteFullscreen ? 1050 : 1040  // Ensure controls stay on top
+            }}>
                 <div className="d-flex justify-content-center align-items-center flex-wrap gap-3">
                     <button
                         className={`btn ${localMicOn ? 'btn-success' : 'btn-secondary'}`}
@@ -830,7 +835,10 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             </div>
 
             {/* Main Meeting Layout */}
-            <div className="d-flex h-100" style={{ position: 'relative' }}>
+            <div className="d-flex h-100" style={{ 
+                position: 'relative',
+                height: layoutDimensions.isAbsoluteFullscreen ? '100vh' : `calc(100vh - 80px)` // Account for controls
+            }}>
                 {/* Main Content Area - FIXED: Better height and width management */}
                 <div 
                     ref={mainContentRef}
@@ -840,7 +848,10 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                         height: layoutDimensions.mainHeight,
                         transition: 'width 0.3s ease',
                         overflow: 'hidden',
-                        position: 'relative',
+                        position: layoutDimensions.isAbsoluteFullscreen ? 'fixed' : 'relative',
+                        top: layoutDimensions.isAbsoluteFullscreen ? 0 : 'auto',
+                        left: layoutDimensions.isAbsoluteFullscreen ? 0 : 'auto',
+                        zIndex: layoutDimensions.isAbsoluteFullscreen ? 1030 : 'auto', // Below controls but above everything else
                         cursor: viewMode === 'fullscreen' && zoomLevel > 1 ? (isPanning ? 'grabbing' : 'grab') : 'default'
                     }}
                     onDoubleClick={handlePresenterDoubleClick}
@@ -955,7 +966,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
 
                 {/* Sidebar - Regular or Overlay mode - FIXED: Better responsive sizing */}
                 <div 
-                    className={`bg-dark d-flex flex-column ${layoutDimensions.overlayMode ? 'position-absolute' : ''}`}
+                    className={`bg-dark d-flex flex-column ${layoutDimensions.overlayMode ? 'position-fixed' : ''}`}
                     style={{ 
                         width: layoutDimensions.overlayMode ? '250px' : layoutDimensions.sidebarWidth, 
                         height: layoutDimensions.overlayMode ? 'auto' : layoutDimensions.sidebarHeight,
@@ -964,14 +975,14 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                         borderLeft: !layoutDimensions.overlayMode ? '1px solid #333' : 'none',
                         transition: !layoutDimensions.overlayMode ? 'width 0.3s ease' : 'none',
                         ...(layoutDimensions.overlayMode ? {
-                            position: 'absolute',
+                            position: 'fixed',  // Use fixed instead of absolute for fullscreen
                             left: `${overlayPosition.x}px`,
                             top: `${overlayPosition.y}px`,
                             backgroundColor: 'rgba(33, 37, 41, 0.95)',
                             borderRadius: '8px',
                             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
                             cursor: isDragging ? 'grabbing' : 'grab',
-                            zIndex: 1000,
+                            zIndex: 1040,  // Above the fullscreen video but below controls
                             overflow: 'auto'
                         } : {})
                     }}
