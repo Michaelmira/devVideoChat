@@ -26,7 +26,7 @@ export const VideoMeetingPage = () => {
                     }
                 }
 
-                // Now get the meeting token with updated endpoint
+                // Now get the meeting token
                 const response = await fetch(`${process.env.BACKEND_URL}/api/videosdk/meeting-token/${meetingId}`, {
                     headers: {
                         'Authorization': 'Bearer ' + (store.token || sessionStorage.getItem('token'))
@@ -39,7 +39,6 @@ export const VideoMeetingPage = () => {
                 }
 
                 const data = await response.json();
-                console.log('Meeting token result:', data); // Debug log
                 
                 if (data.success) {
                     setToken(data.token);
@@ -110,7 +109,6 @@ export const VideoMeetingPage = () => {
         );
     }
 
-    // Pass all necessary props to VideoMeeting component
     return (
         <div className="video-meeting-page">
             <VideoMeeting 

@@ -77,7 +77,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                 }
                 return false;
             },
-            
+
             checkStorageMentor: async () => {
                 const token = sessionStorage.getItem("token");
                 const mentorId = sessionStorage.getItem("mentorId");
@@ -1387,6 +1387,8 @@ const getState = ({ getStore, getActions, setStore }) => {
 
             verifyGitHubAuth: async (authData) => {
                 try {
+                    console.log('🔄 Verifying GitHub auth with data:', authData);
+
                     const response = await fetch(`${process.env.BACKEND_URL}/api/auth/github/verify`, {
                         method: 'POST',
                         headers: {
@@ -1396,6 +1398,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                     });
 
                     const data = await response.json();
+                    console.log('📊 GitHub auth verification response:', data);
 
                     if (response.ok && data.success) {
                         // Store user data in session storage and update store
@@ -1403,7 +1406,9 @@ const getState = ({ getStore, getActions, setStore }) => {
                         const userData = data[`${userType}_data`];
                         const userId = data[`${userType}_id`];
 
-                        // Clean up any modal artifacts
+                        console.log('✅ GitHub auth verified successfully:', { userType, userId });
+
+                        // Clean up any modal artifacts (same as Google OAuth)
                         const modalBackdrops = document.getElementsByClassName('modal-backdrop');
                         while (modalBackdrops.length > 0) {
                             modalBackdrops[0].remove();
@@ -1421,7 +1426,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                             modal.removeAttribute('aria-modal');
                         });
 
-                        // Update store based on user type
+                        // Update store based on user type - EXACTLY like Google OAuth
                         if (userType === 'mentor') {
                             setStore({
                                 token: data.access_token,
@@ -1433,6 +1438,8 @@ const getState = ({ getStore, getActions, setStore }) => {
                             sessionStorage.setItem("isMentorLoggedIn", "true");
                             sessionStorage.setItem("mentorId", userId);
                             sessionStorage.setItem("currentUserData", JSON.stringify(userData));
+
+                            console.log('✅ Mentor GitHub auth stored successfully');
                         } else {
                             setStore({
                                 token: data.access_token,
@@ -1444,7 +1451,16 @@ const getState = ({ getStore, getActions, setStore }) => {
                             sessionStorage.setItem("isCustomerLoggedIn", "true");
                             sessionStorage.setItem("customerId", userId);
                             sessionStorage.setItem("currentUserData", JSON.stringify(userData));
+
+                            console.log('✅ Customer GitHub auth stored successfully');
                         }
+
+                        // Verify token was stored correctly
+                        const storedToken = sessionStorage.getItem("token");
+                        console.log('🔍 Token verification after GitHub auth:', {
+                            tokenStored: !!storedToken,
+                            tokenPreview: storedToken ? storedToken.substring(0, 20) + '...' : 'none'
+                        });
 
                         return {
                             success: true,
@@ -1452,13 +1468,14 @@ const getState = ({ getStore, getActions, setStore }) => {
                             userData: userData
                         };
                     } else {
+                        console.error('❌ GitHub auth verification failed:', data);
                         return {
                             success: false,
                             message: data.error || "GitHub authentication verification failed"
                         };
                     }
                 } catch (error) {
-                    console.error("Error verifying GitHub auth:", error);
+                    console.error("❌ Error verifying GitHub auth:", error);
                     return {
                         success: false,
                         message: "Network error occurred during GitHub authentication verification"
@@ -1950,6 +1967,11 @@ const getState = ({ getStore, getActions, setStore }) => {
                     };
                 }
             }
+
+
+
+
+            
         }
     };
 };

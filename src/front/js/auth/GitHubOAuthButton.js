@@ -60,15 +60,49 @@ export const GitHubOAuthButton = ({ userType, onSuccess, buttonText }) => {
         try {
             setIsLoading(true);
             
+            console.log('🔄 Processing GitHub auth success:', {
+                userType,
+                userId,
+                isNewUser,
+                tokenPreview: token ? token.substring(0, 20) + '...' : 'none'
+            });
+            
             const result = await actions.verifyGitHubAuth({
                 token,
                 user_id: userId,
                 user_type: userType
             });
 
+            console.log('📊 GitHub auth verification result:', result);
+
             if (result.success) {
-                // Clean URL
+                // Clean URL FIRST
                 window.history.replaceState({}, '', window.location.pathname);
+                
+                // IMPORTANT: Ensure token is properly stored in sessionStorage
+                // This is crucial for the video meeting authentication
+                const storedToken = sessionStorage.getItem('token');
+                if (!storedToken) {
+                    console.error('❌ Token not found in sessionStorage after GitHub auth');
+                    console.error('📊 SessionStorage contents:', {
+                        token: sessionStorage.getItem('token'),
+                        isMentorLoggedIn: sessionStorage.getItem('isMentorLoggedIn'),
+                        isCustomerLoggedIn: sessionStorage.getItem('isCustomerLoggedIn'),
+                        mentorId: sessionStorage.getItem('mentorId'),
+                        customerId: sessionStorage.getItem('customerId')
+                    });
+                    alert('Authentication incomplete. Please try logging in again.');
+                    return;
+                }
+                
+                // Log success for debugging
+                console.log('✅ GitHub auth successful:', {
+                    userType: result.userType,
+                    userId: userId,
+                    tokenExists: !!storedToken,
+                    tokenPreview: storedToken.substring(0, 20) + '...',
+                    isNewUser
+                });
                 
                 if (isNewUser) {
                     alert(`Welcome! Your ${userType} account has been created successfully with GitHub. Please complete your profile information.`);
@@ -84,10 +118,11 @@ export const GitHubOAuthButton = ({ userType, onSuccess, buttonText }) => {
                     navigate(dashboardRoute);
                 }
             } else {
+                console.error('❌ GitHub auth verification failed:', result);
                 alert(result.message || "GitHub authentication failed. Please try again.");
             }
         } catch (error) {
-            console.error("GitHub auth verification error:", error);
+            console.error("❌ GitHub auth verification error:", error);
             alert("An error occurred during GitHub authentication. Please try again.");
         } finally {
             setIsLoading(false);
@@ -99,17 +134,22 @@ export const GitHubOAuthButton = ({ userType, onSuccess, buttonText }) => {
         
         setIsLoading(true);
         try {
+            console.log(`🔄 Initiating GitHub OAuth for ${userType}`);
             const result = await actions.initiateGitHubAuth(userType);
             
+            console.log('📊 GitHub OAuth initiation result:', result);
+            
             if (result.success && result.auth_url) {
+                console.log('✅ GitHub OAuth URL generated, redirecting...');
                 // Redirect to GitHub OAuth
                 window.location.href = result.auth_url;
             } else {
+                console.error('❌ Failed to initiate GitHub OAuth:', result);
                 alert(result.message || "Failed to initiate GitHub authentication.");
                 setIsLoading(false);
             }
         } catch (error) {
-            console.error("GitHub OAuth initiation error:", error);
+            console.error("❌ GitHub OAuth initiation error:", error);
             alert("An error occurred. Please try again.");
             setIsLoading(false);
         }

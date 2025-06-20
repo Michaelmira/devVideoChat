@@ -2436,7 +2436,7 @@ def get_mentor_dashboard():
         average_rating = 4.5
         completion_rate = 95
         
-        # Format the response
+        # Format the upcoming bookings response
         upcoming_data = []
         for booking in upcoming_bookings:
             customer = Customer.query.get(booking.customer_id)
@@ -2445,9 +2445,14 @@ def get_mentor_dashboard():
                 "student_name": f"{customer.first_name} {customer.last_name}" if customer else "Unknown",
                 "start_time": booking.session_start_time.isoformat() if booking.session_start_time else None,
                 "duration": booking.session_duration or 60,
-                "status": booking.status.value
+                "status": booking.status.value,
+                # Include meeting URL and meeting ID from the database
+                "meeting_url": booking.meeting_url,
+                "meeting_id": booking.meeting_id,
+                "has_meeting": bool(booking.meeting_url)  # Helper boolean for frontend
             })
         
+        # Format the past bookings response
         past_data = []
         for booking in past_bookings:
             customer = Customer.query.get(booking.customer_id)
@@ -2473,8 +2478,9 @@ def get_mentor_dashboard():
         
     except Exception as e:
         current_app.logger.error(f"Error in get_mentor_dashboard: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
         return jsonify({"error": "Failed to load dashboard data"}), 500
-
 # WWORKING WITH OPUS BELOW
 # WWORKING WITH OPUS BELOW
 # WWORKING WITH OPUS BELOW

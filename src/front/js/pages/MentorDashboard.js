@@ -177,10 +177,9 @@ export const MentorDashboard = () => {
 																</span>
 															</td>
 															<td>
+
 																{booking.meeting_url ? (
-																	<a href={booking.meeting_url}
-																		target="_blank"
-																		rel="noopener noreferrer"
+																	<a href={booking.meeting_url}  // Use meeting_url like CustomerDashboard does
 																		className="btn btn-primary btn-sm">
 																		Join Meeting
 																	</a>
