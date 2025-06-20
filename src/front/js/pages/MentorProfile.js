@@ -35,7 +35,7 @@ import userIcon from "../../img/user-3296.png";
 
 import "../../styles/mentorProfile.css";
 
-import { StripeConnect } from "./StripeConnect";
+import { StripeConnect } from "../component/StripeConnect";
 
 export const MentorProfile = () => {
   const { actions } = useContext(Context);
