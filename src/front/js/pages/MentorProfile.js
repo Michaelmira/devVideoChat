@@ -551,21 +551,6 @@ export const MentorProfile = () => {
               )}
             </dd>
 
-            <dt className="col-sm-4 form-label">Calendly Url:</dt>
-            <dd className="col-sm-8">
-              {editMode ? (
-                <input
-                  type="text"
-                  name="calendly_url"
-                  value={mentor.calendly_url}
-                  onChange={handleChange}
-                  className="form-control"
-                />
-              ) : (
-                mentor.calendly_url
-              )}
-            </dd>
-
             <dt className="col-sm-4 form-label">Phone:</dt>
             <dd className="col-sm-8">
               {editMode ? (

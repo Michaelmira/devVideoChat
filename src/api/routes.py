@@ -385,7 +385,7 @@ def mentor_edit_self():
     updatable_fields = [
         'first_name', 'last_name', 'nick_name', 'phone', 'city',
         'what_state', 'country', 'about_me', 'years_exp', 'skills',
-        'days', 'price', 'calendly_url'
+        'days', 'price'
     ]
 
     try:

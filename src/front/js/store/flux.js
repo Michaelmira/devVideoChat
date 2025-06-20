@@ -62,6 +62,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                     return false;
                 }
             },
+
             checkStorage: async () => {
                 const token = sessionStorage.getItem("token");
                 const customerId = sessionStorage.getItem("customerId");
@@ -76,6 +77,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                 }
                 return false;
             },
+            
             checkStorageMentor: async () => {
                 const token = sessionStorage.getItem("token");
                 const mentorId = sessionStorage.getItem("mentorId");
@@ -133,6 +135,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                 }
 
             },
+
             logInMentor: async (mentor) => {
                 try {
                     const response = await fetch(process.env.BACKEND_URL + "/api/mentor/login", {
