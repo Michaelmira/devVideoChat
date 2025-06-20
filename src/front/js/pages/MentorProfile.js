@@ -35,7 +35,7 @@ import userIcon from "../../img/user-3296.png";
 
 import "../../styles/mentorProfile.css";
 
-
+import { StripeConnect } from "./StripeConnect";
 
 export const MentorProfile = () => {
   const { actions } = useContext(Context);
@@ -78,7 +78,13 @@ export const MentorProfile = () => {
     is_calendly_connected: false,
   });
   const [mentorData, setMentorData] = useState(null);
-
+  const [calendlyStatus, setCalendlyStatus] = useState({
+    connected: false,
+    loading: true,
+    userName: null,
+    userEmail: null,
+    error: null
+  });
 
 
   useEffect(() => {
@@ -859,7 +865,9 @@ export const MentorProfile = () => {
         />
       )}
 
-
+      <div className="mb-3">
+        <StripeConnect />
+      </div>
 
       <ToastContainer position="top-right" autoClose={5000} newestOnTop={true} />
     </div>
