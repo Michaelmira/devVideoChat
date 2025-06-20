@@ -9,7 +9,7 @@ import { VerifyCodeModal } from '../auth/VerifyCodeModal';
 import { MVPGoogleOAuthButton } from '../auth/MVPGoogelOAuthButton';
 import { MVPGitHubOAuthButton } from '../auth/MVPGitHubOAuthButton';
 
-import { PaymentForm } from './PaymentForm';
+import { PaymentForm } from '../component/PaymentForm';
 
 export const CalendlyAvailability = ({ mentorId, mentor, onPaymentSuccess, onCancel }) => {
   const { store, actions } = useContext(Context);

@@ -68,7 +68,6 @@ class CustomerImage(db.Model):
 class Mentor(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
-    # Removed Calendly fields
     is_active = db.Column(db.Boolean, default=True)
     last_active = db.Column(DateTime(timezone=True), unique=False)
     password = db.Column(db.String(256), unique=False, nullable=False)
