@@ -1772,6 +1772,9 @@ def mvp_google_oauth_callback():
         current_app.logger.error(traceback.format_exc())
         return redirect(f"{FRONTEND_URL}/mentor-details/{mentor_id}?mvp_auth_error=server_error")
 
+GITHUB_CLIENT_ID_MVP = os.getenv('GITHUB_CLIENT_ID_MVP')
+GITHUB_CLIENT_SECRET_MVP = os.getenv('GITHUB_CLIENT_MVP_SECRET')
+
 @api.route('/auth/mvp/github/initiate', methods=['POST'])
 def mvp_github_oauth_initiate():
     """Initiate GitHub OAuth flow for MVP booking"""
@@ -1795,7 +1798,7 @@ def mvp_github_oauth_initiate():
     # GitHub OAuth URL
     github_auth_url = "https://github.com/login/oauth/authorize"
     params = {
-        'client_id': GITHUB_CLIENT_ID,
+        'client_id': GITHUB_CLIENT_ID_MVP,  # ✅ CHANGED: Use MVP client ID
         'redirect_uri': f"{os.getenv('BACKEND_URL')}/api/auth/mvp/github/callback",
         'scope': 'user:email',
         'state': state,
@@ -1835,8 +1838,8 @@ def mvp_github_oauth_callback():
         # Exchange code for access token
         token_url = "https://github.com/login/oauth/access_token"
         token_data = {
-            'client_id': GITHUB_CLIENT_ID,
-            'client_secret': GITHUB_CLIENT_SECRET,
+            'client_id': GITHUB_CLIENT_ID_MVP,        # ✅ CHANGED: Use MVP client ID
+            'client_secret': GITHUB_CLIENT_SECRET_MVP, # ✅ CHANGED: Use MVP client secret
             'code': code,
         }
         

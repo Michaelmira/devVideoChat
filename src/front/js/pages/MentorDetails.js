@@ -17,7 +17,7 @@ export const MentorDetails = () => {
     const navigate = useNavigate();
     const [mentor, setMentor] = useState(null);
     const [loading, setLoading] = useState(true);
-    
+
     // Booking flow states
     const [showCalendar, setShowCalendar] = useState(true);
     const [showAuthForm, setShowAuthForm] = useState(false);
@@ -41,10 +41,10 @@ export const MentorDetails = () => {
         const token = urlParams.get('token');
         const userId = urlParams.get('user_id');
         const userType = urlParams.get('user_type');
-        
+
         if ((mvpGoogleAuth === 'success' || mvpGithubAuth === 'success') && token && userId && userType === 'customer') {
             console.log("Detected OAuth redirect, processing authentication");
-            
+
             // Process the OAuth verification
             const processOAuth = async () => {
                 try {
@@ -59,7 +59,7 @@ export const MentorDetails = () => {
                         console.log("OAuth verification successful");
                         // Clean URL
                         window.history.replaceState({}, '', window.location.pathname);
-                        
+
                         // Check if we have a pending booking
                         const pendingSlot = sessionStorage.getItem('pendingTimeSlot');
                         if (pendingSlot) {
@@ -67,6 +67,16 @@ export const MentorDetails = () => {
                             sessionStorage.removeItem('pendingTimeSlot');
                             setShowCalendar(false);
                             setShowPaymentForm(true);
+
+                            // Scroll to booking section after state updates
+                            setTimeout(() => {
+                                if (bookingSectionRef.current) {
+                                    bookingSectionRef.current.scrollIntoView({
+                                        behavior: 'smooth',
+                                        block: 'start'
+                                    });
+                                }
+                            }, 100); // Small delay to ensure DOM updates
                         }
                     } else {
                         console.error("OAuth verification failed:", result.message);
@@ -77,7 +87,7 @@ export const MentorDetails = () => {
                     alert("An error occurred during authentication. Please try again.");
                 }
             };
-            
+
             setTimeout(processOAuth, 100);
         }
     }, [actions]);
@@ -120,7 +130,7 @@ export const MentorDetails = () => {
 
     const handleTimeSlotSelected = (slot) => {
         setSelectedTimeSlot(slot);
-        
+
         // Check if user is logged in
         if (store.token && store.customerId) {
             // User is logged in, proceed to payment
@@ -169,12 +179,26 @@ export const MentorDetails = () => {
                 amountPaid: paymentIntent.amount / 100, // Convert from cents
                 notes: ''
             };
-    
+
             const result = await actions.finalizeBooking(bookingData);
-    
+
             if (result.success) {
-                // Navigate to booking confirmed page with the booking ID
-                navigate(`/booking-confirmed/${result.booking.id}`);
+                // ✅ CREATE THE FULL MENTOR NAME HERE
+                const mentorFullName = `${mentor.first_name} ${mentor.last_name}`;
+
+                console.log('🎯 Navigating with mentor name:', mentorFullName);
+
+                // Navigate to booking confirmed page with mentor info
+                navigate(`/booking-confirmed/${result.booking.id}`, {
+                    state: {
+                        mentorName: mentorFullName,  // ✅ This will fix "Your Mentor"
+                        mentorId: mentor.id,
+                        sessionStartTime: selectedTimeSlot.start_time,
+                        sessionEndTime: selectedTimeSlot.end_time,
+                        amountPaid: paymentIntent.amount / 100,
+                        bookingId: result.booking.id
+                    }
+                });
             } else {
                 alert('Failed to finalize booking. Please contact support.');
             }
@@ -262,21 +286,21 @@ export const MentorDetails = () => {
                 <div className="card border-0 shadow p-4">
                     <div className="card-body">
                         <h4 className="text-center mb-4">Authentication Required</h4>
-                        
+
                         {/* MVP OAuth Buttons */}
                         <div className="mb-4">
-                            <MVPGoogleOAuthButton 
+                            <MVPGoogleOAuthButton
                                 mentor={mentor}
                                 onSuccess={handleMVPOAuthSuccess}
                                 buttonText={activeAuthTab === 'login' ? 'Login with Google' : 'Sign up with Google'}
                             />
-                            
-                            <MVPGitHubOAuthButton 
+
+                            <MVPGitHubOAuthButton
                                 mentor={mentor}
                                 onSuccess={handleMVPOAuthSuccess}
                                 buttonText={activeAuthTab === 'login' ? 'Login with GitHub' : 'Sign up with GitHub'}
                             />
-                            
+
                             <div className="d-flex align-items-center my-3">
                                 <hr className="flex-grow-1" />
                                 <span className="px-3 text-secondary">or</span>
@@ -309,7 +333,7 @@ export const MentorDetails = () => {
                             <CustomerLogin
                                 onSuccess={handleLoginSuccess}
                                 switchToSignUp={() => setActiveAuthTab('signup')}
-                                onForgotPs={() => {}}
+                                onForgotPs={() => { }}
                             />
                         ) : (
                             <CustomerSignup
@@ -331,7 +355,7 @@ export const MentorDetails = () => {
                 <div className="card border-0 shadow p-4">
                     <div className="card-body">
                         <h4 className="text-center mb-4">Complete Your Booking</h4>
-                        
+
                         {selectedTimeSlot && (
                             <div className="mb-4">
                                 <h6>Session Details:</h6>
@@ -484,28 +508,86 @@ export const MentorDetails = () => {
             </div>
 
             {/* Portfolio Modal */}
+        // Replace your existing Portfolio Modal section with this:
+
+            {/* Full-Screen Portfolio Modal */}
             {showPortfolioModal && (
-                <div className="modal fade show" style={{ display: 'block' }} tabIndex="-1">
-                    <div className="modal-dialog modal-lg">
-                        <div className="modal-content">
-                            <div className="modal-header">
-                                <button type="button" className="btn-close" onClick={closePortfolioModal}></button>
+                <div
+                    className="modal fade show"
+                    style={{
+                        display: 'block',
+                        zIndex: 9999
+                    }}
+                    tabIndex="-1"
+                    onClick={closePortfolioModal} // Click anywhere to close
+                >
+                    <div
+                        className="modal-dialog"
+                        style={{
+                            maxWidth: '100vw',
+                            width: '100vw',
+                            height: '100vh',
+                            margin: 0,
+                            padding: 0
+                        }}
+                        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking on image
+                    >
+                        <div
+                            className="modal-content"
+                            style={{
+                                height: '100vh',
+                                border: 'none',
+                                borderRadius: 0,
+                                backgroundColor: 'rgba(0, 0, 0, 0.95)'
+                            }}
+                        >
+                            <div
+                                className="modal-header"
+                                style={{
+                                    position: 'absolute',
+                                    top: '20px',
+                                    right: '20px',
+                                    border: 'none',
+                                    background: 'transparent',
+                                    zIndex: 10000
+                                }}
+                            >
+                                <button
+                                    type="button"
+                                    className="btn-close btn-close-white"
+                                    onClick={closePortfolioModal}
+                                    style={{
+                                        fontSize: '1.5rem',
+                                        opacity: 0.8
+                                    }}
+                                ></button>
                             </div>
-                            <div className="modal-body text-center">
+                            <div
+                                className="modal-body d-flex align-items-center justify-content-center"
+                                style={{
+                                    height: '100vh',
+                                    padding: '40px 20px'
+                                }}
+                            >
                                 <img
                                     src={selectedPortfolioImage}
                                     alt="Portfolio"
-                                    className="img-fluid"
+                                    style={{
+                                        maxWidth: '100%',
+                                        maxHeight: '100%',
+                                        objectFit: 'contain',
+                                        cursor: 'pointer'
+                                    }}
+                                    onClick={closePortfolioModal} // Also allow clicking image to close
                                 />
                             </div>
                         </div>
                     </div>
-                    <div className="modal-backdrop fade show"></div>
                 </div>
             )}
         </div>
     );
 };
- 
+
 
 export default MentorDetails;

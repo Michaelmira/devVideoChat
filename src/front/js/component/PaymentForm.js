@@ -29,29 +29,6 @@ export const PaymentForm = ({ mentor, paidDateTime, sessionDuration, onSuccess, 
   // Get the amount from mentor data
   const sessionAmount = parseFloat(mentor?.price || 0);
 
-  // Format the date/time properly
-  const formatDateTime = (dateTimeString) => {
-    if (!dateTimeString) return 'Not scheduled';
-    
-    try {
-      const date = new Date(dateTimeString);
-      if (isNaN(date.getTime())) return 'Invalid date';
-      
-      return date.toLocaleString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-      });
-    } catch (error) {
-      console.error("Error formatting date:", error);
-      return 'Invalid date';
-    }
-  };
-
   // Debug output
   console.log("Payment form data:", {
     customer: {
@@ -72,14 +49,8 @@ export const PaymentForm = ({ mentor, paidDateTime, sessionDuration, onSuccess, 
 
   return (
     <div className="payment-form-container">
-      <div className="session-details mb-4">
-        <h4 className="text-center mb-3">Session Details</h4>
-        <p><strong>Mentor:</strong> {mentor.first_name} {mentor.last_name}</p>
-        <p><strong>Date/Time:</strong> {formatDateTime(paidDateTime)}</p>
-        <p><strong>Session Duration:</strong> {sessionDuration || mentor.session_duration || 60} minutes</p>
-        <p><strong>Amount:</strong> ${sessionAmount.toFixed(2)}</p>
-      </div>
-
+      {/* Removed duplicate session details since they're shown in MentorDetails.js */}
+      
       <div className="stripe-payment-wrapper">
         <StripePaymentComponent
           customerId={userData.id?.toString()}
@@ -98,7 +69,7 @@ export const PaymentForm = ({ mentor, paidDateTime, sessionDuration, onSuccess, 
           className="btn btn-secondary"
           onClick={onCancel}
         >
-          Cancel
+          Cancel Booking
         </button>
       </div>
     </div>
