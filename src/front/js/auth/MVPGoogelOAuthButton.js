@@ -1,4 +1,4 @@
-// MVPGoogleOAuthButton.js
+// MVPGoogleOAuthButton.js - Fixed Version
 import React, { useContext, useState, useEffect } from 'react';
 import { Context } from '../store/appContext';
 import { useParams } from 'react-router-dom';
@@ -42,6 +42,7 @@ export const MVPGoogleOAuthButton = ({ mentor, onSuccess, buttonText }) => {
                 default:
                     errorMessage = "Google authentication failed. Please try again.";
             }
+            console.error("MVP Google OAuth Error:", mvpAuthError);
             alert(errorMessage);
             // Clean URL
             window.history.replaceState({}, '', window.location.pathname);
@@ -49,6 +50,7 @@ export const MVPGoogleOAuthButton = ({ mentor, onSuccess, buttonText }) => {
         }
 
         if (mvpGoogleAuth === 'success' && token && userId && userTypeParam === 'customer') {
+            console.log("MVP Google auth success detected, processing...");
             handleMVPGoogleAuthSuccess(token, userId, newUser === 'true');
         }
     }, []);
@@ -56,8 +58,10 @@ export const MVPGoogleOAuthButton = ({ mentor, onSuccess, buttonText }) => {
     const handleMVPGoogleAuthSuccess = async (token, userId, isNewUser) => {
         try {
             setIsLoading(true);
+            console.log("Verifying MVP Google auth...", { userId, isNewUser });
             
-            const result = await actions.verifyMVPGoogleAuth({
+            // Use the regular Google verification since MVP creates customer accounts
+            const result = await actions.verifyGoogleAuth({
                 token,
                 user_id: userId,
                 user_type: 'customer'
@@ -67,12 +71,14 @@ export const MVPGoogleOAuthButton = ({ mentor, onSuccess, buttonText }) => {
                 // Clean URL first
                 window.history.replaceState({}, '', window.location.pathname);
                 
+                console.log("MVP Google auth successful", { isNewUser, userData: result.user_data });
+                
                 // Small delay to ensure store is updated
                 setTimeout(() => {
                     if (isNewUser) {
-                        console.log("New Google user created successfully, proceeding to payment...");
+                        console.log("New Google customer created successfully, proceeding to payment...");
                     } else {
-                        console.log("Existing Google user logged in successfully, proceeding to payment...");
+                        console.log("Existing Google customer logged in successfully, proceeding to payment...");
                     }
                     
                     if (onSuccess) {
@@ -81,6 +87,7 @@ export const MVPGoogleOAuthButton = ({ mentor, onSuccess, buttonText }) => {
                     setIsLoading(false);
                 }, 100);
             } else {
+                console.error("MVP Google auth verification failed:", result);
                 alert(result.message || "Google authentication failed. Please try again.");
                 setIsLoading(false);
             }
@@ -100,14 +107,18 @@ export const MVPGoogleOAuthButton = ({ mentor, onSuccess, buttonText }) => {
             return;
         }
         
+        console.log("Initiating MVP Google OAuth for mentor:", mentorId);
         setIsLoading(true);
+        
         try {
             const result = await actions.initiateMVPGoogleAuth(mentorId);
             
             if (result.success && result.auth_url) {
+                console.log("Redirecting to Google OAuth:", result.auth_url);
                 // Redirect to Google OAuth
                 window.location.href = result.auth_url;
             } else {
+                console.error("Failed to initiate MVP Google auth:", result);
                 alert(result.message || "Failed to initiate Google authentication.");
                 setIsLoading(false);
             }

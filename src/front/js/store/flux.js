@@ -1483,12 +1483,13 @@ const getState = ({ getStore, getActions, setStore }) => {
                 }
             },
 
+
             initiateMVPGoogleAuth: async (mentorId) => {
                 try {
                     const response = await fetch(`${process.env.BACKEND_URL}/api/auth/mvp/google/initiate`, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
                         },
                         body: JSON.stringify({
                             mentor_id: mentorId
@@ -1503,27 +1504,29 @@ const getState = ({ getStore, getActions, setStore }) => {
                             auth_url: data.auth_url
                         };
                     } else {
+                        console.error('MVP Google OAuth initiation failed:', data);
                         return {
                             success: false,
-                            message: data.error || "Failed to initiate Google authentication"
+                            message: data.error || 'Failed to initiate Google authentication'
                         };
                     }
                 } catch (error) {
-                    console.error("Error initiating MVP Google auth:", error);
+                    console.error('MVP Google OAuth initiation error:', error);
                     return {
                         success: false,
-                        message: "Network error occurred while initiating Google authentication"
+                        message: 'Network error occurred'
                     };
                 }
             },
 
+            // MVP Google OAuth - Verify (reuse regular verification)
             verifyMVPGoogleAuth: async (authData) => {
                 try {
-                    // Use the same verification endpoint as regular Google OAuth since JWT verification is the same
+                    // Since MVP creates customer accounts, we can reuse the regular Google verification
                     const response = await fetch(`${process.env.BACKEND_URL}/api/auth/google/verify`, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
                         },
                         body: JSON.stringify(authData)
                     });
@@ -1531,39 +1534,35 @@ const getState = ({ getStore, getActions, setStore }) => {
                     const data = await response.json();
 
                     if (response.ok && data.success) {
-                        // Store user data in session storage and update store (same as regular OAuth)
-                        const userType = data.role;
-                        const userData = data[`${userType}_data`];
-                        const userId = data[`${userType}_id`];
+                        // Store the token and user data
+                        sessionStorage.setItem("token", data.access_token);
+                        sessionStorage.setItem("user_role", data.role);
 
-                        // Update store for customer
                         setStore({
                             token: data.access_token,
-                            isCustomerLoggedIn: true,
-                            customerId: userId,
-                            currentUserData: userData,
+                            user: data.customer_data,
+                            userRole: data.role,
+                            isLoggedIn: true
                         });
-                        sessionStorage.setItem("token", data.access_token);
-                        sessionStorage.setItem("isCustomerLoggedIn", "true");
-                        sessionStorage.setItem("customerId", userId);
-                        sessionStorage.setItem("currentUserData", JSON.stringify(userData));
 
                         return {
                             success: true,
-                            userType: userType,
-                            userData: userData
+                            user_data: data.customer_data,
+                            role: data.role,
+                            message: 'Authentication successful'
                         };
                     } else {
+                        console.error('MVP Google auth verification failed:', data);
                         return {
                             success: false,
-                            message: data.error || "Google authentication verification failed"
+                            message: data.error || 'Authentication verification failed'
                         };
                     }
                 } catch (error) {
-                    console.error("Error verifying MVP Google auth:", error);
+                    console.error('MVP Google auth verification error:', error);
                     return {
                         success: false,
-                        message: "Network error occurred during Google authentication verification"
+                        message: 'Network error occurred during verification'
                     };
                 }
             },
@@ -1971,7 +1970,7 @@ const getState = ({ getStore, getActions, setStore }) => {
 
 
 
-            
+
         }
     };
 };
