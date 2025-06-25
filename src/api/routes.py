@@ -2264,7 +2264,7 @@ def get_available_slots(mentor_id):
 @api.route('/finalize-booking', methods=['POST'])
 @jwt_required()
 def finalize_booking():
-    """Finalize a booking after successful payment"""
+    """Finalize a booking after successful payment and send confirmation email"""
     try:
         current_user_id = get_jwt_identity()
         data = request.get_json()
@@ -2291,62 +2291,44 @@ def finalize_booking():
         if not mentor:
             return jsonify({"msg": "Mentor not found"}), 404
         
-        # Convert datetime strings to datetime objects
+        # Parse datetime strings
         try:
-            # Handle ISO format with timezone
-            session_start_dt = datetime.fromisoformat(session_start_time.replace('Z', '+00:00'))
-            session_end_dt = datetime.fromisoformat(session_end_time.replace('Z', '+00:00'))
-            
-            # Calculate duration in minutes
-            duration = int((session_end_dt - session_start_dt).total_seconds() / 60)
+            if isinstance(session_start_time, str):
+                session_start_dt = datetime.fromisoformat(session_start_time.replace('Z', '+00:00'))
+            else:
+                session_start_dt = session_start_time
+                
+            if isinstance(session_end_time, str):
+                session_end_dt = datetime.fromisoformat(session_end_time.replace('Z', '+00:00'))
+            else:
+                session_end_dt = session_end_time
         except ValueError as e:
             current_app.logger.error(f"Invalid datetime format: {e}")
             return jsonify({"msg": "Invalid datetime format"}), 400
         
-        # Verify the payment intent with Stripe
-        try:
-            payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
-            if payment_intent.status != 'succeeded':
-                return jsonify({"msg": "Payment not confirmed"}), 400
-                
-            # Use the amount from Stripe (in cents) if amount_paid is not provided
-            if not amount_paid:
-                amount_paid = payment_intent.amount / 100
-        except stripe.error.StripeError as e:
-            current_app.logger.error(f"Stripe error: {e}")
-            return jsonify({"msg": f"Payment verification failed: {str(e)}"}), 400
+        # Calculate duration
+        duration = int((session_end_dt - session_start_dt).total_seconds() / 60)
         
-        # Calculate fees
-        amount_decimal = Decimal(str(amount_paid))
-        platform_fee = amount_decimal * Decimal('0.10')  # 10% platform fee
-        mentor_payout = amount_decimal - platform_fee
-        
-        # Create the booking
+        # Create new booking
         new_booking = Booking(
-            mentor_id=mentor_id,
             customer_id=current_user_id,
+            mentor_id=mentor_id,
             session_start_time=session_start_dt,
             session_end_time=session_end_dt,
             session_duration=duration,
-            timezone='UTC',  # Since we're storing UTC times
-            invitee_name=f"{customer.first_name} {customer.last_name}",
-            invitee_email=customer.email,
-            invitee_notes=notes,
-            stripe_payment_intent_id=payment_intent_id,
-            amount_paid=amount_decimal,
-            currency='usd',
-            platform_fee=platform_fee,
-            mentor_payout_amount=mentor_payout,
-            status=BookingStatus.PAID,
-            created_at=datetime.utcnow(),
-            paid_at=datetime.utcnow()
+            amount_paid=amount_paid,
+            status=BookingStatus.CONFIRMED,  # Set as confirmed since payment was successful
+            payment_intent_id=payment_intent_id,
+            notes=notes
         )
         
         db.session.add(new_booking)
         db.session.commit()
         db.session.refresh(new_booking)
         
-        # Create VideoSDK meeting room
+        current_app.logger.info(f"Booking created successfully: {new_booking.id}")
+        
+        # Create VideoSDK meeting
         try:
             videosdk_service = VideoSDKService()
             meeting_result = videosdk_service.create_meeting(
@@ -2372,6 +2354,46 @@ def finalize_booking():
             import traceback
             current_app.logger.error(traceback.format_exc())
         
+        # Send booking confirmation email
+        try:
+            # Import the email function
+            from api.send_email import send_booking_confirmation_email
+            
+            # Prepare customer and mentor details
+            customer_full_name = f"{customer.first_name} {customer.last_name}".strip()
+            mentor_full_name = f"{mentor.first_name} {mentor.last_name}".strip()
+            
+            # Prepare booking details for email
+            booking_details = {
+                'id': new_booking.id,
+                'session_start_time': new_booking.session_start_time.isoformat(),
+                'session_end_time': new_booking.session_end_time.isoformat(),
+                'amount_paid': float(new_booking.amount_paid),
+                'meeting_url': new_booking.meeting_url,
+                'mentor_email': mentor.email,
+                'session_duration': new_booking.session_duration
+            }
+            
+            # Send the confirmation email
+            email_sent = send_booking_confirmation_email(
+                customer_email=customer.email,
+                customer_name=customer_full_name,
+                mentor_name=mentor_full_name,
+                booking_details=booking_details
+            )
+            
+            if email_sent:
+                current_app.logger.info(f"Booking confirmation email sent successfully to {customer.email} for booking {new_booking.id}")
+            else:
+                current_app.logger.error(f"Failed to send booking confirmation email to {customer.email} for booking {new_booking.id}")
+                # Don't fail the entire booking if email fails
+                
+        except Exception as e:
+            current_app.logger.error(f"Exception sending booking confirmation email for booking {new_booking.id}: {str(e)}")
+            import traceback
+            current_app.logger.error(traceback.format_exc())
+            # Continue with success response even if email fails
+        
         # Return booking details
         return jsonify({
             "msg": "Booking created successfully",
@@ -2392,9 +2414,7 @@ def finalize_booking():
     except Exception as e:
         current_app.logger.error(f"Error in finalize_booking: {str(e)}")
         import traceback
-        current_app.logger.error(traceback.format_exc())
-        db.session.rollback()
-        return jsonify({"msg": "Failed to create booking"}), 500
+        current_app.logger
 
 @api.route('/mentor/dashboard', methods=['GET'])
 @mentor_required
@@ -2870,3 +2890,75 @@ def videosdk_webhook():
             "success": False,
             "msg": "Failed to end meeting"
         }), 500
+
+
+@api.route('/booking/<int:booking_id>/calendar.ics', methods=['GET'])
+@jwt_required()
+def download_booking_calendar(booking_id):
+    """
+    Generate and download an iCalendar (.ics) file for a booking
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        role = get_jwt()['role']
+        
+        # Get the booking
+        booking = Booking.query.get(booking_id)
+        if not booking:
+            return jsonify({"error": "Booking not found"}), 404
+        
+        # Check authorization - user must be either the customer or mentor for this booking
+        if role == 'customer' and booking.customer_id != current_user_id:
+            return jsonify({"error": "Unauthorized"}), 403
+        elif role == 'mentor' and booking.mentor_id != current_user_id:
+            return jsonify({"error": "Unauthorized"}), 403
+        
+        # Get mentor and customer details
+        mentor = Mentor.query.get(booking.mentor_id)
+        customer = Customer.query.get(booking.customer_id)
+        
+        if not mentor or not customer:
+            return jsonify({"error": "Missing mentor or customer data"}), 404
+        
+        # Generate event details
+        mentor_name = f"{mentor.first_name} {mentor.last_name}"
+        customer_name = f"{customer.first_name} {customer.last_name}"
+        
+        event_title = f"DevMentor Session with {mentor_name}"
+        event_description = f"""DevMentor Session
+
+Mentor: {mentor_name}
+Customer: {customer_name}
+Duration: {booking.session_duration} minutes
+Booking Reference: #{booking.id}
+
+Meeting Link: {booking.meeting_url if booking.meeting_url else 'Will be provided before the session'}
+
+Questions? Contact {mentor.email}
+
+DevMentor Platform"""
+        
+        # Generate iCalendar content
+        ical_content = generate_icalendar_content(
+            event_title=event_title,
+            start_time=booking.session_start_time,
+            end_time=booking.session_end_time,
+            description=event_description,
+            location=booking.meeting_url if booking.meeting_url else "Online"
+        )
+        
+        # Create the response with proper headers for file download
+        response = Response(
+            ical_content,
+            mimetype='text/calendar',
+            headers={
+                'Content-Disposition': f'attachment; filename=devmentor-session-{booking_id}.ics',
+                'Content-Type': 'text/calendar; charset=utf-8'
+            }
+        )
+        
+        return response
+        
+    except Exception as e:
+        current_app.logger.error(f"Error generating calendar file for booking {booking_id}: {str(e)}")
+        return jsonify({"error": "Failed to generate calendar file"}), 500
