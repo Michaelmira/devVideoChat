@@ -86,6 +86,39 @@ def convert_utc_to_timezone(utc_time_str, target_timezone='America/Los_Angeles')
     return local_dt
 
 
+def format_dual_timezone_display(utc_start_time, utc_end_time):
+    """
+    Format time display showing both PST and EST timezones
+    Returns a dictionary with formatted strings for both timezones
+    """
+    # Convert to PST
+    pst_start = convert_utc_to_timezone(utc_start_time, 'America/Los_Angeles')
+    pst_end = convert_utc_to_timezone(utc_end_time, 'America/Los_Angeles')
+    
+    # Convert to EST
+    est_start = convert_utc_to_timezone(utc_start_time, 'America/New_York')
+    est_end = convert_utc_to_timezone(utc_end_time, 'America/New_York')
+    
+    # Format date (should be the same for both timezones in most cases)
+    formatted_date = pst_start.strftime('%A, %B %d, %Y')
+    
+    # Format times
+    pst_start_time = pst_start.strftime('%I:%M %p')
+    pst_end_time = pst_end.strftime('%I:%M %p')
+    pst_abbr = pst_start.strftime('%Z')
+    
+    est_start_time = est_start.strftime('%I:%M %p')
+    est_end_time = est_end.strftime('%I:%M %p')
+    est_abbr = est_start.strftime('%Z')
+    
+    return {
+        'formatted_date': formatted_date,
+        'pst_time_range': f"{pst_start_time} - {pst_end_time} {pst_abbr}",
+        'est_time_range': f"{est_start_time} - {est_end_time} {est_abbr}",
+        'dual_timezone_display': f"{pst_start_time} - {pst_end_time} {pst_abbr} ({est_start_time} - {est_end_time} {est_abbr})"
+    }
+
+
 def send_booking_confirmation_email(customer_email, customer_name, mentor_name, booking_details):
     """
     Send optimized booking confirmation email with Google Calendar integration
@@ -98,21 +131,12 @@ def send_booking_confirmation_email(customer_email, customer_name, mentor_name, 
     meeting_url = booking_details.get('meeting_url', '')
     mentor_email = booking_details.get('mentor_email', '')
     session_duration = booking_details.get('session_duration', 60)
-    booking_timezone = booking_details.get('timezone', 'America/Los_Angeles')  # Get timezone from booking
     
-    # Convert UTC times to local timezone for display
-    start_dt_local = convert_utc_to_timezone(session_start_time, booking_timezone)
-    end_dt_local = convert_utc_to_timezone(session_end_time, booking_timezone)
-    
-    # Format for display in local timezone
-    formatted_date = start_dt_local.strftime('%A, %B %d, %Y')
-    formatted_start_time = start_dt_local.strftime('%I:%M %p')
-    formatted_end_time = end_dt_local.strftime('%I:%M %p')
-    timezone_name = start_dt_local.strftime('%Z')  # Get timezone abbreviation (PST/PDT)
+    # Get dual timezone display
+    timezone_info = format_dual_timezone_display(session_start_time, session_end_time)
     
     print(f"DEBUG: Original UTC times - Start: {session_start_time}, End: {session_end_time}")
-    print(f"DEBUG: Converted to {booking_timezone} - Start: {start_dt_local}, End: {end_dt_local}")
-    print(f"DEBUG: Formatted times - {formatted_start_time} - {formatted_end_time} {timezone_name}")
+    print(f"DEBUG: Dual timezone display - {timezone_info['dual_timezone_display']}")
     
     # Generate calendar URLs using the new utility (keep UTC for calendar)
     event_title = f"DevMentor Session with {mentor_name}"
@@ -231,6 +255,16 @@ DevMentor Platform
             .detail-value {{
                 color: #333;
                 font-weight: 500;
+            }}
+            .timezone-row {{
+                background: #e8f5e8;
+                padding: 15px;
+                border-radius: 6px;
+                margin: 15px 0;
+            }}
+            .timezone-row .detail-value {{
+                font-size: 14px;
+                line-height: 1.5;
             }}
             .calendar-buttons {{
                 text-align: center;
@@ -359,11 +393,14 @@ DevMentor Platform
                     <div class="session-title">📅 Session Details</div>
                     <div class="detail-row">
                         <span class="detail-label">Date:</span>
-                        <span class="detail-value">{formatted_date}</span>
+                        <span class="detail-value">{timezone_info['formatted_date']}</span>
                     </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Time:</span>
-                        <span class="detail-value">{formatted_start_time} - {formatted_end_time} {timezone_name}</span>
+                    <div class="timezone-row">
+                        <div class="detail-label" style="margin-bottom: 10px;">Start Time:</div>
+                        <div class="detail-value">
+                            <strong>Pacific Time:</strong> {timezone_info['pst_time_range']}<br>
+                            <strong>Eastern Time:</strong> {timezone_info['est_time_range']}
+                        </div>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Duration:</span>
@@ -456,17 +493,9 @@ def send_mentor_booking_notification_email(mentor_email, mentor_name, customer_n
     session_duration = booking_details.get('session_duration', 60)
     platform_fee = booking_details.get('platform_fee', amount_paid * 0.1)
     mentor_payout = booking_details.get('mentor_payout', amount_paid * 0.9)
-    booking_timezone = booking_details.get('timezone', 'America/Los_Angeles')  # Get timezone from booking
     
-    # Convert UTC times to local timezone for display
-    start_dt_local = convert_utc_to_timezone(session_start_time, booking_timezone)
-    end_dt_local = convert_utc_to_timezone(session_end_time, booking_timezone)
-    
-    # Format for display in local timezone
-    formatted_date = start_dt_local.strftime('%A, %B %d, %Y')
-    formatted_start_time = start_dt_local.strftime('%I:%M %p')
-    formatted_end_time = end_dt_local.strftime('%I:%M %p')
-    timezone_name = start_dt_local.strftime('%Z')  # Get timezone abbreviation
+    # Get dual timezone display
+    timezone_info = format_dual_timezone_display(session_start_time, session_end_time)
     
     # Generate calendar URLs for mentor (using UTC times for calendar)
     event_title = f"DevMentor Session with {customer_name}"
@@ -584,6 +613,16 @@ DevMentor Platform
             .detail-value {{
                 color: #333;
                 font-weight: 500;
+            }}
+            .timezone-row {{
+                background: #e8f5e8;
+                padding: 15px;
+                border-radius: 6px;
+                margin: 15px 0;
+            }}
+            .timezone-row .detail-value {{
+                font-size: 14px;
+                line-height: 1.5;
             }}
             .calendar-buttons {{
                 text-align: center;
@@ -732,11 +771,14 @@ DevMentor Platform
                     <div class="session-title">📅 Session Details</div>
                     <div class="detail-row">
                         <span class="detail-label">Date:</span>
-                        <span class="detail-value">{formatted_date}</span>
+                        <span class="detail-value">{timezone_info['formatted_date']}</span>
                     </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Time:</span>
-                        <span class="detail-value">{formatted_start_time} - {formatted_end_time} {timezone_name}</span>
+                    <div class="timezone-row">
+                        <div class="detail-label" style="margin-bottom: 10px;">Time:</div>
+                        <div class="detail-value">
+                            <strong>Pacific Time:</strong> {timezone_info['pst_time_range']}<br>
+                            <strong>Eastern Time:</strong> {timezone_info['est_time_range']}
+                        </div>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Duration:</span>
