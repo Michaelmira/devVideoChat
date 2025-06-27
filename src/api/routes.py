@@ -2282,6 +2282,7 @@ def finalize_booking():
         payment_intent_id = data.get('paymentIntentId') or data.get('payment_intent_id')
         amount_paid = data.get('amountPaid') or data.get('amount_paid') or data.get('price')
         notes = data.get('notes', '')
+        customer_timezone = data.get('customer_timezone') or data.get('customerTimezone')
         
         current_app.logger.info(f"Extracted data - mentor_id: {mentor_id}, start: {session_start_time}, end: {session_end_time}, payment: {payment_intent_id}, amount: {amount_paid}")
         
@@ -2986,6 +2987,7 @@ def send_booking_confirmation():
         customer_name = data.get('customer_name')
         mentor_name = data.get('mentor_name')
         mentor_email = data.get('mentor_email', '')
+        customer_timezone = data.get('customer_timezone')
         
         # Validate required fields
         if not all([booking_id, customer_email, customer_name, mentor_name]):
@@ -3015,7 +3017,7 @@ def send_booking_confirmation():
         # Get mentor's timezone from calendar settings
         from api.models import CalendarSettings
         calendar_settings = CalendarSettings.query.filter_by(mentor_id=mentor.id).first()
-        mentor_timezone = calendar_settings.timezone if calendar_settings else 'America/Los_Angeles'
+        mentor_timezone = calendar_settings.timezone if calendar_settings else 'America/New_York'
         
         current_app.logger.info(f"Using timezone: {mentor_timezone} for booking {booking_id}")
         
@@ -3031,6 +3033,7 @@ def send_booking_confirmation():
             'mentor_email': mentor.email,
             'customer_email': customer.email,
             'session_duration': booking.session_duration or 60,
+            'customer_timezone': customer_timezone,
             'timezone': mentor_timezone  # ✅ CRITICAL: This timezone info goes to BOTH emails
         }
         

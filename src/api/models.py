@@ -217,7 +217,7 @@ class CalendarSettings(db.Model):
     buffer_time = db.Column(db.Integer, default=15)  # minutes between sessions
     advance_booking_days = db.Column(db.Integer, default=30)  # how far in advance can book
     minimum_notice_hours = db.Column(db.Integer, default=24)  # minimum hours before booking
-    timezone = db.Column(db.String(50), default='America/Los_Angeles')
+    timezone = db.Column(db.String(50), default='America/New_York')  # Change from Los_Angeles
     
     mentor = relationship("Mentor", backref=db.backref("calendar_settings", uselist=False))
     
