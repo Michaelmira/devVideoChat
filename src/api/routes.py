@@ -2265,6 +2265,7 @@ def get_available_slots(mentor_id):
 
 
 
+
 @api.route('/finalize-booking', methods=['POST'])
 @jwt_required()
 def finalize_booking():
