@@ -3106,3 +3106,220 @@ def send_booking_confirmation():
             "success": False,
             "message": "Internal server error"
         }), 500
+
+
+
+
+# Customer Ratings and Finished Sessions
+
+# ADD these endpoints to your routes.py file:
+
+@api.route('/bookings/<int:booking_id>/rate', methods=['POST'])
+@jwt_required()
+def submit_rating(booking_id):
+    """Submit a rating for a completed session"""
+    try:
+        current_user_id = get_jwt_identity()
+        role = get_jwt()['role']
+        data = request.get_json()
+        
+        # Only customers can submit ratings
+        if role != 'customer':
+            return jsonify({"success": False, "message": "Only customers can rate sessions"}), 403
+        
+        booking = Booking.query.get(booking_id)
+        if not booking:
+            return jsonify({"success": False, "message": "Booking not found"}), 404
+        
+        # Verify this customer owns this booking
+        if booking.customer_id != current_user_id:
+            return jsonify({"success": False, "message": "Unauthorized"}), 403
+        
+        # Check if booking is in the right status to be rated
+        if booking.status != BookingStatus.REQUIRES_RATING:
+            return jsonify({"success": False, "message": "This session is not ready for rating"}), 400
+        
+        # Check if already rated
+        if booking.customer_rating is not None:
+            return jsonify({"success": False, "message": "This session has already been rated"}), 400
+        
+        # Validate rating
+        rating = data.get('rating')
+        if not rating or not isinstance(rating, int) or rating < 1 or rating > 5:
+            return jsonify({"success": False, "message": "Rating must be an integer between 1 and 5"}), 400
+        
+        # Optional customer notes (admin-only)
+        customer_notes = data.get('customer_notes', '')
+        
+        # Update the booking
+        booking.customer_rating = rating
+        booking.customer_notes = customer_notes
+        booking.rating_submitted_at = datetime.utcnow()
+        booking.status = BookingStatus.COMPLETED  # Move to completed
+        
+        db.session.commit()
+        
+        current_app.logger.info(f"Customer {current_user_id} rated booking {booking_id} with {rating} stars")
+        
+        return jsonify({
+            "success": True,
+            "message": "Rating submitted successfully",
+            "booking": booking.serialize_for_customer()
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error submitting rating: {str(e)}")
+        return jsonify({"success": False, "message": "Failed to submit rating"}), 500
+
+
+@api.route('/bookings/<int:booking_id>/mentor-notes', methods=['POST'])
+@jwt_required()
+def add_mentor_notes(booking_id):
+    """Add mentor notes to a session (admin-only visible)"""
+    try:
+        current_user_id = get_jwt_identity()
+        role = get_jwt()['role']
+        data = request.get_json()
+        
+        # Only mentors can add mentor notes
+        if role != 'mentor':
+            return jsonify({"success": False, "message": "Only mentors can add mentor notes"}), 403
+        
+        booking = Booking.query.get(booking_id)
+        if not booking:
+            return jsonify({"success": False, "message": "Booking not found"}), 404
+        
+        # Verify this mentor owns this booking
+        if booking.mentor_id != current_user_id:
+            return jsonify({"success": False, "message": "Unauthorized"}), 403
+        
+        mentor_notes = data.get('mentor_notes', '')
+        
+        # Update the booking
+        booking.mentor_notes = mentor_notes
+        db.session.commit()
+        
+        current_app.logger.info(f"Mentor {current_user_id} added notes to booking {booking_id}")
+        
+        return jsonify({
+            "success": True,
+            "message": "Notes added successfully",
+            "booking": booking.serialize_for_mentor()
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error adding mentor notes: {str(e)}")
+        return jsonify({"success": False, "message": "Failed to add notes"}), 500
+
+
+@api.route('/mentor/<int:mentor_id>/ratings', methods=['GET'])
+def get_mentor_ratings(mentor_id):
+    """Get mentor's rating statistics"""
+    try:
+        # Get all completed bookings with ratings for this mentor
+        rated_bookings = Booking.query.filter(
+            Booking.mentor_id == mentor_id,
+            Booking.customer_rating.isnot(None),
+            Booking.status == BookingStatus.COMPLETED
+        ).all()
+        
+        total_reviews = len(rated_bookings)
+        
+        # Only show ratings if mentor has 5+ reviews
+        if total_reviews < 5:
+            return jsonify({
+                "success": True,
+                "message": "Not enough reviews to display ratings",
+                "total_reviews": total_reviews,
+                "minimum_required": 5
+            }), 200
+        
+        # Calculate average rating
+        total_rating = sum(booking.customer_rating for booking in rated_bookings)
+        average_rating = round(total_rating / total_reviews, 1)
+        
+        # Calculate rating distribution
+        rating_distribution = {str(i): 0 for i in range(1, 6)}
+        for booking in rated_bookings:
+            rating_distribution[str(booking.customer_rating)] += 1
+        
+        return jsonify({
+            "success": True,
+            "average_rating": average_rating,
+            "total_reviews": total_reviews,
+            "rating_distribution": rating_distribution
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting mentor ratings: {str(e)}")
+        return jsonify({"success": False, "message": "Failed to get ratings"}), 500
+
+
+@api.route('/customer/sessions', methods=['GET'])
+@jwt_required()
+def get_customer_sessions():
+    """Get customer's sessions split by current and history"""
+    try:
+        current_user_id = get_jwt_identity()
+        role = get_jwt()['role']
+        
+        if role != 'customer':
+            return jsonify({"success": False, "message": "Only customers can access this endpoint"}), 403
+        
+        # Get all bookings for this customer
+        all_bookings = Booking.query.filter_by(customer_id=current_user_id).all()
+        
+        # Split into current (PAID, REQUIRES_RATING) and history (COMPLETED)
+        current_sessions = []
+        session_history = []
+        
+        for booking in all_bookings:
+            if booking.status in [BookingStatus.PAID, BookingStatus.REQUIRES_RATING]:
+                current_sessions.append(booking.serialize_for_customer())
+            elif booking.status == BookingStatus.COMPLETED:
+                session_history.append(booking.serialize_for_customer())
+        
+        return jsonify({
+            "success": True,
+            "current_sessions": current_sessions,
+            "session_history": session_history
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting customer sessions: {str(e)}")
+        return jsonify({"success": False, "message": "Failed to get sessions"}), 500
+
+
+@api.route('/mentor/sessions', methods=['GET'])
+@jwt_required()
+def get_mentor_sessions():
+    """Get mentor's sessions split by current and history"""
+    try:
+        current_user_id = get_jwt_identity()
+        role = get_jwt()['role']
+        
+        if role != 'mentor':
+            return jsonify({"success": False, "message": "Only mentors can access this endpoint"}), 403
+        
+        # Get all bookings for this mentor
+        all_bookings = Booking.query.filter_by(mentor_id=current_user_id).all()
+        
+        # Split into current (PAID, REQUIRES_RATING) and history (COMPLETED)
+        current_sessions = []
+        session_history = []
+        
+        for booking in all_bookings:
+            if booking.status in [BookingStatus.PAID, BookingStatus.REQUIRES_RATING]:
+                current_sessions.append(booking.serialize_for_mentor())
+            elif booking.status == BookingStatus.COMPLETED:
+                session_history.append(booking.serialize_for_mentor())
+        
+        return jsonify({
+            "success": True,
+            "current_sessions": current_sessions,
+            "session_history": session_history
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting mentor sessions: {str(e)}")
+        return jsonify({"success": False, "message": "Failed to get sessions"}), 500

@@ -239,6 +239,7 @@ class BookingStatus(PyEnum):
     CANCELLED_BY_MENTOR = "cancelled_by_mentor"
     COMPLETED = "completed"
     REFUNDED = "refunded"
+    REQUIRES_RATING = "requires_rating" 
 
 class Booking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -283,6 +284,12 @@ class Booking(db.Model):
     mentor = relationship("Mentor", backref=db.backref("bookings", lazy=True))
     customer = relationship("Customer", backref=db.backref("bookings", lazy=True))
 
+    # NEW RATING SYSTEM FIELDS 
+    customer_rating = db.Column(db.Integer, nullable=True)  # 1-5 stars
+    customer_notes = db.Column(db.Text, nullable=True)     # Admin-only
+    mentor_notes = db.Column(db.Text, nullable=True)       # Admin-only
+    rating_submitted_at = db.Column(DateTime(timezone=True), nullable=True)
+
     def __repr__(self):
         return f'<Booking {self.id} - Mentor: {self.mentor_id} Customer: {self.customer_id} Status: {self.status.value}>'
 
@@ -292,6 +299,7 @@ class Booking(db.Model):
             "customer_name": self.customer.first_name + " " + self.customer.last_name if self.customer else "N/A",
             "scheduled_at": self.session_start_time.isoformat() if self.session_start_time else None,
             "status": self.status.value,
+            "customer_rating": self.customer_rating,
             "amount_paid": str(self.amount_paid),
             "mentor_payout_amount": str(self.mentor_payout_amount),
             "google_meet_link": self.google_meet_link,
@@ -308,6 +316,7 @@ class Booking(db.Model):
             "session_end_time": self.session_end_time.isoformat() if self.session_end_time else None,
             "session_duration": self.session_duration,
             "status": self.status.value,
+            "customer_rating": self.customer_rating,
             "amount_paid": str(self.amount_paid),
             "google_meet_link": self.google_meet_link,
             "invitee_name": self.invitee_name,

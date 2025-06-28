@@ -1965,6 +1965,123 @@ const getState = ({ getStore, getActions, setStore }) => {
                         error: error.message
                     };
                 }
+            },
+
+            // ADD these actions to your flux.js actions object:
+
+            submitRating: async (bookingId, ratingData) => {
+                try {
+                    const token = sessionStorage.getItem("token");
+                    if (!token) {
+                        return { success: false, message: "Please log in to submit a rating" };
+                    }
+
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/bookings/${bookingId}/rate`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${token}`
+                        },
+                        body: JSON.stringify(ratingData)
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        return { success: true, booking: data.booking };
+                    } else {
+                        return { success: false, message: data.message || "Failed to submit rating" };
+                    }
+                } catch (error) {
+                    console.error("Error submitting rating:", error);
+                    return { success: false, message: "Network error occurred" };
+                }
+            },
+
+            getCustomerSessions: async () => {
+                try {
+                    const token = sessionStorage.getItem("token");
+                    if (!token) {
+                        return { success: false, message: "Please log in to view sessions" };
+                    }
+
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/customer/sessions`, {
+                        method: "GET",
+                        headers: {
+                            "Authorization": `Bearer ${token}`
+                        }
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        return {
+                            success: true,
+                            currentSessions: data.current_sessions,
+                            sessionHistory: data.session_history
+                        };
+                    } else {
+                        return { success: false, message: data.message || "Failed to get sessions" };
+                    }
+                } catch (error) {
+                    console.error("Error getting customer sessions:", error);
+                    return { success: false, message: "Network error occurred" };
+                }
+            },
+
+            getMentorSessions: async () => {
+                try {
+                    const token = sessionStorage.getItem("token");
+                    if (!token) {
+                        return { success: false, message: "Please log in to view sessions" };
+                    }
+
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/mentor/sessions`, {
+                        method: "GET",
+                        headers: {
+                            "Authorization": `Bearer ${token}`
+                        }
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        return {
+                            success: true,
+                            currentSessions: data.current_sessions,
+                            sessionHistory: data.session_history
+                        };
+                    } else {
+                        return { success: false, message: data.message || "Failed to get sessions" };
+                    }
+                } catch (error) {
+                    console.error("Error getting mentor sessions:", error);
+                    return { success: false, message: "Network error occurred" };
+                }
+            },
+
+            getMentorRatings: async (mentorId) => {
+                try {
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/mentor/${mentorId}/ratings`, {
+                        method: "GET"
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        return {
+                            success: true,
+                            averageRating: data.average_rating,
+                            totalReviews: data.total_reviews,
+                            ratingDistribution: data.rating_distribution
+                        };
+                    } else {
+                        return { success: false, message: data.message || "Failed to get ratings" };
+                    }
+                } catch (error) {
+                    console.error("Error getting mentor ratings:", error);
+                    return { success: false, message: "Network error occurred" };
+                }
             }
 
 

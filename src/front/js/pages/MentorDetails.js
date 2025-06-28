@@ -45,35 +45,50 @@ export const MentorDetails = () => {
         if ((mvpGoogleAuth === 'success' || mvpGithubAuth === 'success') && token && userId && userType === 'customer') {
             console.log("Detected OAuth redirect, processing authentication");
 
-            // Process the OAuth verification
             const processOAuth = async () => {
                 try {
-                    const authAction = mvpGoogleAuth === 'success' ? 
-                        actions.handleMVPGoogleOAuthSuccess : 
-                        actions.handleMVPGitHubOAuthSuccess;
-                    
-                    const result = await authAction(token, userId);
-                    
+                    const authAction = mvpGoogleAuth === 'success'
+                        ? actions.verifyMVPGoogleAuth
+                        : actions.verifyMVPGitHubAuth;
+
+                    const result = await authAction({
+                        token,
+                        user_id: userId,
+                        user_type: userType
+                    });
+
                     if (result.success) {
-                        console.log("OAuth authentication successful");
-                        // Check if there's a pending time slot from sessionStorage
-                        const pendingSlot = sessionStorage.getItem('pendingTimeSlot');
-                        if (pendingSlot) {
-                            const slot = JSON.parse(pendingSlot);
-                            setSelectedTimeSlot(slot);
-                            sessionStorage.removeItem('pendingTimeSlot');
-                            setShowPaymentForm(true);
+                        console.log("OAuth verification successful");
+
+                        // 🔥 ADD THIS: Restore the selected time slot from sessionStorage
+                        const pendingTimeSlot = sessionStorage.getItem('pendingTimeSlot');
+                        if (pendingTimeSlot) {
+                            try {
+                                const timeSlot = JSON.parse(pendingTimeSlot);
+                                setSelectedTimeSlot(timeSlot);
+                                sessionStorage.removeItem('pendingTimeSlot'); // Clean up
+                                console.log("Restored time slot from storage:", timeSlot);
+                            } catch (e) {
+                                console.error("Failed to parse pending time slot:", e);
+                            }
                         }
+
+                        // Clean URL
+                        window.history.replaceState({}, '', window.location.pathname);
+
+                        // Move to payment
+                        setShowCalendar(false);
+                        setShowAuthForm(false);
+                        setShowPaymentForm(true);
                     } else {
-                        console.error("OAuth authentication failed:", result.message);
-                        alert("Authentication failed. Please try again.");
+                        console.error("OAuth verification failed:", result.message);
+                        alert(result.message || "Authentication failed. Please try again.");
                     }
                 } catch (error) {
                     console.error("OAuth processing error:", error);
                     alert("An error occurred during authentication. Please try again.");
                 }
             };
-
             setTimeout(processOAuth, 100);
         }
     }, [actions]);
@@ -117,7 +132,7 @@ export const MentorDetails = () => {
     // UPDATED: Enhanced time slot selection with customer timezone support
     const handleTimeSlotSelected = (slot) => {
         console.log("Time slot selected with timezone data:", slot);
-        
+
         // Ensure the slot has all timezone information
         const enhancedSlot = {
             ...slot,
@@ -125,7 +140,7 @@ export const MentorDetails = () => {
             customer_timezone: slot.customer_timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
             mentor_timezone: slot.mentor_timezone
         };
-        
+
         setSelectedTimeSlot(enhancedSlot);
 
         // Check if user is logged in
@@ -529,7 +544,7 @@ export const MentorDetails = () => {
                                         </li>
                                     )}
                                 </ul>
-                                <button 
+                                <button
                                     className="btn btn-primary btn-lg w-100 mt-3"
                                     onClick={handleBookSession}
                                 >
@@ -547,8 +562,8 @@ export const MentorDetails = () => {
                                 </div>
                                 <div className="card-body">
                                     <div className="d-flex flex-wrap gap-2">
-                                        {(Array.isArray(mentor.skills) 
-                                            ? mentor.skills 
+                                        {(Array.isArray(mentor.skills)
+                                            ? mentor.skills
                                             : mentor.skills.split(',')
                                         ).map((skill, index) => (
                                             <span key={index} className="badge bg-primary">

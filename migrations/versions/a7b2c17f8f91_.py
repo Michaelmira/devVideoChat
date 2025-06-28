@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: 95af4a4b23d4
+Revision ID: a7b2c17f8f91
 Revises: 
-Create Date: 2025-06-27 02:41:51.242870
+Create Date: 2025-06-28 18:54:23.599716
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '95af4a4b23d4'
+revision = 'a7b2c17f8f91'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -83,12 +83,16 @@ def upgrade():
     sa.Column('currency', sa.String(length=10), nullable=True),
     sa.Column('platform_fee', sa.Numeric(precision=10, scale=2), nullable=True),
     sa.Column('mentor_payout_amount', sa.Numeric(precision=10, scale=2), nullable=True),
-    sa.Column('status', sa.Enum('PENDING_PAYMENT', 'PAID', 'CONFIRMED', 'CANCELLED_BY_CUSTOMER', 'CANCELLED_BY_MENTOR', 'COMPLETED', 'REFUNDED', name='bookingstatus'), nullable=False),
+    sa.Column('status', sa.Enum('PENDING_PAYMENT', 'PAID', 'CONFIRMED', 'CANCELLED_BY_CUSTOMER', 'CANCELLED_BY_MENTOR', 'COMPLETED', 'REFUNDED', 'REQUIRES_RATING', name='bookingstatus'), nullable=False),
     sa.Column('google_meet_link', sa.String(length=255), nullable=True),
     sa.Column('meeting_id', sa.String(length=100), nullable=True),
     sa.Column('meeting_url', sa.String(length=500), nullable=True),
     sa.Column('meeting_token', sa.Text(), nullable=True),
     sa.Column('recording_url', sa.String(length=500), nullable=True),
+    sa.Column('customer_rating', sa.Integer(), nullable=True),
+    sa.Column('customer_notes', sa.Text(), nullable=True),
+    sa.Column('mentor_notes', sa.Text(), nullable=True),
+    sa.Column('rating_submitted_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['customer_id'], ['customer.id'], ),
     sa.ForeignKeyConstraint(['mentor_id'], ['mentor.id'], ),
     sa.PrimaryKeyConstraint('id'),

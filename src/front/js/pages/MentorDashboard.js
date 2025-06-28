@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Context } from "../store/appContext";
 import MentorAvailabilitySettings from '../component/MentorAvailabilitySettings';
+import SessionHistory from '../component/SessionHistory';
 
 export const MentorDashboard = () => {
 	const { store, actions } = useContext(Context);
@@ -227,43 +228,44 @@ export const MentorDashboard = () => {
 									{dashboardData.pastBookings.length === 0 ? (
 										<p className="text-muted">No past sessions</p>
 									) : (
-										<div className="table-responsive">
-											<table className="table">
-												<thead>
-													<tr>
-														<th>Student</th>
-														<th>Date</th>
-														<th>Duration</th>
-														<th>Status</th>
-														<th>Rating</th>
-													</tr>
-												</thead>
-												<tbody>
-													{dashboardData.pastBookings.map((booking) => (
-														<tr key={booking.id}>
-															<td>{booking.student_name}</td>
-															<td>{new Date(booking.start_time).toLocaleDateString()}</td>
-															<td>{booking.duration} min</td>
-															<td>
-																<span className={`badge bg-${booking.status === 'completed' ? 'success' :
-																	booking.status === 'cancelled' ? 'danger' :
-																		'warning'
-																	}`}>
-																	{booking.status}
-																</span>
-															</td>
-															<td>
-																{booking.rating ? (
-																	<span>{booking.rating} ⭐</span>
-																) : (
-																	<span className="text-muted">No rating</span>
-																)}
-															</td>
-														</tr>
-													))}
-												</tbody>
-											</table>
-										</div>
+										<SessionHistory userType="mentor" />
+										// <div className="table-responsive">
+										// 	<table className="table">
+										// 		<thead>
+										// 			<tr>
+										// 				<th>Student</th>
+										// 				<th>Date</th>
+										// 				<th>Duration</th>
+										// 				<th>Status</th>
+										// 				<th>Rating</th>
+										// 			</tr>
+										// 		</thead>
+										// 		<tbody>
+										// 			{dashboardData.pastBookings.map((booking) => (
+										// 				<tr key={booking.id}>
+										// 					<td>{booking.student_name}</td>
+										// 					<td>{new Date(booking.start_time).toLocaleDateString()}</td>
+										// 					<td>{booking.duration} min</td>
+										// 					<td>
+										// 						<span className={`badge bg-${booking.status === 'completed' ? 'success' :
+										// 							booking.status === 'cancelled' ? 'danger' :
+										// 								'warning'
+										// 							}`}>
+										// 							{booking.status}
+										// 						</span>
+										// 					</td>
+										// 					<td>
+										// 						{booking.rating ? (
+										// 							<span>{booking.rating} ⭐</span>
+										// 						) : (
+										// 							<span className="text-muted">No rating</span>
+										// 						)}
+										// 					</td>
+										// 				</tr>
+										// 			))}
+										// 		</tbody>
+										// 	</table>
+										// </div>
 									)}
 								</div>
 							</div>
