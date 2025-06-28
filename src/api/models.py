@@ -16,7 +16,7 @@ class Customer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(30), unique=False, nullable=False)
     last_name = db.Column(db.String(30), unique=False, nullable=False)
-    phone = db.Column(db.String(30), unique=True, nullable=False, index=True)
+    phone = db.Column(db.String(30), nullable=False, index=True)
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     password = db.Column(db.String(256), unique=False, nullable=False)
     is_active = db.Column(db.Boolean(), unique=False,)
