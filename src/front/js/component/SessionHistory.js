@@ -17,34 +17,21 @@ const SessionHistory = ({ userType }) => {
     const loadSessions = async () => {
         setLoading(true);
         try {
-            let sessions;
+            let result;
             if (userType === 'customer') {
-                // Use existing working endpoint temporarily
-                sessions = await actions.getCustomerBookings();
+                result = await actions.getCustomerSessions();
             } else {
-                sessions = await actions.getMentorBookings();
+                result = await actions.getMentorSessions();
             }
 
-            if (sessions && Array.isArray(sessions)) {
-                // Split sessions based on status - include all current statuses
-                const current = sessions.filter(session => 
-                    session.status === 'paid' || 
-                    session.status === 'confirmed' || 
-                    session.status === 'requires_rating'
-                );
-                const history = sessions.filter(session => 
-                    session.status === 'completed'
-                );
-                
-                console.log('Current sessions found:', current);
-                console.log('History sessions found:', history);
-                
-                setCurrentSessions(current);
-                setSessionHistory(history);
+            if (result && result.success) {
+                console.log('Loaded sessions successfully:', result);
+                setCurrentSessions(result.currentSessions || []);
+                setSessionHistory(result.sessionHistory || []);
                 
                 // Check if customer has sessions requiring rating
                 if (userType === 'customer') {
-                    const requiresRating = current.find(
+                    const requiresRating = (result.currentSessions || []).find(
                         session => session.status === 'requires_rating'
                     );
                     if (requiresRating && !showRatingModal) {
@@ -53,7 +40,7 @@ const SessionHistory = ({ userType }) => {
                     }
                 }
             } else {
-                console.error('Failed to load sessions - no data returned');
+                console.error('Failed to load sessions - result:', result);
                 setCurrentSessions([]);
                 setSessionHistory([]);
             }
@@ -134,7 +121,9 @@ const SessionHistory = ({ userType }) => {
     };
 
     const SessionCard = ({ session, isHistory = false }) => {
+        // Handle different field names between customer and mentor views
         const partnerName = userType === 'customer' ? session.mentor_name : session.customer_name;
+        const sessionTime = session.session_start_time || session.scheduled_at;
         
         return (
             <div className="list-group-item list-group-item-action flex-column align-items-start mb-3">
@@ -144,7 +133,7 @@ const SessionHistory = ({ userType }) => {
                 </div>
                 
                 <p className="mb-1">
-                    <strong>Date & Time:</strong> {formatDateTime(session.session_start_time)}
+                    <strong>Date & Time:</strong> {formatDateTime(sessionTime)}
                 </p>
                 
                 {session.session_end_time && (
@@ -204,9 +193,21 @@ const SessionHistory = ({ userType }) => {
 
                 {/* Rating display for completed sessions */}
                 {isHistory && session.customer_rating && (
-                    <p className="mb-1">
-                        <strong>Rating:</strong> {renderStars(session.customer_rating)}
-                    </p>
+                    <div className="mb-1">
+                        <strong>Customer Rating:</strong> {renderStars(session.customer_rating)}
+                        {userType === 'mentor' && (
+                            <div className="text-muted small">
+                                This session was rated by your student
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* No rating message for mentors when there's no rating */}
+                {isHistory && userType === 'mentor' && !session.customer_rating && (
+                    <div className="mb-1">
+                        <strong>Customer Rating:</strong> <span className="text-muted">Not rated yet</span>
+                    </div>
                 )}
 
                 {/* Action buttons */}
@@ -228,6 +229,7 @@ const SessionHistory = ({ userType }) => {
                     </button>
                 )}
 
+                {/* Additional notes for context */}
                 {session.invitee_notes && (
                     <p className="mb-1">
                         <strong>Notes:</strong> {session.invitee_notes}

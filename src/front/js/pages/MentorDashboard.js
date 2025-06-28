@@ -15,7 +15,8 @@ export const MentorDashboard = () => {
 			totalSessions: 0,
 			totalHours: 0,
 			averageRating: 0,
-			completionRate: 0
+			completionRate: 0,
+			totalRatings: 0
 		}
 	});
 
@@ -67,6 +68,32 @@ export const MentorDashboard = () => {
 		}
 	};
 
+	const renderRatingDisplay = () => {
+		const { averageRating, totalRatings } = dashboardData.stats;
+		
+		if (totalRatings === 0) {
+			return (
+				<span className="text-muted">
+					No ratings yet
+				</span>
+			);
+		}
+		
+		if (totalRatings < 5) {
+			return (
+				<span className="text-muted">
+					{totalRatings} rating{totalRatings !== 1 ? 's' : ''} (need 5+ to display)
+				</span>
+			);
+		}
+		
+		return (
+			<span>
+				{averageRating.toFixed(1)} ⭐ ({totalRatings} reviews)
+			</span>
+		);
+	};
+
 	if (loading) {
 		return <div className="text-center">Loading...</div>;
 	}
@@ -97,10 +124,10 @@ export const MentorDashboard = () => {
 							Availability Settings
 						</button>
 						<button
-							className={`list-group-item list-group-item-action ${activeTab === 'bookings' ? 'active' : ''}`}
-							onClick={() => setActiveTab('bookings')}
+							className={`list-group-item list-group-item-action ${activeTab === 'sessions' ? 'active' : ''}`}
+							onClick={() => setActiveTab('sessions')}
 						>
-							Bookings
+							Sessions & Ratings
 						</button>
 					</div>
 				</div>
@@ -130,8 +157,8 @@ export const MentorDashboard = () => {
 								<div className="col-md-3">
 									<div className="card">
 										<div className="card-body text-center">
-											<h5 className="card-title">Avg. Rating</h5>
-											<p className="h2">{dashboardData.stats.averageRating.toFixed(1)} ⭐</p>
+											<h5 className="card-title">Rating</h5>
+											<div className="h4">{renderRatingDisplay()}</div>
 										</div>
 									</div>
 								</div>
@@ -178,9 +205,8 @@ export const MentorDashboard = () => {
 																</span>
 															</td>
 															<td>
-
 																{booking.meeting_url ? (
-																	<a href={booking.meeting_url}  // Use meeting_url like CustomerDashboard does
+																	<a href={booking.meeting_url}
 																		className="btn btn-primary btn-sm">
 																		Join Meeting
 																	</a>
@@ -213,6 +239,63 @@ export const MentorDashboard = () => {
 									)}
 								</div>
 							</div>
+
+							{/* Recent Sessions with Ratings */}
+							<div className="card">
+								<div className="card-header">
+									<h3 className="h5 mb-0">Recent Completed Sessions</h3>
+								</div>
+								<div className="card-body">
+									{dashboardData.pastBookings.length === 0 ? (
+										<p className="text-muted">No completed sessions yet</p>
+									) : (
+										<div className="table-responsive">
+											<table className="table">
+												<thead>
+													<tr>
+														<th>Student</th>
+														<th>Date</th>
+														<th>Duration</th>
+														<th>Status</th>
+														<th>Rating</th>
+													</tr>
+												</thead>
+												<tbody>
+													{dashboardData.pastBookings.map((booking) => (
+														<tr key={booking.id}>
+															<td>{booking.student_name}</td>
+															<td>{new Date(booking.start_time).toLocaleDateString()}</td>
+															<td>{booking.duration} min</td>
+															<td>
+																<span className={`badge bg-${booking.status === 'completed' ? 'success' : 
+																	booking.status === 'cancelled' ? 'danger' : 
+																		'warning'
+																	}`}>
+																	{booking.status}
+																</span>
+															</td>
+															<td>
+																{booking.rating ? (
+																	<span className="text-warning">
+																		{[...Array(5)].map((_, i) => (
+																			<span key={i} className={i < booking.rating ? 'text-warning' : 'text-muted'}>
+																				★
+																			</span>
+																		))}
+																		<span className="ms-1">({booking.rating}/5)</span>
+																	</span>
+																) : (
+																	<span className="text-muted">Not rated</span>
+																)}
+															</td>
+														</tr>
+													))}
+												</tbody>
+											</table>
+										</div>
+									)}
+								</div>
+							</div>
 						</div>
 					)}
 
@@ -220,55 +303,44 @@ export const MentorDashboard = () => {
 						<MentorAvailabilitySettings />
 					)}
 
-					{activeTab === 'bookings' && (
+					{activeTab === 'sessions' && (
 						<div>
-							<h2 className="mb-4">Session History</h2>
-							<div className="card">
+							<h2 className="mb-4">Sessions & Customer Ratings</h2>
+							
+							{/* Rating Summary Card */}
+							<div className="card mb-4">
+								<div className="card-header">
+									<h3 className="h5 mb-0">Rating Summary</h3>
+								</div>
 								<div className="card-body">
-									{dashboardData.pastBookings.length === 0 ? (
-										<p className="text-muted">No past sessions</p>
-									) : (
-										<SessionHistory userType="mentor" />
-										// <div className="table-responsive">
-										// 	<table className="table">
-										// 		<thead>
-										// 			<tr>
-										// 				<th>Student</th>
-										// 				<th>Date</th>
-										// 				<th>Duration</th>
-										// 				<th>Status</th>
-										// 				<th>Rating</th>
-										// 			</tr>
-										// 		</thead>
-										// 		<tbody>
-										// 			{dashboardData.pastBookings.map((booking) => (
-										// 				<tr key={booking.id}>
-										// 					<td>{booking.student_name}</td>
-										// 					<td>{new Date(booking.start_time).toLocaleDateString()}</td>
-										// 					<td>{booking.duration} min</td>
-										// 					<td>
-										// 						<span className={`badge bg-${booking.status === 'completed' ? 'success' :
-										// 							booking.status === 'cancelled' ? 'danger' :
-										// 								'warning'
-										// 							}`}>
-										// 							{booking.status}
-										// 						</span>
-										// 					</td>
-										// 					<td>
-										// 						{booking.rating ? (
-										// 							<span>{booking.rating} ⭐</span>
-										// 						) : (
-										// 							<span className="text-muted">No rating</span>
-										// 						)}
-										// 					</td>
-										// 				</tr>
-										// 			))}
-										// 		</tbody>
-										// 	</table>
-										// </div>
-									)}
+									<div className="row">
+										<div className="col-md-6">
+											<h4 className="mb-3">{renderRatingDisplay()}</h4>
+											{dashboardData.stats.totalRatings >= 5 ? (
+												<p className="text-success">
+													✓ You have enough ratings to display on your public profile
+												</p>
+											) : (
+												<p className="text-muted">
+													Complete {5 - dashboardData.stats.totalRatings} more rated sessions to display your rating publicly
+												</p>
+											)}
+										</div>
+										<div className="col-md-6">
+											{dashboardData.stats.totalRatings > 0 && (
+												<div>
+													<small className="text-muted">
+														Based on {dashboardData.stats.totalRatings} customer rating{dashboardData.stats.totalRatings !== 1 ? 's' : ''}
+													</small>
+												</div>
+											)}
+										</div>
+									</div>
 								</div>
 							</div>
+
+							{/* Full session history with ratings */}
+							<SessionHistory userType="mentor" />
 						</div>
 					)}
 				</div>

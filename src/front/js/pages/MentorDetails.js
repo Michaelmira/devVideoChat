@@ -9,6 +9,7 @@ import { VerifyCodeModal } from '../auth/VerifyCodeModal';
 import { MVPGoogleOAuthButton } from '../auth/MVPGoogelOAuthButton';
 import { MVPGitHubOAuthButton } from '../auth/MVPGitHubOAuthButton';
 import { PaymentForm } from '../component/PaymentForm';
+import RatingDisplay from "../component/RatingDisplay";
 import './MentorDetails.css';
 
 export const MentorDetails = () => {
@@ -446,20 +447,6 @@ export const MentorDetails = () => {
     return (
         <div className="mentor-details-page">
             <div className="container mt-5 mb-5">
-                {/* Breadcrumb Navigation */}
-                <nav aria-label="breadcrumb">
-                    <ol className="breadcrumb">
-                        <li className="breadcrumb-item">
-                            <Link to="/">Home</Link>
-                        </li>
-                        <li className="breadcrumb-item">
-                            <Link to="/mentors">Mentors</Link>
-                        </li>
-                        <li className="breadcrumb-item active" aria-current="page">
-                            {mentor.first_name} {mentor.last_name}
-                        </li>
-                    </ol>
-                </nav>
 
                 <div className="row">
                     <div className="col-md-4">
@@ -468,7 +455,7 @@ export const MentorDetails = () => {
                             <div className="card-body text-center">
                                 {mentor.profile_photo ? (
                                     <img
-                                        src={mentor.profile_photo}
+                                        src={mentor.profile_photo.image_url}  // ✅ This is correct
                                         alt={`${mentor.first_name} ${mentor.last_name}`}
                                         className="rounded-circle mb-3"
                                         style={{ width: '150px', height: '150px', objectFit: 'cover' }}
@@ -491,7 +478,7 @@ export const MentorDetails = () => {
                         </div>
 
                         {/* Contact & Location Info */}
-                        <div className="card mt-3">
+                        <div className="card mt-3 mb-3 ">
                             <div className="card-header">
                                 <h5 className="mb-0">Contact & Location</h5>
                             </div>
@@ -521,8 +508,13 @@ export const MentorDetails = () => {
                                         </li>
                                     )}
                                 </ul>
+
+
                             </div>
                         </div>
+
+                        {/* ADD THIS LINE HERE */}
+                        <RatingDisplay mentorId={mentor.id} showInSidebar={false} />
 
                         {/* Experience & Pricing */}
                         <div className="card mt-3">

@@ -297,15 +297,22 @@ class Booking(db.Model):
         return {
             "id": self.id,
             "customer_name": self.customer.first_name + " " + self.customer.last_name if self.customer else "N/A",
-            "scheduled_at": self.session_start_time.isoformat() if self.session_start_time else None,
+            "session_start_time": self.session_start_time.isoformat() if self.session_start_time else None,
+            "session_end_time": self.session_end_time.isoformat() if self.session_end_time else None,
+            "session_duration": self.session_duration,
+            "timezone": self.timezone,
             "status": self.status.value,
             "customer_rating": self.customer_rating,
-            "amount_paid": str(self.amount_paid),
-            "mentor_payout_amount": str(self.mentor_payout_amount),
+            "rating_submitted_at": self.rating_submitted_at.isoformat() if self.rating_submitted_at else None,
+            "amount_paid": str(self.amount_paid) if self.amount_paid else None,
+            "mentor_payout_amount": str(self.mentor_payout_amount) if self.mentor_payout_amount else None,
             "google_meet_link": self.google_meet_link,
             "meeting_id": self.meeting_id,
             "meeting_url": self.meeting_url,
-            "has_recording": bool(self.recording_url)
+            "has_recording": bool(self.recording_url),
+            "invitee_name": self.invitee_name,
+            "invitee_email": self.invitee_email,
+            "invitee_notes": self.invitee_notes
         }
 
     def serialize_for_customer(self):

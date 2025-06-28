@@ -2457,10 +2457,29 @@ def get_mentor_dashboard():
             for booking in completed_bookings
         )
         
-        # For now, using placeholder values for rating and completion rate
-        # You can implement actual rating system later
-        average_rating = 4.5
-        completion_rate = 95
+        # Calculate REAL average rating from customer ratings
+        rated_bookings = Booking.query.filter(
+            Booking.mentor_id == mentor_id,
+            Booking.customer_rating.isnot(None),
+            Booking.status == BookingStatus.COMPLETED
+        ).all()
+        
+        if rated_bookings:
+            total_rating = sum(booking.customer_rating for booking in rated_bookings)
+            average_rating = round(total_rating / len(rated_bookings), 1)
+        else:
+            average_rating = 0.0
+        
+        # Calculate completion rate
+        all_scheduled_sessions = Booking.query.filter(
+            Booking.mentor_id == mentor_id,
+            Booking.status.in_([BookingStatus.COMPLETED, BookingStatus.CANCELLED_BY_CUSTOMER, BookingStatus.CANCELLED_BY_MENTOR])
+        ).count()
+        
+        if all_scheduled_sessions > 0:
+            completion_rate = round((total_sessions / all_scheduled_sessions) * 100, 1)
+        else:
+            completion_rate = 0.0
         
         # Format the upcoming bookings response
         upcoming_data = []
@@ -2488,7 +2507,7 @@ def get_mentor_dashboard():
                 "start_time": booking.session_start_time.isoformat() if booking.session_start_time else None,
                 "duration": booking.session_duration or 60,
                 "status": booking.status.value,
-                "rating": None  # Implement rating system later
+                "rating": booking.customer_rating  # Include the actual rating
             })
         
         return jsonify({
@@ -2497,8 +2516,9 @@ def get_mentor_dashboard():
             "stats": {
                 "totalSessions": total_sessions,
                 "totalHours": round(total_hours, 1),
-                "averageRating": average_rating,
-                "completionRate": completion_rate
+                "averageRating": average_rating,  # Real rating now
+                "completionRate": completion_rate,
+                "totalRatings": len(rated_bookings)  # Add number of ratings received
             }
         }), 200
         
@@ -2507,6 +2527,7 @@ def get_mentor_dashboard():
         import traceback
         current_app.logger.error(traceback.format_exc())
         return jsonify({"error": "Failed to load dashboard data"}), 500
+
 # WWORKING WITH OPUS BELOW
 # WWORKING WITH OPUS BELOW
 # WWORKING WITH OPUS BELOW
