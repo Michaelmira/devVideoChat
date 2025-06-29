@@ -3272,7 +3272,7 @@ def send_booking_confirmation():
 @api.route('/bookings/<int:booking_id>/rate', methods=['POST'])
 @jwt_required()
 def submit_rating(booking_id):
-    """Submit a rating for a completed session"""
+    """Submit a rating for a session and mark it as completed"""
     try:
         current_user_id = get_jwt_identity()
         role = get_jwt()['role']
@@ -3290,11 +3290,11 @@ def submit_rating(booking_id):
         if booking.customer_id != current_user_id:
             return jsonify({"success": False, "message": "Unauthorized"}), 403
         
-        # Check if booking is in the right status to be rated
-        if booking.status != BookingStatus.REQUIRES_RATING:
+        # Check if booking is in the right status to be rated (confirmed or requires_rating)
+        if booking.status not in [BookingStatus.CONFIRMED, BookingStatus.REQUIRES_RATING]:
             return jsonify({"success": False, "message": "This session is not ready for rating"}), 400
         
-        # Check if already rated
+        # CRITICAL: Check if already rated - prevent duplicate ratings
         if booking.customer_rating is not None:
             return jsonify({"success": False, "message": "This session has already been rated"}), 400
         
@@ -3303,29 +3303,29 @@ def submit_rating(booking_id):
         if not rating or not isinstance(rating, int) or rating < 1 or rating > 5:
             return jsonify({"success": False, "message": "Rating must be an integer between 1 and 5"}), 400
         
-        # Optional customer notes (admin-only)
+        # Optional customer notes
         customer_notes = data.get('customer_notes', '')
         
-        # Update the booking
+        # Update the booking - this is the ONLY place where rating gets set
         booking.customer_rating = rating
         booking.customer_notes = customer_notes
         booking.rating_submitted_at = datetime.utcnow()
-        booking.status = BookingStatus.COMPLETED  # Move to completed
+        booking.status = BookingStatus.COMPLETED  # Mark as completed only when rating is submitted
         
         db.session.commit()
         
-        current_app.logger.info(f"Customer {current_user_id} rated booking {booking_id} with {rating} stars")
+        current_app.logger.info(f"Customer {current_user_id} rated booking {booking_id} with {rating} stars and marked it completed")
         
         return jsonify({
             "success": True,
-            "message": "Rating submitted successfully",
+            "message": "Rating submitted successfully! Session marked as completed.",
             "booking": booking.serialize_for_customer()
         }), 200
         
     except Exception as e:
         current_app.logger.error(f"Error submitting rating: {str(e)}")
+        db.session.rollback()
         return jsonify({"success": False, "message": "Failed to submit rating"}), 500
-
 
 @api.route('/bookings/<int:booking_id>/mentor-notes', methods=['POST'])
 @jwt_required()
@@ -3480,12 +3480,10 @@ def get_mentor_sessions():
         return jsonify({"success": False, "message": "Failed to get sessions"}), 500
     
 
-# ADD this endpoint to your routes.py file:
-
 @api.route('/bookings/<int:booking_id>/finish', methods=['POST'])
 @jwt_required()
 def finish_session(booking_id):
-    """Mark a session as finished - changes status to requires_rating"""
+    """Mark a session as finished - changes status to requires_rating for mentors only"""
     try:
         current_user_id = get_jwt_identity()
         role = get_jwt()['role']
@@ -3504,20 +3502,22 @@ def finish_session(booking_id):
         if booking.status != BookingStatus.CONFIRMED:
             return jsonify({"success": False, "message": "This session cannot be finished from its current status"}), 400
         
-        # Update the booking status to requires_rating
-        booking.status = BookingStatus.REQUIRES_RATING
-        db.session.commit()
-        
-        current_app.logger.info(f"Session {booking_id} marked as finished by {role} {current_user_id}")
-        
-        # Return the appropriate response based on user type
+        # UPDATED: Different behavior for customers vs mentors
         if role == 'customer':
+            # For customers: Don't change status in DB - this is handled by the frontend
+            # The rating modal will handle the completion
             return jsonify({
                 "success": True,
-                "message": "Session finished! Please rate your experience.",
+                "message": "Ready to rate session",
                 "booking": booking.serialize_for_customer()
             }), 200
-        else:  # mentor
+        else:
+            # For mentors: Change status to requires_rating
+            booking.status = BookingStatus.REQUIRES_RATING
+            db.session.commit()
+            
+            current_app.logger.info(f"Session {booking_id} marked as finished by mentor {current_user_id}")
+            
             return jsonify({
                 "success": True,
                 "message": "Session marked as complete! Customer will be prompted to rate.",
@@ -3528,7 +3528,6 @@ def finish_session(booking_id):
         current_app.logger.error(f"Error finishing session: {str(e)}")
         db.session.rollback()
         return jsonify({"success": False, "message": "Failed to finish session"}), 500
-
 
 @api.route('/bookings/<int:booking_id>/flag', methods=['POST'])
 @jwt_required()

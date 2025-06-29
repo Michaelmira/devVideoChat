@@ -920,7 +920,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                     return false;
                 }
             },
-            
+
             sendMessageCustomer: async (sessionId, text, mentorId) => {
                 const token = sessionStorage.getItem("token");
                 if (!token) {
@@ -1101,7 +1101,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                     return { success: false, message: "Network error occurred while finalizing booking" };
                 }
             },
-            
+
             getBookingDetails: async (bookingId) => {
                 const store = getStore();
                 try {
@@ -1971,32 +1971,43 @@ const getState = ({ getStore, getActions, setStore }) => {
                 }
             },
 
-            submitRating: async (bookingId, ratingData) => {
+            submitRating: async (sessionId, rating, notes = '') => {
                 try {
-                    const token = sessionStorage.getItem("token");
+                    const token = sessionStorage.getItem('token');
                     if (!token) {
-                        return { success: false, message: "Please log in to submit a rating" };
+                        return { success: false, message: "Please log in to submit rating" };
                     }
 
-                    const response = await fetch(`${process.env.BACKEND_URL}/api/bookings/${bookingId}/rate`, {
-                        method: "POST",
+                    // Validate rating before sending
+                    if (!rating || rating < 1 || rating > 5) {
+                        return { success: false, message: 'Rating must be between 1 and 5 stars' };
+                    }
+
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/bookings/${sessionId}/rate`, {
+                        method: 'POST',
                         headers: {
-                            "Content-Type": "application/json",
-                            "Authorization": `Bearer ${token}`
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
                         },
-                        body: JSON.stringify(ratingData)
+                        body: JSON.stringify({
+                            rating: rating,
+                            customer_notes: notes
+                        })
                     });
 
                     const data = await response.json();
 
                     if (response.ok && data.success) {
-                        return { success: true, booking: data.booking };
+                        return data;
                     } else {
-                        return { success: false, message: data.message || "Failed to submit rating" };
+                        return { success: false, message: data.message || 'Failed to submit rating' };
                     }
                 } catch (error) {
-                    console.error("Error submitting rating:", error);
-                    return { success: false, message: "Network error occurred" };
+                    console.error('Error submitting rating:', error);
+                    return {
+                        success: false,
+                        message: "Network error occurred"
+                    };
                 }
             },
 
@@ -2010,7 +2021,8 @@ const getState = ({ getStore, getActions, setStore }) => {
                     const response = await fetch(`${process.env.BACKEND_URL}/api/customer/sessions`, {
                         method: "GET",
                         headers: {
-                            "Authorization": `Bearer ${token}`
+                            "Authorization": `Bearer ${token}`,
+                            "Content-Type": "application/json"
                         }
                     });
 
@@ -2019,8 +2031,8 @@ const getState = ({ getStore, getActions, setStore }) => {
                     if (response.ok && data.success) {
                         return {
                             success: true,
-                            currentSessions: data.current_sessions,
-                            sessionHistory: data.session_history
+                            current_sessions: data.current_sessions,
+                            session_history: data.session_history
                         };
                     } else {
                         return { success: false, message: data.message || "Failed to get sessions" };
@@ -2041,7 +2053,8 @@ const getState = ({ getStore, getActions, setStore }) => {
                     const response = await fetch(`${process.env.BACKEND_URL}/api/mentor/sessions`, {
                         method: "GET",
                         headers: {
-                            "Authorization": `Bearer ${token}`
+                            "Authorization": `Bearer ${token}`,
+                            "Content-Type": "application/json"
                         }
                     });
 
@@ -2050,8 +2063,8 @@ const getState = ({ getStore, getActions, setStore }) => {
                     if (response.ok && data.success) {
                         return {
                             success: true,
-                            currentSessions: data.current_sessions,
-                            sessionHistory: data.session_history
+                            current_sessions: data.current_sessions,
+                            session_history: data.session_history
                         };
                     } else {
                         return { success: false, message: data.message || "Failed to get sessions" };
@@ -2086,31 +2099,34 @@ const getState = ({ getStore, getActions, setStore }) => {
                 }
             },
 
-            finishSession: async (bookingId) => {
+            finishSession: async (sessionId) => {
                 try {
-                    const token = sessionStorage.getItem("token");
+                    const token = sessionStorage.getItem('token');
                     if (!token) {
                         return { success: false, message: "Please log in to finish session" };
                     }
 
-                    const response = await fetch(`${process.env.BACKEND_URL}/api/bookings/${bookingId}/finish`, {
-                        method: "POST",
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/bookings/${sessionId}/finish`, {
+                        method: 'POST',
                         headers: {
-                            "Content-Type": "application/json",
-                            "Authorization": `Bearer ${token}`
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
                         }
                     });
 
                     const data = await response.json();
 
                     if (response.ok && data.success) {
-                        return { success: true, booking: data.booking, message: data.message };
+                        return data;
                     } else {
-                        return { success: false, message: data.message || "Failed to finish session" };
+                        return { success: false, message: data.message || 'Failed to finish session' };
                     }
                 } catch (error) {
-                    console.error("Error finishing session:", error);
-                    return { success: false, message: "Network error occurred" };
+                    console.error('Error finishing session:', error);
+                    return {
+                        success: false,
+                        message: "Network error occurred"
+                    };
                 }
             },
 
