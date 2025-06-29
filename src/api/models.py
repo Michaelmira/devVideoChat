@@ -96,6 +96,19 @@ class Mentor(db.Model):
         return f'<Mentor {self.email}>'
 
     def serialize(self):
+
+        completed_bookings_with_ratings = [
+            booking for booking in self.bookings 
+            if booking.status == BookingStatus.COMPLETED and booking.customer_rating is not None
+        ]
+    
+        total_reviews = len(completed_bookings_with_ratings)
+        average_rating = 0.0
+        
+        if total_reviews > 0:
+            total_rating = sum(booking.customer_rating for booking in completed_bookings_with_ratings)
+            average_rating = round(total_rating / total_reviews, 1)
+
         return {
             "id": self.id,
             "email": self.email,
@@ -290,6 +303,9 @@ class Booking(db.Model):
     mentor_notes = db.Column(db.Text, nullable=True)       # Admin-only
     rating_submitted_at = db.Column(DateTime(timezone=True), nullable=True)
 
+    flagged_by_customer = db.Column(db.Boolean, default=False, nullable=False)
+    flagged_by_mentor = db.Column(db.Boolean, default=False, nullable=False)
+
     def __repr__(self):
         return f'<Booking {self.id} - Mentor: {self.mentor_id} Customer: {self.customer_id} Status: {self.status.value}>'
 
@@ -312,13 +328,16 @@ class Booking(db.Model):
             "has_recording": bool(self.recording_url),
             "invitee_name": self.invitee_name,
             "invitee_email": self.invitee_email,
-            "invitee_notes": self.invitee_notes
+            "invitee_notes": self.invitee_notes,
+            "flagged_by_customer": self.flagged_by_customer,
+            "flagged_by_mentor": self.flagged_by_mentor
         }
 
     def serialize_for_customer(self):
         return {
             "id": self.id,
             "mentor_name": self.mentor.first_name + " " + self.mentor.last_name if self.mentor else "N/A",
+            "mentor_id": self.mentor_id,
             "session_start_time": self.session_start_time.isoformat() if self.session_start_time else None,
             "session_end_time": self.session_end_time.isoformat() if self.session_end_time else None,
             "session_duration": self.session_duration,
@@ -332,7 +351,9 @@ class Booking(db.Model):
             "timezone": self.timezone,
             "meeting_id": self.meeting_id,
             "meeting_url": self.meeting_url,
-            "has_recording": bool(self.recording_url)
+            "has_recording": bool(self.recording_url),
+            "flagged_by_customer": self.flagged_by_customer,
+            "flagged_by_mentor": self.flagged_by_mentor
         }
 
     def serialize(self):

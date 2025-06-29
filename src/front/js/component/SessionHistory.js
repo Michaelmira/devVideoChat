@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Context } from "../store/appContext";
-import RatingModal from '../component/RatingModal';
+import { useNavigate } from 'react-router-dom';
 
 const SessionHistory = ({ userType }) => {
     const { store, actions } = useContext(Context);
+    const navigate = useNavigate();
     const [currentSessions, setCurrentSessions] = useState([]);
     const [sessionHistory, setSessionHistory] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -69,6 +70,68 @@ const SessionHistory = ({ userType }) => {
         } catch (error) {
             console.error('Error submitting rating:', error);
             alert('Error submitting rating. Please try again.');
+        }
+    };
+
+    // NEW: Handle booking again with the same mentor
+    const handleBookAgain = (session) => {
+        // Navigate to mentor details page using the mentor's ID from the session
+        // We need to extract the mentor ID - it should be available in the session data
+        const mentorId = session.mentor_id || session.mentorId;
+        if (mentorId) {
+            navigate(`/mentor-details/${mentorId}`);
+        } else {
+            // Fallback: try to find mentor in store by name
+            const mentor = store.mentors.find(m => 
+                `${m.first_name} ${m.last_name}` === session.mentor_name
+            );
+            if (mentor) {
+                navigate(`/mentor-details/${mentor.id}`);
+            } else {
+                alert('Unable to find mentor details. Please browse mentors manually.');
+            }
+        }
+    };
+    const handleFlagSession = async (session) => {
+        try {
+            const result = await actions.flagSession(session.id);
+            if (result.success) {
+                await loadSessions(); // Refresh to show updated flag status
+            } else {
+                alert(result.message || 'Failed to flag session');
+            }
+        } catch (error) {
+            console.error('Error flagging session:', error);
+            alert('Error flagging session. Please try again.');
+        }
+    };
+    const handleFinishSession = async (session) => {
+        try {
+            if (userType === 'customer') {
+                // For customers: Change status to requires_rating and open rating modal immediately
+                const result = await actions.finishSession(session.id);
+                if (result.success) {
+                    // Update the session object with new status for the modal
+                    const updatedSession = { ...session, status: 'requires_rating' };
+                    setSessionToRate(updatedSession);
+                    setShowRatingModal(true);
+                    // Don't reload sessions yet - wait until after rating is submitted
+                } else {
+                    alert(result.message || 'Failed to finish session');
+                }
+            } else {
+                // For mentors: Change status to requires_rating (customer will rate later)
+                const result = await actions.finishSession(session.id);
+                if (result.success) {
+                    await loadSessions(); // Refresh the session list
+                    alert('Session marked as completed! The customer will be prompted to rate the session.');
+                } else {
+                    alert(result.message || 'Failed to finish session');
+                }
+            }
+        } catch (error) {
+            console.error('Error finishing session:', error);
+            alert('Error finishing session. Please try again.');
         }
     };
 
@@ -165,7 +228,7 @@ const SessionHistory = ({ userType }) => {
                         <a href={session.meeting_url}
                            target="_blank"
                            rel="noopener noreferrer"
-                           className="btn btn-primary btn-sm">
+                           className="btn btn-primary btn-sm me-2">
                             Join Video Meeting
                         </a>
                     </p>
@@ -184,7 +247,7 @@ const SessionHistory = ({ userType }) => {
                                     alert('Failed to create meeting room. Please try again.');
                                 }
                             }}
-                            className="btn btn-primary btn-sm"
+                            className="btn btn-primary btn-sm me-2"
                         >
                             Create Meeting Room
                         </button>
@@ -211,32 +274,91 @@ const SessionHistory = ({ userType }) => {
                 )}
 
                 {/* Action buttons */}
-                {session.status === 'requires_rating' && userType === 'customer' && (
-                    <button
-                        onClick={() => {
-                            setSessionToRate(session);
-                            setShowRatingModal(true);
-                        }}
-                        className="btn btn-warning btn-sm me-2"
-                    >
-                        Rate Session
-                    </button>
-                )}
-                
-                {isHistory && userType === 'customer' && (
-                    <button className="btn btn-secondary btn-sm me-2">
-                        Book Again
-                    </button>
-                )}
+                <div className="mt-2">
+                    {/* Finish Session button for current confirmed sessions */}
+                    {!isHistory && session.status === 'confirmed' && (
+                        <button
+                            onClick={() => handleFinishSession(session)}
+                            className="btn btn-success btn-sm me-2"
+                        >
+                            {userType === 'customer' ? 'Finish & Rate Session' : 'Mark Session Complete'}
+                        </button>
+                    )}
+
+                    {/* Rate Session button for requires_rating status */}
+                    {session.status === 'requires_rating' && userType === 'customer' && (
+                        <button
+                            onClick={() => {
+                                setSessionToRate(session);
+                                setShowRatingModal(true);
+                            }}
+                            className="btn btn-warning btn-sm me-2"
+                        >
+                            Rate Session
+                        </button>
+                    )}
+                    
+                    {/* Book Again button for completed sessions */}
+                    {isHistory && userType === 'customer' && (
+                        <button 
+                            onClick={() => handleBookAgain(session)}
+                            className="btn btn-secondary btn-sm me-2"
+                        >
+                            Book Again
+                        </button>
+                    )}
+
+                    {/* Flag for Review button */}
+                    {(() => {
+                        const isFlagged = userType === 'customer' ? session.flagged_by_customer : session.flagged_by_mentor;
+                        return (
+                            <button
+                                onClick={() => handleFlagSession(session)}
+                                className={`btn btn-sm ${isFlagged ? 'btn-danger' : 'btn-outline-warning'}`}
+                            >
+                                {isFlagged ? 'Flagged ✓' : 'Flag for Review'}
+                            </button>
+                        );
+                    })()}
+                </div>
+
+                {/* Show support email if flagged BY CURRENT USER */}
+                {(() => {
+                    const isFlaggedByCurrentUser = userType === 'customer' ? session.flagged_by_customer : session.flagged_by_mentor;
+                    return isFlaggedByCurrentUser && (
+                        <div className="mt-2 p-3 bg-warning bg-opacity-10 border border-warning rounded">
+                            <div className="d-flex align-items-center mb-2">
+                                <i className="fas fa-flag text-warning me-2"></i>
+                                <strong className="text-warning">Booking Flagged for Review</strong>
+                            </div>
+                            <p className="mb-2 small">
+                                Your booking number is: <strong>{session.id}</strong>
+                            </p>
+                            <p className="mb-2 small">
+                                Please contact platform at{' '}
+                                <a 
+                                    href={`mailto:${process.env.REACT_APP_GMAIL || 'devmentorllc@gmail.com'}?subject=${store.currentUserData?.user_data?.first_name || ''} ${store.currentUserData?.user_data?.last_name || ''} - Booking ${session.id}&body=Hi DevMentor Platform,%0D%0A%0D%0ABooking Number: ${session.id}%0D%0ASession with: ${partnerName}%0D%0A%0D%0AProblem Description:%0D%0A[Please describe your issue here]%0D%0A%0D%0AThank you`}
+                                    className="fw-bold text-decoration-none"
+                                >
+                                    {process.env.REACT_APP_GMAIL || 'devmentorllc@gmail.com'}
+                                </a>
+                                {' '}and explain your problem.
+                            </p>
+                            <div className="small text-muted">
+                                <strong>Important:</strong> Please include your full name and booking number in the email subject
+                            </div>
+                        </div>
+                    );
+                })()}
 
                 {/* Additional notes for context */}
                 {session.invitee_notes && (
-                    <p className="mb-1">
+                    <p className="mb-1 mt-2">
                         <strong>Notes:</strong> {session.invitee_notes}
                     </p>
                 )}
                 
-                <small>Booking ID: {session.id}</small>
+                <small className="text-muted">Booking ID: {session.id}</small>
             </div>
         );
     };
@@ -283,17 +405,78 @@ const SessionHistory = ({ userType }) => {
                 )}
             </div>
 
-            {/* Rating Modal */}
+            {/* Simple Bootstrap Rating Modal */}
             {showRatingModal && sessionToRate && (
-                <RatingModal
-                    booking={sessionToRate}
-                    onSubmit={handleRatingSubmit}
-                    onClose={() => {
-                        setShowRatingModal(false);
-                        setSessionToRate(null);
-                    }}
-                />
+                <div className="modal fade show" style={{display: 'block'}} tabIndex="-1" role="dialog">
+                    <div className="modal-dialog" role="document">
+                        <div className="modal-content">
+                            <div className="modal-header">
+                                <h5 className="modal-title">Rate Your Session</h5>
+                                <button type="button" className="close" onClick={() => setShowRatingModal(false)}>
+                                    <span>&times;</span>
+                                </button>
+                            </div>
+                            <div className="modal-body">
+                                <p>How was your session with {sessionToRate.mentor_name || sessionToRate.customer_name}?</p>
+                                
+                                {/* Star Rating */}
+                                <div className="form-group">
+                                    <label>Rating:</label>
+                                    <div>
+                                        {[1,2,3,4,5].map(star => (
+                                            <span 
+                                                key={star}
+                                                style={{fontSize: '24px', cursor: 'pointer', color: star <= (sessionToRate.tempRating || 0) ? '#ffc107' : '#ddd'}}
+                                                onClick={() => {
+                                                    setSessionToRate({...sessionToRate, tempRating: star});
+                                                }}
+                                            >
+                                                ★
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Notes */}
+                                <div className="form-group">
+                                    <label>Notes (optional):</label>
+                                    <textarea 
+                                        className="form-control" 
+                                        rows="3"
+                                        value={sessionToRate.tempNotes || ''}
+                                        onChange={(e) => setSessionToRate({...sessionToRate, tempNotes: e.target.value})}
+                                        placeholder="Share your thoughts about the session..."
+                                    ></textarea>
+                                </div>
+                            </div>
+                            <div className="modal-footer">
+                                <button type="button" className="btn btn-secondary" onClick={() => setShowRatingModal(false)}>
+                                    Cancel
+                                </button>
+                                <button 
+                                    type="button" 
+                                    className="btn btn-primary"
+                                    onClick={() => {
+                                        if (sessionToRate.tempRating) {
+                                            handleRatingSubmit({
+                                                rating: sessionToRate.tempRating,
+                                                customer_notes: sessionToRate.tempNotes || ''
+                                            });
+                                        } else {
+                                            alert('Please select a rating');
+                                        }
+                                    }}
+                                >
+                                    Submit Rating
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
+
+            {/* Modal backdrop */}
+            {showRatingModal && <div className="modal-backdrop fade show"></div>}
         </div>
     );
 };

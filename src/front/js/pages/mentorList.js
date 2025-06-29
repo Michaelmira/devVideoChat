@@ -19,6 +19,34 @@ export const MentorList = () => {
         navigate(`/create-instant-session/${mentorId}`); // Navigate to new page with mentor ID
     };
 
+    const renderMentorStars = (mentor) => {
+        // Only show if mentor has 5+ reviews
+        if (!mentor.total_reviews || mentor.total_reviews < 5) {
+            return null;
+        }
+
+        return (
+            <div className="mentor-rating mb-2">
+                <div className="d-flex align-items-center">
+                    <div className="stars me-1">
+                        {[...Array(5)].map((_, index) => (
+                            <span
+                                key={index}
+                                className={index < Math.floor(mentor.average_rating) ? 'text-warning' : 'text-muted'}
+                                style={{ fontSize: '14px' }}
+                            >
+                                ★
+                            </span>
+                        ))}
+                    </div>
+                    <small className="text-muted">
+                        {mentor.average_rating} ({mentor.total_reviews} reviews)
+                    </small>
+                </div>
+            </div>
+        );
+    };
+
 
     return (
 
@@ -101,6 +129,9 @@ export const MentorList = () => {
                                                                 </div>
                                                             )}
                                                         </div>
+                                                        <div className="col-6">
+            {renderMentorStars(mentor)}
+        </div>
                                                     </div>
                                                 </div>
 

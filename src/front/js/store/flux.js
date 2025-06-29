@@ -2082,6 +2082,66 @@ const getState = ({ getStore, getActions, setStore }) => {
                     console.error("Error getting mentor ratings:", error);
                     return { success: false, message: "Network error occurred" };
                 }
+            },
+            finishSession: async (bookingId) => {
+                try {
+                    const token = sessionStorage.getItem("token");
+                    if (!token) {
+                        return { success: false, message: "Please log in to finish session" };
+                    }
+
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/bookings/${bookingId}/finish`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${token}`
+                        }
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        return { success: true, booking: data.booking, message: data.message };
+                    } else {
+                        return { success: false, message: data.message || "Failed to finish session" };
+                    }
+                } catch (error) {
+                    console.error("Error finishing session:", error);
+                    return { success: false, message: "Network error occurred" };
+                }
+            },
+
+            flagSession: async (bookingId) => {
+                try {
+                    const token = sessionStorage.getItem("token");
+                    if (!token) {
+                        return { success: false, message: "Please log in to flag session" };
+                    }
+
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/bookings/${bookingId}/flag`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${token}`
+                        }
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        return {
+                            success: true,
+                            flagged: data.flagged,
+                            booking: data.booking,
+                            message: data.message
+                        };
+                    } else {
+                        return { success: false, message: data.message || "Failed to flag session" };
+                    }
+                } catch (error) {
+                    console.error("Error flagging session:", error);
+                    return { success: false, message: "Network error occurred" };
+                }
             }
 
 
