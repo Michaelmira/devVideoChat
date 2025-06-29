@@ -3478,7 +3478,6 @@ def get_mentor_sessions():
     except Exception as e:
         current_app.logger.error(f"Error getting mentor sessions: {str(e)}")
         return jsonify({"success": False, "message": "Failed to get sessions"}), 500
-    
 
 @api.route('/bookings/<int:booking_id>/finish', methods=['POST'])
 @jwt_required()
