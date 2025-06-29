@@ -338,14 +338,68 @@ def all_mentors():
    mentors = Mentor.query.all()
    return jsonify([mentor.serialize() for mentor in mentors]), 200
 
+
 @api.route('/mentorsnosession', methods=['GET'])
 def all_mentors_no_sessions():
-    mentors = Mentor.query.all()
-    serialized_mentors = [mentor.serialize() for mentor in mentors]
-    # Remove confirmed_sessions from each mentor's data
-    for mentor in serialized_mentors:
-        mentor.pop('confirmed_sessions', None)
-    return jsonify(serialized_mentors), 200
+    try:
+        mentors = Mentor.query.all()
+        serialized_mentors = []
+        
+        for mentor in mentors:
+            mentor_data = mentor.serialize()
+            # Remove confirmed_sessions from each mentor's data
+            mentor_data.pop('confirmed_sessions', None)
+            
+            # Calculate rating data for this mentor
+            try:
+                rated_bookings = Booking.query.filter(
+                    Booking.mentor_id == mentor.id,
+                    Booking.customer_rating.isnot(None),
+                    Booking.status == BookingStatus.COMPLETED
+                ).all()
+                
+                total_reviews = len(rated_bookings)
+                
+                # Only include rating data if mentor has 5+ reviews
+                if total_reviews >= 5:
+                    total_rating = sum(booking.customer_rating for booking in rated_bookings)
+                    average_rating = round(total_rating / total_reviews, 1)
+                    
+                    # Calculate rating distribution
+                    rating_distribution = {str(i): 0 for i in range(1, 6)}
+                    for booking in rated_bookings:
+                        rating_distribution[str(booking.customer_rating)] += 1
+                    
+                    mentor_data['rating_data'] = {
+                        "has_rating": True,
+                        "average_rating": average_rating,
+                        "total_reviews": total_reviews,
+                        "rating_distribution": rating_distribution
+                    }
+                else:
+                    mentor_data['rating_data'] = {
+                        "has_rating": False,
+                        "total_reviews": total_reviews,
+                        "minimum_required": 5
+                    }
+            except Exception as rating_error:
+                # If there's any error calculating ratings, set as unranked
+                current_app.logger.error(f"Error calculating ratings for mentor {mentor.id}: {str(rating_error)}")
+                mentor_data['rating_data'] = {
+                    "has_rating": False,
+                    "total_reviews": 0,
+                    "minimum_required": 5
+                }
+            
+            serialized_mentors.append(mentor_data)
+        
+        return jsonify(serialized_mentors), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error in all_mentors_no_sessions: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({"error": "Failed to load mentors"}), 500
 
 @api.route('/mentor/<int:mentor_id>', methods=['GET'])
 def get_mentor_by_id(mentor_id):
@@ -386,8 +440,7 @@ def mentor_edit_self():
     # Define a list of fields that are safe to update directly from the main profile form
     updatable_fields = [
         'first_name', 'last_name', 'nick_name', 'phone', 'city',
-        'what_state', 'country', 'about_me', 'years_exp', 'skills',
-        'days', 'price'
+        'what_state', 'country', 'about_me', 'years_exp', 'skills', 'price'
     ]
 
     try:
@@ -1813,6 +1866,7 @@ def mvp_github_oauth_initiate():
 
 @api.route('/auth/mvp/github/callback', methods=['GET'])
 def mvp_github_oauth_callback():
+
     """Handle GitHub OAuth callback for MVP booking"""
     code = request.args.get('code')
     state = request.args.get('state')
@@ -2007,52 +2061,86 @@ def verify_mvp_signed_state(state_param):
     except Exception as e:
         return None, f"Invalid state format: {str(e)}"
 
-# Calendar System Endpoints
+
+
 @api.route('/mentor/availability', methods=['GET'])
 @mentor_required
 def get_mentor_availability():
-    """Get current mentor's availability settings"""
+    """Get current mentor's availability settings and unavailability periods"""
     mentor_id = get_jwt_identity()
-    availabilities = MentorAvailability.query.filter_by(
-        mentor_id=mentor_id, 
-        is_active=True
-    ).all()
     
-    settings = CalendarSettings.query.filter_by(mentor_id=mentor_id).first()
-    if not settings:
-        # Create default settings
-        settings = CalendarSettings(mentor_id=mentor_id)
-        db.session.add(settings)
-        db.session.commit()
-    
-    return jsonify({
-        "availabilities": [a.serialize() for a in availabilities],
-        "settings": settings.serialize()
-    }), 200
+    try:
+        # Get availability slots
+        availabilities = MentorAvailability.query.filter_by(
+            mentor_id=mentor_id, 
+            is_active=True
+        ).all()
+        
+        # Get calendar settings
+        settings = CalendarSettings.query.filter_by(mentor_id=mentor_id).first()
+        if not settings:
+            # Create default settings
+            settings = CalendarSettings(mentor_id=mentor_id)
+            db.session.add(settings)
+            db.session.commit()
+        
+        # Get unavailability periods
+        unavailabilities = MentorUnavailability.query.filter_by(
+            mentor_id=mentor_id
+        ).order_by(MentorUnavailability.start_datetime).all()
+        
+        # Convert unavailability times to mentor's timezone for display
+        mentor_timezone = settings.timezone
+        unavailability_data = []
+        
+        for unavail in unavailabilities:
+            # Convert UTC times to mentor's timezone for frontend display
+            start_utc = unavail.start_datetime
+            end_utc = unavail.end_datetime
+            
+            # Ensure timezone-aware
+            if start_utc.tzinfo is None:
+                start_utc = pytz.UTC.localize(start_utc)
+            if end_utc.tzinfo is None:
+                end_utc = pytz.UTC.localize(end_utc)
+            
+            # Convert to mentor's timezone
+            tz = pytz.timezone(mentor_timezone)
+            start_local = start_utc.astimezone(tz)
+            end_local = end_utc.astimezone(tz)
+            
+            unavailability_data.append({
+                "id": unavail.id,
+                "start_datetime": start_local.replace(tzinfo=None).isoformat(),  # Remove timezone for frontend
+                "end_datetime": end_local.replace(tzinfo=None).isoformat(),      # Remove timezone for frontend
+                "reason": unavail.reason or ""
+            })
+        
+        return jsonify({
+            "availabilities": [a.serialize() for a in availabilities],
+            "settings": settings.serialize(),
+            "unavailabilities": unavailability_data
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting mentor availability: {str(e)}")
+        return jsonify({"error": "Failed to fetch availability settings"}), 500
+
 
 @api.route('/mentor/availability', methods=['POST'])
 @mentor_required
 def set_mentor_availability():
-    """Set or update mentor's weekly availability"""
+    """Set or update mentor's weekly availability and unavailability periods"""
     mentor_id = get_jwt_identity()
     data = request.get_json()
     
     try:
-        # Clear existing availability
-        MentorAvailability.query.filter_by(mentor_id=mentor_id).delete()
+        current_app.logger.info(f"Received combined availability data for mentor {mentor_id}")
         
-        # Add new availability slots
-        for slot in data.get('availabilities', []):
-            availability = MentorAvailability(
-                mentor_id=mentor_id,
-                day_of_week=slot['day_of_week'],
-                start_time=datetime.strptime(slot['start_time'], '%H:%M').time(),
-                end_time=datetime.strptime(slot['end_time'], '%H:%M').time(),
-                timezone=slot.get('timezone', 'America/Los_Angeles')
-            )
-            db.session.add(availability)
+        # Start transaction
+        db.session.begin()
         
-        # Update settings
+        # 1. Update calendar settings first (we need the timezone)
         settings = CalendarSettings.query.filter_by(mentor_id=mentor_id).first()
         if not settings:
             settings = CalendarSettings(mentor_id=mentor_id)
@@ -2064,14 +2152,78 @@ def set_mentor_availability():
         settings.minimum_notice_hours = data.get('minimum_notice_hours', 24)
         settings.timezone = data.get('timezone', 'America/Los_Angeles')
         
+        # 2. Clear existing availability
+        MentorAvailability.query.filter_by(mentor_id=mentor_id).delete()
+        
+        # 3. Add new availability slots
+        for slot in data.get('availabilities', []):
+            availability = MentorAvailability(
+                mentor_id=mentor_id,
+                day_of_week=slot['day_of_week'],
+                start_time=datetime.strptime(slot['start_time'], '%H:%M').time(),
+                end_time=datetime.strptime(slot['end_time'], '%H:%M').time(),
+                timezone=settings.timezone
+            )
+            db.session.add(availability)
+        
+        # 4. Handle unavailability periods with timezone conversion
+        MentorUnavailability.query.filter_by(mentor_id=mentor_id).delete()
+        
+        # Get mentor's timezone for conversion
+        mentor_timezone = settings.timezone
+        tz = pytz.timezone(mentor_timezone)
+        
+        current_app.logger.info(f"Converting unavailability using timezone: {mentor_timezone}")
+        
+        # Process each unavailability period
+        for unavail_data in data.get('unavailabilities', []):
+            try:
+                # Parse datetime strings (naive - coming from frontend in mentor's timezone)
+                start_str = unavail_data['start_datetime']
+                end_str = unavail_data['end_datetime']
+                
+                # Remove any existing timezone info and parse as naive
+                start_naive = datetime.fromisoformat(start_str.replace('Z', '').replace('+00:00', ''))
+                end_naive = datetime.fromisoformat(end_str.replace('Z', '').replace('+00:00', ''))
+                
+                # Treat as mentor's local time and localize
+                start_local = tz.localize(start_naive)
+                end_local = tz.localize(end_naive)
+                
+                # Convert to UTC for database storage
+                start_utc = start_local.astimezone(pytz.UTC)
+                end_utc = end_local.astimezone(pytz.UTC)
+                
+                # Create unavailability record (no model changes needed)
+                unavailability = MentorUnavailability(
+                    mentor_id=mentor_id,
+                    start_datetime=start_utc.replace(tzinfo=None),  # Store as naive UTC
+                    end_datetime=end_utc.replace(tzinfo=None),      # Store as naive UTC
+                    reason=unavail_data.get('reason', '')
+                )
+                db.session.add(unavailability)
+                
+                current_app.logger.info(f"Converted {start_str} -> {start_utc} UTC")
+                
+            except Exception as unavail_error:
+                current_app.logger.error(f"Error processing unavailability {unavail_data}: {str(unavail_error)}")
+                continue
+        
+        # 5. Commit all changes
         db.session.commit()
         
-        return jsonify({"message": "Availability updated successfully"}), 200
+        current_app.logger.info(f"Successfully saved settings for mentor {mentor_id}")
+        
+        return jsonify({
+            "message": "Availability and unavailability settings updated successfully"
+        }), 200
     
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Error updating availability: {str(e)}")
-        return jsonify({"error": "Failed to update availability"}), 500
+        current_app.logger.error(f"Error updating mentor availability: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({"error": "Failed to update availability settings"}), 500
 
 @api.route('/mentor/unavailability', methods=['POST'])
 @mentor_required
@@ -2529,18 +2681,6 @@ def get_mentor_dashboard():
         return jsonify({"error": "Failed to load dashboard data"}), 500
 
 
-
-# WWORKING WITH OPUS BELOW
-# WWORKING WITH OPUS BELOW
-# WWORKING WITH OPUS BELOW
-# WWORKING WITH OPUS BELOW
-## WWORKING WITH OPUS BELOW
-# WWORKING WITH OPUS BELOW
-# WWORKING WITH OPUS BELOW
-# WWORKING WITH OPUS BELOW
-# WWORKING WITH OPUS BELOW
-# WWORKING WITH OPUS BELOW
-
 @api.route('/mentor/unavailability', methods=['GET'])
 @mentor_required
 def get_mentor_unavailability():
@@ -2990,9 +3130,6 @@ DevMentor Platform"""
         return jsonify({"error": "Failed to generate calendar file"}), 500
 
 
-
-# Replace your current send_booking_confirmation route with this complete version
-
 @api.route('/send-booking-confirmation', methods=['POST'])
 @jwt_required()
 def send_booking_confirmation():
@@ -3130,12 +3267,7 @@ def send_booking_confirmation():
             "message": "Internal server error"
         }), 500
 
-
-
-
 # Customer Ratings and Finished Sessions
-
-# ADD these endpoints to your routes.py file:
 
 @api.route('/bookings/<int:booking_id>/rate', methods=['POST'])
 @jwt_required()

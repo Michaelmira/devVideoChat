@@ -920,6 +920,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                     return false;
                 }
             },
+            
             sendMessageCustomer: async (sessionId, text, mentorId) => {
                 const token = sessionStorage.getItem("token");
                 if (!token) {
@@ -981,6 +982,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                     return { success: false, message: "Network error during booking tracking.", data: null };
                 }
             },
+
             updateBookingWithCalendlyDetails: async (bookingId, calendlyDetails) => {
                 try {
                     const token = sessionStorage.getItem("token");
@@ -1099,6 +1101,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                     return { success: false, message: "Network error occurred while finalizing booking" };
                 }
             },
+            
             getBookingDetails: async (bookingId) => {
                 const store = getStore();
                 try {
@@ -1130,6 +1133,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                     return { success: false, message: "Network error occurred while fetching booking details" };
                 }
             },
+
             getMentorBookings: async () => {
                 const store = getStore();
                 const token = store.token;
@@ -1654,6 +1658,8 @@ const getState = ({ getStore, getActions, setStore }) => {
 
             getMentorAvailability: async () => {
                 try {
+                    console.log("Loading combined availability and unavailability data...");
+
                     const response = await fetch(`${process.env.BACKEND_URL}/api/mentor/availability`, {
                         method: "GET",
                         headers: {
@@ -1664,23 +1670,66 @@ const getState = ({ getStore, getActions, setStore }) => {
 
                     if (response.ok) {
                         const data = await response.json();
+                        console.log("Received combined data:", data);
+
                         return {
                             success: true,
-                            availabilities: data.availabilities,
-                            settings: data.settings
+                            availabilities: data.availabilities || [],
+                            settings: data.settings || {},
+                            unavailabilities: data.unavailabilities || [] // NEW: Now includes unavailability data
                         };
                     } else {
-                        console.error("Failed to fetch mentor availability");
-                        return { success: false, message: "Failed to fetch availability" };
+                        const errorData = await response.json();
+                        console.error("Failed to fetch mentor availability:", errorData);
+                        return {
+                            success: false,
+                            message: errorData.error || "Failed to fetch availability"
+                        };
                     }
                 } catch (error) {
                     console.error("Error fetching mentor availability:", error);
-                    return { success: false, message: "Network error" };
+                    return {
+                        success: false,
+                        message: "Network error occurred while loading settings"
+                    };
                 }
+            },
+
+            addMentorUnavailability: async (unavailabilityData) => {
+                console.warn("addMentorUnavailability is deprecated - use setMentorAvailability with full payload instead");
+
+                // For emergency backward compatibility, you could implement a workaround
+                // But it's better to update calling code to use the new pattern
+                return {
+                    success: false,
+                    message: "This function is deprecated. Please use the combined save functionality."
+                };
+            },
+
+            removeMentorUnavailability: async (unavailabilityId) => {
+                console.warn("removeMentorUnavailability is deprecated - use setMentorAvailability with updated payload instead");
+
+                // For emergency backward compatibility, you could implement a workaround
+                // But it's better to update calling code to use the new pattern
+                return {
+                    success: false,
+                    message: "This function is deprecated. Please use the combined save functionality."
+                };
             },
 
             setMentorAvailability: async (availabilityData) => {
                 try {
+                    console.log("Saving combined availability and unavailability data:", availabilityData);
+
+                    // Validate payload before sending
+                    if (!availabilityData.timezone) {
+                        console.error("Missing timezone in payload");
+                        return {
+                            success: false,
+                            message: "Timezone is required for saving availability settings"
+                        };
+                    }
+
                     const response = await fetch(`${process.env.BACKEND_URL}/api/mentor/availability`, {
                         method: "POST",
                         headers: {
@@ -1691,81 +1740,41 @@ const getState = ({ getStore, getActions, setStore }) => {
                     });
 
                     if (response.ok) {
-                        return { success: true, message: "Availability updated successfully" };
+                        const data = await response.json();
+                        console.log("Save successful:", data);
+
+                        return {
+                            success: true,
+                            message: data.message || "Availability and unavailability updated successfully",
+                            data: data
+                        };
                     } else {
-                        return { success: false, message: "Failed to update availability" };
+                        const errorData = await response.json();
+                        console.error("Failed to update availability:", errorData);
+
+                        // Provide specific error messages based on response
+                        let errorMessage = "Failed to save availability settings";
+                        if (errorData.error) {
+                            errorMessage = errorData.error;
+                        } else if (response.status === 401) {
+                            errorMessage = "Authentication failed. Please log in again.";
+                        } else if (response.status === 403) {
+                            errorMessage = "You don't have permission to update availability settings.";
+                        } else if (response.status >= 500) {
+                            errorMessage = "Server error occurred. Please try again.";
+                        }
+
+                        return {
+                            success: false,
+                            message: errorMessage
+                        };
                     }
                 } catch (error) {
                     console.error("Error updating mentor availability:", error);
-                    return { success: false, message: "Network error" };
-                }
-            },
-
-            getMentorUnavailability: async () => {
-                try {
-                    const response = await fetch(`${process.env.BACKEND_URL}/api/mentor/unavailability`, {
-                        method: "GET",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "Authorization": `Bearer ${getStore().token}`
-                        }
-                    });
-
-                    if (response.ok) {
-                        const data = await response.json();
-                        return {
-                            success: true,
-                            unavailabilities: data.unavailabilities || []
-                        };
-                    } else {
-                        return { success: false, message: "Failed to fetch unavailability" };
-                    }
-                } catch (error) {
-                    console.error("Error fetching unavailability:", error);
-                    return { success: false, message: "Network error" };
-                }
-            },
-
-            addMentorUnavailability: async (unavailabilityData) => {
-                try {
-                    const response = await fetch(`${process.env.BACKEND_URL}/api/mentor/unavailability`, {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "Authorization": `Bearer ${getStore().token}`
-                        },
-                        body: JSON.stringify(unavailabilityData)
-                    });
-
-                    if (response.ok) {
-                        const data = await response.json();
-                        return { success: true, message: "Unavailability added", id: data.id };
-                    } else {
-                        return { success: false, message: "Failed to add unavailability" };
-                    }
-                } catch (error) {
-                    console.error("Error adding unavailability:", error);
-                    return { success: false, message: "Network error" };
-                }
-            },
-
-            removeMentorUnavailability: async (unavailabilityId) => {
-                try {
-                    const response = await fetch(`${process.env.BACKEND_URL}/api/mentor/unavailability/${unavailabilityId}`, {
-                        method: "DELETE",
-                        headers: {
-                            "Authorization": `Bearer ${getStore().token}`
-                        }
-                    });
-
-                    if (response.ok) {
-                        return { success: true, message: "Unavailability removed" };
-                    } else {
-                        return { success: false, message: "Failed to remove unavailability" };
-                    }
-                } catch (error) {
-                    console.error("Error removing unavailability:", error);
-                    return { success: false, message: "Network error" };
+                    return {
+                        success: false,
+                        message: "Network error occurred while saving settings. Please check your connection and try again."
+                    };
                 }
             },
 
@@ -1824,10 +1833,6 @@ const getState = ({ getStore, getActions, setStore }) => {
                     return { success: false, error: "Network error" };
                 }
             },
-
-            // Add these actions to your existing flux.js file
-
-            // In the actions object, add these new methods:
 
             refreshMeetingToken: async (meetingId) => {
                 try {
@@ -1930,7 +1935,6 @@ const getState = ({ getStore, getActions, setStore }) => {
                 }
             },
 
-            // Enhanced getMeetingToken with better error handling
             getMeetingToken: async (meetingId) => {
                 try {
                     const store = getStore();
@@ -1966,8 +1970,6 @@ const getState = ({ getStore, getActions, setStore }) => {
                     };
                 }
             },
-
-            // ADD these actions to your flux.js actions object:
 
             submitRating: async (bookingId, ratingData) => {
                 try {
@@ -2083,6 +2085,7 @@ const getState = ({ getStore, getActions, setStore }) => {
                     return { success: false, message: "Network error occurred" };
                 }
             },
+
             finishSession: async (bookingId) => {
                 try {
                     const token = sessionStorage.getItem("token");

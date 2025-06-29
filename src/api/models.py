@@ -81,7 +81,6 @@ class Mentor(db.Model):
     about_me = db.Column(db.String(2500), unique=False)
     years_exp = db.Column(db.String(30), unique=False)
     skills = db.Column(MutableList.as_mutable(ARRAY(db.String(255))), default=list)
-    days = db.Column(MutableList.as_mutable(ARRAY(db.String(255))), default=list) ## Days Available 
     price = db.Column(db.Numeric(10,2), nullable=True)
     date_joined = db.Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
     google_oauth_credentials = db.Column(db.Text, nullable=True)
@@ -96,18 +95,6 @@ class Mentor(db.Model):
         return f'<Mentor {self.email}>'
 
     def serialize(self):
-
-        completed_bookings_with_ratings = [
-            booking for booking in self.bookings 
-            if booking.status == BookingStatus.COMPLETED and booking.customer_rating is not None
-        ]
-    
-        total_reviews = len(completed_bookings_with_ratings)
-        average_rating = 0.0
-        
-        if total_reviews > 0:
-            total_rating = sum(booking.customer_rating for booking in completed_bookings_with_ratings)
-            average_rating = round(total_rating / total_reviews, 1)
 
         return {
             "id": self.id,
@@ -124,7 +111,6 @@ class Mentor(db.Model):
             "country": self.country,
             "years_exp": self.years_exp,
             "skills": [skill for skill in self.skills] if self.skills is not None else [],
-            "days": [day for day in self.days] if self.days is not None else [],
             "profile_photo": self.profile_photo.serialize() if self.profile_photo else None,
             "portfolio_photos": [portfolio_photo.serialize() for portfolio_photo in self.portfolio_photos] if self.portfolio_photos is not None else [],
             "about_me": self.about_me,
