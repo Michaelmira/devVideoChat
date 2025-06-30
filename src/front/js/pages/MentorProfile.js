@@ -713,7 +713,7 @@ export const MentorProfile = () => {
               )}
             </dd>
 
-            <dt className="col-sm-4 form-label">/Booking:</dt>
+            <dt className="col-sm-4 form-label">Price Per Booking:</dt>
             <dd className="col-sm-8">
               {editMode ? (
                 <>
@@ -726,14 +726,14 @@ export const MentorProfile = () => {
                       onChange={handlePriceChange}
                       className="form-control"
                     />
-                    <span className="input-group-text">/hr</span>
+                    <span className="input-group-text">/Booking</span>
                   </div>
                   {invalidItems.includes("price") && (
                     <InvalidItem error="Invalid price value (ex. 20.00)" />
                   )}
                 </>
               ) : mentor.price && mentor.price !== "None" ? (
-                `$${mentor.price} /hr`
+                `$${mentor.price} /Booking`
               ) : (
                 ""
               )}
