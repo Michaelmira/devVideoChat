@@ -76,8 +76,6 @@ const SessionHistory = ({ userType }) => {
         try {
             const result = await actions.flagSession(session.id);
             if (result.success) {
-                // Show flagged message with optimized text
-                alert(`Your session has been flagged for review.\n\nIf you're experiencing an issue with this session, please contact our support team at devmentorllc@gmail.com with details about your concern.\n\nWe review all flagged sessions promptly and will follow up with you as needed.`);
                 await loadSessions();
             } else {
                 alert(result.message || 'Failed to flag session');
@@ -236,6 +234,25 @@ const SessionHistory = ({ userType }) => {
                         <strong>Customer Rating:</strong> <span className="text-muted">Not rated yet</span>
                     </div>
                 )}
+
+                {/* Flagged Message - Shows when session is flagged */}
+                {(() => {
+                    const isFlagged = userType === 'customer' ?
+                        session.flagged_by_customer : session.flagged_by_mentor;
+
+                    if (isFlagged) {
+                        return (
+                            <div className="alert alert-warning mt-2 mb-2">
+                                <small>
+                                    <strong>Your session has been flagged for review.</strong><br />
+                                    If you're experiencing an issue with this session, please contact our support team at <strong>devmentorllc@gmail.com</strong> with details about your concern.<br />
+                                    We review all flagged sessions promptly and will follow up with you as needed.
+                                </small>
+                            </div>
+                        );
+                    }
+                    return null;
+                })()}
 
                 <div className="mt-2">
                     {/* Finish Session button for current confirmed sessions */}
