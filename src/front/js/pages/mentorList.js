@@ -40,7 +40,7 @@ export const MentorList = () => {
         }
 
         const { average_rating, total_reviews } = ratingData;
-        
+
         // Additional safety checks
         if (typeof average_rating !== 'number' || isNaN(average_rating)) {
             return (
@@ -163,6 +163,36 @@ export const MentorList = () => {
                                                 </div>
                                             </Link>
 
+                                            {/* Social Links Badges */}
+                                            {(mentor.linkedin_url || mentor.github_url) && (
+                                                <div className="text-center mb-2">
+                                                    <div className="d-flex justify-content-center gap-1">
+                                                        {mentor.linkedin_url && (
+                                                            <a
+                                                                href={mentor.linkedin_url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="badge bg-primary text-decoration-none"
+                                                                style={{ fontSize: '0.7rem' }}
+                                                            >
+                                                                <i className="fab fa-linkedin"></i>
+                                                            </a>
+                                                        )}
+                                                        {mentor.github_url && (
+                                                            <a
+                                                                href={mentor.github_url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="badge bg-dark text-decoration-none"
+                                                                style={{ fontSize: '0.7rem' }}
+                                                            >
+                                                                <i className="fab fa-github"></i>
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             {/* Star Rating - Now using embedded data */}
                                             {renderStarRating(mentor)}
 
@@ -227,7 +257,7 @@ export const MentorList = () => {
 
                                         <div className="card-footer bg-transparent">
                                             <div className="d-grid gap-2">
-                                                <Link 
+                                                <Link
                                                     to={`/mentor-details/${mentor.id}`}
                                                     className="btn btn-primary btn-sm text-decoration-none"
                                                 >
