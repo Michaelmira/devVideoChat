@@ -713,7 +713,7 @@ export const MentorProfile = () => {
               )}
             </dd>
 
-            <dt className="col-sm-4 form-label">Price:</dt>
+            <dt className="col-sm-4 form-label">/Booking:</dt>
             <dd className="col-sm-8">
               {editMode ? (
                 <>
