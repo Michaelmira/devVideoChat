@@ -23,7 +23,7 @@ export const MVPLoginForm = () => {
         const endpoint = isLogin ? '/api/login' : '/api/register';
 
         try {
-            const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}${endpoint}`, {
+            const response = await fetch(`${process.env.BACKEND_URL}${endpoint}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -56,13 +56,13 @@ export const MVPLoginForm = () => {
     };
 
     const handleGoogleLogin = () => {
-        // Use MVP Google credentials
-        window.location.href = `${process.env.REACT_APP_BACKEND_URL}/api/auth/mvp/google/initiate`;
+        // Use regular Google OAuth (no MVP version)
+        window.location.href = `${process.env.BACKEND_URL}/api/auth/google/initiate`;
     };
 
     const handleGitHubLogin = () => {
         // Use MVP GitHub credentials  
-        window.location.href = `${process.env.REACT_APP_BACKEND_URL}/api/auth/mvp/github/initiate`;
+        window.location.href = `${process.env.BACKEND_URL}/api/auth/mvp/github/initiate`;
     };
 
     return (

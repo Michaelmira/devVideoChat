@@ -9,7 +9,7 @@ export const UpgradeCard = () => {
         setUpgrading(true);
         try {
             const token = sessionStorage.getItem('token');
-            const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/create-subscription`, {
+            const response = await fetch(`${process.env.BACKEND_URL}/api/create-subscription`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,

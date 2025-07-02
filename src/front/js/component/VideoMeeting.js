@@ -1093,7 +1093,7 @@ function MeetingTimer({ meetingId }) {
         const fetchSessionData = async () => {
             if (meetingId) {
                 try {
-                    const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/session-status/${meetingId}`);
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/session-status/${meetingId}`);
                     if (response.ok) {
                         const data = await response.json();
                         setSessionData(data);

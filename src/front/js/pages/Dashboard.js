@@ -34,7 +34,7 @@ export const Dashboard = () => {
         setLoading(true);
         try {
             const token = sessionStorage.getItem('token');
-            const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/my-sessions`, {
+            const response = await fetch(`${process.env.BACKEND_URL}/api/my-sessions`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -57,7 +57,7 @@ export const Dashboard = () => {
         setCreating(true);
         try {
             const token = sessionStorage.getItem('token');
-            const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/create-session`, {
+            const response = await fetch(`${process.env.BACKEND_URL}/api/create-session`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,

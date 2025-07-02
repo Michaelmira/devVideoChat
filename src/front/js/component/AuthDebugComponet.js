@@ -14,21 +14,21 @@ export const AuthDebugComponent = () => {
         localStorage_jwt_token: localStorage.getItem('jwt_token'),
         sessionStorage_token: sessionStorage.getItem('token'),
         sessionStorage_access_token: sessionStorage.getItem('access_token'),
-        
+
         // Check all localStorage keys
         all_localStorage_keys: Object.keys(localStorage),
         all_sessionStorage_keys: Object.keys(sessionStorage),
-        
+
         // Environment variables
-        backend_url: process.env.REACT_APP_BACKEND_URL,
+        backend_url: process.env.BACKEND_URL,
         frontend_url: process.env.FRONTEND_URL,
-        
+
         // Current URL
         current_url: window.location.href,
         pathname: window.location.pathname,
         search: window.location.search
       };
-      
+
       setAuthState(authData);
     };
 
@@ -37,16 +37,16 @@ export const AuthDebugComponent = () => {
 
   const testMentorLogin = async () => {
     try {
-      const token = localStorage.getItem('token') || 
-                    localStorage.getItem('access_token') || 
-                    sessionStorage.getItem('token');
-      
+      const token = localStorage.getItem('token') ||
+        localStorage.getItem('access_token') ||
+        sessionStorage.getItem('token');
+
       if (!token) {
         alert('No token found. Please log in first.');
         return;
       }
 
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/current/user`, {
+      const response = await fetch(`${process.env.BACKEND_URL}/api/current/user`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -78,20 +78,20 @@ export const AuthDebugComponent = () => {
       <div className="card-body">
         <div className="mb-3">
           <strong>Authentication Status:</strong>
-          <pre className="bg-light p-2 mt-2" style={{fontSize: '12px', overflow: 'auto'}}>
+          <pre className="bg-light p-2 mt-2" style={{ fontSize: '12px', overflow: 'auto' }}>
             {JSON.stringify(authState, null, 2)}
           </pre>
         </div>
-        
+
         <div className="d-flex gap-2">
-          <button 
+          <button
             onClick={testMentorLogin}
             className="btn btn-sm btn-outline-primary"
           >
             Test Current User API
           </button>
-          
-          <button 
+
+          <button
             onClick={() => {
               console.log('Current localStorage:', localStorage);
               console.log('Current sessionStorage:', sessionStorage);
@@ -100,8 +100,8 @@ export const AuthDebugComponent = () => {
           >
             Log Storage to Console
           </button>
-          
-          <button 
+
+          <button
             onClick={() => {
               // Try to find and log any tokens
               const possibleTokens = [];
@@ -109,7 +109,7 @@ export const AuthDebugComponent = () => {
                 const key = localStorage.key(i);
                 const value = localStorage.getItem(key);
                 if (key.toLowerCase().includes('token') || key.toLowerCase().includes('auth')) {
-                  possibleTokens.push({key, value: value.substring(0, 50) + '...'});
+                  possibleTokens.push({ key, value: value.substring(0, 50) + '...' });
                 }
               }
               console.log('Possible tokens found:', possibleTokens);

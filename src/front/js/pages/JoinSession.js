@@ -22,7 +22,7 @@ export const JoinSession = () => {
 
     const loadSessionStatus = async () => {
         try {
-            const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/session-status/${meetingId}`);
+            const response = await fetch(`${process.env.BACKEND_URL}/api/session-status/${meetingId}`);
 
             if (response.ok) {
                 const data = await response.json();
@@ -48,7 +48,7 @@ export const JoinSession = () => {
 
         setJoining(true);
         try {
-            const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/join/${meetingId}`);
+            const response = await fetch(`${process.env.BACKEND_URL}/api/join/${meetingId}`);
 
             if (response.ok) {
                 const data = await response.json();

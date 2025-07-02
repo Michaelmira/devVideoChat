@@ -547,11 +547,14 @@ def stripe_webhook():
 # OAUTH AUTHENTICATION ROUTES
 # ===========================================
 
-@api.route('/auth/google/initiate', methods=['POST'])
+@api.route('/auth/google/initiate', methods=['GET', 'POST'])
 def google_oauth_initiate():
     """Initiate Google OAuth for regular login"""
     try:
-        user_type = request.json.get('user_type', 'customer')
+        # Handle both GET (from redirect) and POST (from API call)
+        user_type = 'user'  # Default to new user type
+        if request.method == 'POST' and request.json:
+            user_type = request.json.get('user_type', 'user')
         
         # Create signed state for security
         state_data = {
@@ -571,6 +574,11 @@ def google_oauth_initiate():
             f"state={state}"
         )
         
+        # If GET request (from redirect), redirect directly
+        if request.method == 'GET':
+            return redirect(google_auth_url)
+        
+        # If POST request (from API), return JSON
         return jsonify({
             "success": True,
             "auth_url": google_auth_url
@@ -993,7 +1001,7 @@ def mvp_google_oauth_callback():
         return redirect(f"{os.getenv('FRONTEND_URL')}/?mvp_google_auth=error&error=server_error")
 
 
-@api.route('/auth/mvp/github/initiate', methods=['POST'])
+@api.route('/auth/mvp/github/initiate', methods=['GET', 'POST'])
 def mvp_github_oauth_initiate():
     """Initiate MVP GitHub OAuth for home page"""
     try:
@@ -1014,6 +1022,11 @@ def mvp_github_oauth_initiate():
             f"state={state}"
         )
         
+        # If GET request (from redirect), redirect directly
+        if request.method == 'GET':
+            return redirect(github_auth_url)
+        
+        # If POST request (from API), return JSON
         return jsonify({
             "success": True,
             "auth_url": github_auth_url
