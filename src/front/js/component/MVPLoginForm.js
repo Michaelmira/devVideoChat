@@ -14,6 +14,9 @@ export const MVPLoginForm = () => {
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [showVerification, setShowVerification] = useState(false);
+    const [verificationCode, setVerificationCode] = useState('');
+    const [userEmail, setUserEmail] = useState('');
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -37,13 +40,21 @@ export const MVPLoginForm = () => {
             const data = await response.json();
 
             if (response.ok) {
-                sessionStorage.setItem('token', data.access_token);
-                sessionStorage.setItem('user_data', JSON.stringify(data.user_data || data.user));
+                if (isLogin) {
+                    // Login successful - redirect to dashboard
+                    sessionStorage.setItem('token', data.access_token);
+                    sessionStorage.setItem('user_data', JSON.stringify(data.user_data || data.user));
 
-                // Update store
-                actions.setUser(data.user_data || data.user);
+                    // Update store
+                    actions.setUser(data.user_data || data.user);
 
-                navigate('/dashboard');
+                    navigate('/dashboard');
+                } else {
+                    // Registration successful - show verification popup
+                    setUserEmail(formData.email);
+                    setShowVerification(true);
+                    setError(''); // Clear any errors
+                }
             } else {
                 setError(data.msg || 'Authentication failed');
             }
@@ -65,9 +76,103 @@ export const MVPLoginForm = () => {
         window.location.href = `${process.env.BACKEND_URL}/api/auth/mvp/github/initiate`;
     };
 
+    const handleVerification = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+
+        try {
+            const response = await fetch(`${process.env.BACKEND_URL}/api/verify-code`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: userEmail,
+                    code: verificationCode
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Verification successful - now login
+                setShowVerification(false);
+                setIsLogin(true);
+                setError('Email verified! Please login now.');
+            } else {
+                setError(data.msg || 'Verification failed');
+            }
+        } catch (error) {
+            console.error('Verification error:', error);
+            setError('Network error. Please try again.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <>
-            <form onSubmit={handleSubmit}>
+            {showVerification ? (
+                // Verification Code Modal
+                <div className="text-center">
+                    <h5 className="mb-3">Check Your Email</h5>
+                    <p className="mb-4">We sent a verification code to <strong>{userEmail}</strong></p>
+
+                    <form onSubmit={handleVerification}>
+                        <input
+                            type="text"
+                            className="form-control mb-3 text-center"
+                            placeholder="Enter 6-digit code"
+                            value={verificationCode}
+                            onChange={(e) => setVerificationCode(e.target.value)}
+                            maxLength="6"
+                            required
+                        />
+
+                        {error && (
+                            <div className="alert alert-danger" role="alert">
+                                {error}
+                            </div>
+                        )}
+
+                        <button
+                            type="submit"
+                            className="btn btn-success w-100 mb-3"
+                            disabled={loading}
+                        >
+                            {loading ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Verifying...
+                                </>
+                            ) : (
+                                'Verify Email'
+                            )}
+                        </button>
+
+                        <div className="text-center">
+                            <small className="text-muted">
+                                For testing, you can use: <strong>999000</strong>
+                            </small>
+                        </div>
+
+                        <div className="text-center mt-3">
+                            <button
+                                type="button"
+                                className="btn btn-link p-0"
+                                onClick={() => {
+                                    setShowVerification(false);
+                                    setVerificationCode('');
+                                    setError('');
+                                }}
+                            >
+                                Back to registration
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            ) : (
+                // Regular Login/Register Form
+                <form onSubmit={handleSubmit}>
                 {!isLogin && (
                     <div className="row">
                         <div className="col-6">
@@ -170,6 +275,7 @@ export const MVPLoginForm = () => {
                     Continue with GitHub
                 </button>
             </div>
+            )}
         </>
     );
 }; 
