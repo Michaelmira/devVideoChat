@@ -34,17 +34,23 @@ export const Dashboard = () => {
         setLoading(true);
         try {
             const token = sessionStorage.getItem('token');
+            console.log('🔍 Loading sessions with token:', token ? token.substring(0, 50) + '...' : 'null');
+
             const response = await fetch(`${process.env.BACKEND_URL}/api/my-sessions`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
             });
 
+            console.log('📊 My-sessions response status:', response.status);
+
             if (response.ok) {
                 const data = await response.json();
+                console.log('📊 Sessions loaded:', data);
                 setSessions(data.sessions || []);
             } else {
-                console.error('Failed to load sessions');
+                const errorData = await response.json();
+                console.error('📊 My-sessions error:', errorData);
             }
         } catch (error) {
             console.error('Error loading sessions:', error);
@@ -57,6 +63,10 @@ export const Dashboard = () => {
         setCreating(true);
         try {
             const token = sessionStorage.getItem('token');
+            console.log('🔐 Token from sessionStorage:', token);
+            console.log('🔐 Token length:', token ? token.length : 'null');
+            console.log('🔐 Token preview:', token ? token.substring(0, 50) + '...' : 'null');
+
             const response = await fetch(`${process.env.BACKEND_URL}/api/create-session`, {
                 method: 'POST',
                 headers: {
@@ -64,6 +74,8 @@ export const Dashboard = () => {
                     'Content-Type': 'application/json'
                 }
             });
+
+            console.log('📡 Response status:', response.status);
 
             if (response.ok) {
                 const data = await response.json();
@@ -74,6 +86,7 @@ export const Dashboard = () => {
                 alert('✅ Video session created successfully! Copy the link to share with others.');
             } else {
                 const errorData = await response.json();
+                console.error('❌ Error response:', errorData);
                 alert(`❌ ${errorData.msg || 'Failed to create session'}`);
             }
         } catch (error) {
@@ -87,6 +100,32 @@ export const Dashboard = () => {
     const copyLink = (sessionUrl) => {
         navigator.clipboard.writeText(sessionUrl);
         alert('📋 Link copied to clipboard!');
+    };
+
+    const debugJWT = async () => {
+        try {
+            const token = sessionStorage.getItem('token');
+            console.log('🐛 Debug JWT - Token:', token ? token.substring(0, 50) + '...' : 'null');
+
+            const response = await fetch(`${process.env.BACKEND_URL}/api/debug-jwt`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            console.log('🐛 Debug JWT - Response status:', response.status);
+            const data = await response.json();
+            console.log('🐛 Debug JWT - Response data:', data);
+
+            if (response.ok) {
+                alert(`✅ JWT Debug Success!\nUser ID: ${data.user_id}\nEmail: ${data.user_email}`);
+            } else {
+                alert(`❌ JWT Debug Failed!\nError: ${data.error}\nType: ${data.error_type}`);
+            }
+        } catch (error) {
+            console.error('🐛 Debug JWT error:', error);
+            alert('❌ Debug JWT network error');
+        }
     };
 
     const isPremium = user?.subscription_status === 'premium';
@@ -146,6 +185,14 @@ export const Dashboard = () => {
                             : '50-minute sessions • Unlimited links'
                         }
                     </p>
+
+                    {/* DEBUG BUTTON - Remove after fixing */}
+                    <button
+                        className="btn btn-outline-warning btn-sm mt-2"
+                        onClick={debugJWT}
+                    >
+                        🐛 Debug JWT
+                    </button>
                 </div>
             </div>
 
