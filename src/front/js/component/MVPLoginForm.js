@@ -42,13 +42,30 @@ export const MVPLoginForm = () => {
             if (response.ok) {
                 if (isLogin) {
                     // Login successful - redirect to dashboard
+                    console.log('🎉 Login successful!', data);
+                    console.log('📦 Storing token:', data.access_token);
+                    console.log('👤 User data:', data.user_data);
+
                     sessionStorage.setItem('token', data.access_token);
                     sessionStorage.setItem('user_data', JSON.stringify(data.user_data || data.user));
 
                     // Update store
+                    console.log('🔄 Updating store with user data...');
                     actions.setUser(data.user_data || data.user);
 
-                    navigate('/dashboard');
+                    console.log('🔄 Navigating to dashboard...');
+                    // Small delay to ensure token is stored before navigation
+                    setTimeout(() => {
+                        navigate('/dashboard');
+                        console.log('✅ Navigate called');
+                        // If navigation fails, force a page reload as fallback
+                        setTimeout(() => {
+                            if (window.location.pathname !== '/dashboard') {
+                                console.log('🔄 Navigation failed, forcing page reload...');
+                                window.location.href = '/dashboard';
+                            }
+                        }, 500);
+                    }, 100);
                 } else {
                     // Registration successful - show verification popup
                     setUserEmail(formData.email);
