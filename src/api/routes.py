@@ -20,9 +20,9 @@ from cloudinary.api import delete_resources_by_tag
 from api.services.videosdk_service import VideoSDKService
 
 # Updated imports for new models
-from api.models import db, User, UserImage, VideoSession, Customer, Mentor, MentorImage, PortfolioPhoto, Booking, BookingStatus, MentorAvailability, CalendarSettings, MentorUnavailability
+from api.models import db, User, UserImage, VideoSession
 from api.utils import generate_sitemap, APIException
-from api.decorators import mentor_required, customer_required
+# Removed old decorators for mentor/customer system
 from api.send_email import send_email, send_verification_email_code
 
 import pytz
@@ -78,46 +78,21 @@ def generate_verification_code():
 @jwt_required()
 @cross_origin(origins=[os.getenv("FRONTEND_URL") or "http://localhost:3000"])
 def get_current_user():
-    """Updated to use new User model"""
+    """Get current user data for video chat app"""
     user_id = get_jwt_identity()
-    role = get_jwt()['role']
-
-    # Handle both old and new user systems during transition
-    if role == 'mentor':
-        # Check deprecated mentor table first
-        mentor = Mentor.query.get(user_id)
-        if mentor:
-            return jsonify(role="mentor", user_data=mentor.serialize())
-        # Then check new user table
-        user = User.query.get(user_id)
-        if user:
-            return jsonify(role="user", user_data=user.serialize())
     
-    if role == 'customer':
-        # Check deprecated customer table first
-        customer = Customer.query.get(user_id)
-        if customer:
-            return jsonify(role="customer", user_data=customer.serialize())
-        # Then check new user table
-        user = User.query.get(user_id)
-        if user:
-            return jsonify(role="user", user_data=user.serialize())
+    user = User.query.get(user_id)
+    if user is None:
+        return jsonify({"msg": "No user with this ID exists."}), 404
     
-    # New unified user role
-    if role == 'user':
-        user = User.query.get(user_id)
-        if user is None:
-            return jsonify({"msg": "No user with this ID exists."}), 404
-        return jsonify(role="user", user_data=user.serialize())
-
-    return jsonify({"msg": "User not found."}), 404
+    return jsonify(role="user", user_data=user.serialize())
 
 
 # NEW: User Registration/Login (simplified, unified)
 @api.route('/register', methods=['POST'])
 def user_register():
     """Unified user registration for video chat app"""
-    
+
     email = request.json.get("email", None)
     password = request.json.get("password", None)
     first_name = request.json.get("first_name", None)
@@ -136,7 +111,7 @@ def user_register():
         email=email, 
         password=generate_password_hash(password), 
         first_name=first_name, 
-        last_name=last_name,
+        last_name=last_name, 
         phone=phone,
         is_verified=False,
         verification_code=verification_code,
@@ -193,7 +168,7 @@ def create_video_session():
     """Create a new video chat session"""
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-    
+
     if not user:
         return jsonify({"msg": "User not found"}), 404
     
@@ -335,7 +310,7 @@ def get_session_status(meeting_id):
     if session.expires_at < datetime.utcnow() and session.status == 'active':
         session.status = 'expired'
         db.session.commit()
-    
+
     time_remaining = max(0, int((session.expires_at - datetime.utcnow()).total_seconds() / 60))
     
     return jsonify({
@@ -447,27 +422,22 @@ def verify_code():
     if not email or not code:
         return jsonify({"msg": "Email and code are required"}), 400
 
-    # Check both old and new user systems
-    mentor = Mentor.query.filter_by(email=email).first()
-    customer = Customer.query.filter_by(email=email).first()
+    # Check user in new unified system
     user = User.query.filter_by(email=email).first()
 
-    found_user = mentor or customer or user
-    user_type = 'mentor' if mentor else ('customer' if customer else 'user')
-
-    if not found_user:
+    if not user:
         return jsonify({"msg": "User not found"}), 404
     
     # Developer bypass code
     if code == "999000":
-        found_user.is_verified = True
-        found_user.verification_code = None
+        user.is_verified = True
+        user.verification_code = None
         db.session.commit()
         return jsonify({"msg": "Email verified successfully"}), 200
 
-    if found_user.verification_code == code:
-        found_user.is_verified = True
-        found_user.verification_code = None
+    if user.verification_code == code:
+        user.is_verified = True
+        user.verification_code = None
         db.session.commit()
         return jsonify({"msg": "Email verified successfully"}), 200
     else:
@@ -558,7 +528,7 @@ def google_oauth_initiate():
         
         # Create signed state for security
         state_data = {
-            'user_type': user_type,
+        'user_type': user_type,
             'oauth_type': 'google',
             'timestamp': datetime.utcnow().isoformat()
         }
@@ -813,9 +783,9 @@ def github_oauth_callback():
                 'https://api.github.com/user/emails',
                 headers={'Authorization': f"token {token_result['access_token']}"}
             )
-            emails = email_response.json()
-            primary_email = next((email['email'] for email in emails if email['primary']), None)
-            user_data['email'] = primary_email
+        emails = email_response.json()
+        primary_email = next((email['email'] for email in emails if email['primary']), None)
+        user_data['email'] = primary_email
         
         if not user_data.get('email'):
             return redirect(f"{os.getenv('FRONTEND_URL')}/?github_auth=error&error=no_email")
@@ -890,7 +860,7 @@ def mvp_google_oauth_initiate():
             'timestamp': datetime.utcnow().isoformat()
         }
         state = create_mvp_signed_state(state_data)
-        
+    
         # Use MVP Google credentials
         google_auth_url = (
             f"https://accounts.google.com/o/oauth2/auth?"
@@ -1012,7 +982,7 @@ def mvp_github_oauth_initiate():
             'timestamp': datetime.utcnow().isoformat()
         }
         state = create_mvp_signed_state(state_data)
-        
+    
         # Use MVP GitHub credentials
         github_auth_url = (
             f"https://github.com/login/oauth/authorize?"
@@ -1089,9 +1059,9 @@ def mvp_github_oauth_callback():
                 'https://api.github.com/user/emails',
                 headers={'Authorization': f"token {token_result['access_token']}"}
             )
-            emails = email_response.json()
-            primary_email = next((email['email'] for email in emails if email['primary']), None)
-            user_data['email'] = primary_email
+        emails = email_response.json()
+        primary_email = next((email['email'] for email in emails if email['primary']), None)
+        user_data['email'] = primary_email
         
         if not user_data.get('email'):
             return redirect(f"{os.getenv('FRONTEND_URL')}/?mvp_github_auth=error&error=no_email")
