@@ -3,17 +3,17 @@ import { MeetingProvider, useMeeting, useParticipant, Constants, MeetingConsumer
 
 function ParticipantView({ participantId, viewMode = 'normal', isLocal = false }) {
     const micRef = React.useRef(null);
-    const { 
-        webcamStream, 
-        micStream, 
-        webcamOn, 
-        micOn, 
+    const {
+        webcamStream,
+        micStream,
+        webcamOn,
+        micOn,
         displayName,
         screenShareStream,
         screenShareOn,
         isPresenter
     } = useParticipant(participantId);
-    
+
     const videoRef = React.useRef(null);
     const screenShareRef = React.useRef(null);
 
@@ -57,7 +57,7 @@ function ParticipantView({ participantId, viewMode = 'normal', isLocal = false }
             const mediaStream = new MediaStream();
             mediaStream.addTrack(webcamStream.track);
             videoRef.current.srcObject = mediaStream;
-            
+
             videoRef.current.play().catch(error => {
                 console.error(`❌ ParticipantView [${participantId}] Error playing webcam video:`, error);
             });
@@ -74,7 +74,7 @@ function ParticipantView({ participantId, viewMode = 'normal', isLocal = false }
             const mediaStream = new MediaStream();
             mediaStream.addTrack(screenShareStream.track);
             screenShareRef.current.srcObject = mediaStream;
-            
+
             screenShareRef.current.play().catch(error => {
                 console.error(`❌ ParticipantView [${participantId}] Error playing screen share video:`, error);
             });
@@ -88,7 +88,7 @@ function ParticipantView({ participantId, viewMode = 'normal', isLocal = false }
     if ((viewMode === 'screenShare' || viewMode === 'pinned') && isScreenSharing && screenShareStream) {
         console.log(`🖥️ ParticipantView [${participantId}] Rendering SCREEN SHARE mode`);
         return (
-            <div className="screen-share-view" style={{ 
+            <div className="screen-share-view" style={{
                 width: '100%',
                 height: '100%',
                 position: 'relative',
@@ -109,7 +109,7 @@ function ParticipantView({ participantId, viewMode = 'normal', isLocal = false }
                         backgroundColor: '#000'
                     }}
                 />
-                
+
                 {/* Screen share indicator */}
                 <div style={{
                     position: 'absolute',
@@ -125,7 +125,7 @@ function ParticipantView({ participantId, viewMode = 'normal', isLocal = false }
                 }}>
                     🖥️ {displayName || 'Participant'} is sharing screen
                 </div>
-                
+
                 {/* Audio element for remote participants */}
                 {!isLocal && (
                     <audio
@@ -210,7 +210,7 @@ function ParticipantView({ participantId, viewMode = 'normal', isLocal = false }
                     {displayName?.charAt(0).toUpperCase() || 'U'}
                 </div>
             )}
-            
+
             {/* Participant info overlay */}
             <div style={{
                 position: 'absolute',
@@ -229,7 +229,7 @@ function ParticipantView({ participantId, viewMode = 'normal', isLocal = false }
                 {displayName || 'Participant'} {isLocal && '(You)'}
                 {!micOn && ' 🔇'}
             </div>
-            
+
             {/* Audio element for remote participants */}
             {!isLocal && (
                 <audio
@@ -257,18 +257,18 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
     const dragStartPos = useRef({ x: 0, y: 0 });
     const panStartPos = useRef({ x: 0, y: 0 });
     const mainContentRef = useRef(null);
-    
+
     // Refs for intervals
     const tokenRefreshInterval = useRef(null);
     const connectionCheckInterval = useRef(null);
-    
-    const { 
-        join, 
-        leave, 
-        toggleMic, 
-        toggleWebcam, 
+
+    const {
+        join,
+        leave,
+        toggleMic,
+        toggleWebcam,
         toggleScreenShare,
-        participants, 
+        participants,
         localScreenShareOn,
         localMicOn,
         localWebcamOn,
@@ -289,7 +289,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         },
         onPresenterChanged: (_presenterId) => {
             console.log("🖥️ PRESENTER CHANGED:", _presenterId);
-            
+
             // Reset view mode and zoom when screen sharing stops
             if (!_presenterId) {
                 console.log("🔄 Screen sharing stopped, resetting view mode and zoom");
@@ -300,7 +300,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         },
         onError: (error) => {
             console.error("❌ MEETING ERROR:", error);
-            
+
             // Only show connection error for actual connection issues
             if (error.message && (
                 error.message.includes('token') ||
@@ -309,7 +309,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                 error.message.includes('disconnected')
             )) {
                 setConnectionStatus('error');
-                
+
                 if (error.message.includes('token')) {
                     console.log("🔑 Token-related error detected, refreshing...");
                     setTokenExpiryWarning(true);
@@ -340,10 +340,10 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
     const handlePresenterDoubleClick = useCallback((e) => {
         // Prevent double-click from interfering with pan
         if (isPanning) return;
-        
+
         const isScreenShareActive = !!presenterId;
         if (!isScreenShareActive) return; // Only work during screen share
-        
+
         // Cycle through view modes
         if (viewMode === 'default') {
             setViewMode('expanded');
@@ -365,18 +365,18 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
     // Handle zoom with mouse wheel
     const handleWheel = useCallback((e) => {
         if (viewMode !== 'fullscreen' || !presenterId) return;
-        
+
         e.preventDefault();
         const delta = e.deltaY > 0 ? 0.9 : 1.1;
         const newZoom = Math.max(1, Math.min(4, zoomLevel * delta));
-        
+
         if (newZoom !== zoomLevel) {
             // Calculate zoom origin based on mouse position
             const rect = mainContentRef.current?.getBoundingClientRect();
             if (rect) {
                 const x = (e.clientX - rect.left) / rect.width;
                 const y = (e.clientY - rect.top) / rect.height;
-                
+
                 // Adjust pan to keep the zoom centered on cursor
                 const zoomRatio = newZoom / zoomLevel;
                 setPanOffset(prev => ({
@@ -384,7 +384,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                     y: prev.y * zoomRatio + (1 - zoomRatio) * (y - 0.5) * rect.height
                 }));
             }
-            
+
             setZoomLevel(newZoom);
         }
     }, [viewMode, presenterId, zoomLevel]);
@@ -392,10 +392,10 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
     // Handle pan start
     const handlePanStart = useCallback((e) => {
         if (viewMode !== 'fullscreen' || zoomLevel <= 1 || !presenterId) return;
-        
+
         // Only start pan with left mouse button
         if (e.button !== 0) return;
-        
+
         setIsPanning(true);
         panStartPos.current = {
             x: e.clientX - panOffset.x,
@@ -407,16 +407,16 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
     // Handle pan move
     const handlePanMove = useCallback((e) => {
         if (!isPanning) return;
-        
+
         const newX = e.clientX - panStartPos.current.x;
         const newY = e.clientY - panStartPos.current.y;
-        
+
         // Calculate boundaries based on zoom level
         const rect = mainContentRef.current?.getBoundingClientRect();
         if (rect) {
             const maxPanX = (rect.width * (zoomLevel - 1)) / 2;
             const maxPanY = (rect.height * (zoomLevel - 1)) / 2;
-            
+
             setPanOffset({
                 x: Math.max(-maxPanX, Math.min(maxPanX, newX)),
                 y: Math.max(-maxPanY, Math.min(maxPanY, newY))
@@ -455,14 +455,14 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
     // Handle drag move
     const handleDragMove = useCallback((e) => {
         if (!isDragging) return;
-        
+
         const newX = e.clientX - dragStartPos.current.x;
         const newY = e.clientY - dragStartPos.current.y;
-        
+
         // Boundary constraints
         const maxX = window.innerWidth - 250; // Assuming 250px width for overlay
         const maxY = window.innerHeight - 300; // Assuming 300px height for overlay
-        
+
         setOverlayPosition({
             x: Math.max(0, Math.min(newX, maxX)),
             y: Math.max(0, Math.min(newY, maxY))
@@ -479,7 +479,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         if (isDragging) {
             document.addEventListener('mousemove', handleDragMove);
             document.addEventListener('mouseup', handleDragEnd);
-            
+
             return () => {
                 document.removeEventListener('mousemove', handleDragMove);
                 document.removeEventListener('mouseup', handleDragEnd);
@@ -492,7 +492,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         if (isPanning) {
             document.addEventListener('mousemove', handlePanMove);
             document.addEventListener('mouseup', handlePanEnd);
-            
+
             return () => {
                 document.removeEventListener('mousemove', handlePanMove);
                 document.removeEventListener('mouseup', handlePanEnd);
@@ -528,19 +528,19 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         connectionCheckInterval.current = setInterval(() => {
             const participantCount = participants.size;
             const hasLocalParticipant = !!localParticipant;
-            
+
             console.log("📡 Connection check:", {
                 participantCount,
                 hasLocalParticipant,
                 connectionStatus
             });
-            
+
             // Only reset to connected if we were in error state and things look good
             if (connectionStatus === 'error' && hasLocalParticipant) {
                 console.log("✅ Connection appears to be restored");
                 setConnectionStatus('connected');
             }
-            
+
         }, 60000); // Check every 60 seconds instead of 30
     }, [participants, connectionStatus, localParticipant]);
 
@@ -549,7 +549,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         try {
             console.log("🔑 Starting token refresh...");
             setTokenExpiryWarning(true);
-            
+
             const response = await fetch(`${process.env.BACKEND_URL}/api/videosdk/refresh-token/${meetingId}`, {
                 method: 'POST',
                 headers: {
@@ -562,7 +562,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                 if (data.success) {
                     console.log("✅ Token refreshed successfully");
                     setTokenExpiryWarning(false);
-                    
+
                     if (onTokenRefresh) {
                         onTokenRefresh(data.token);
                     }
@@ -583,7 +583,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                     setConnectionStatus('connected');
                 }
             }, 10000);
-            
+
             return () => clearTimeout(timeout);
         }
     }, [connectionStatus, localParticipant, participants.size]);
@@ -604,18 +604,18 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
     // Handle screen share
     const handleScreenShare = async () => {
         console.log("🖥️ SCREEN SHARE BUTTON CLICKED");
-        
+
         try {
             setScreenShareError(null);
-            
+
             if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
                 throw new Error('Screen sharing is not supported in this browser');
             }
-            
+
             console.log("🔄 Calling toggleScreenShare()...");
             await toggleScreenShare();
             console.log("✅ toggleScreenShare() completed");
-            
+
         } catch (error) {
             console.error("❌ SCREEN SHARE ERROR:", error);
             setScreenShareError(error.message || 'Failed to toggle screen share');
@@ -630,7 +630,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         return (
             <div className="d-flex flex-column align-items-center justify-content-center" style={{ height: '80vh' }}>
                 <h3 className="mb-4">Ready to join the meeting?</h3>
-                
+
                 {connectionStatus === 'connecting' && (
                     <div className="alert alert-info mb-3">
                         <div className="d-flex align-items-center">
@@ -639,8 +639,8 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                         </div>
                     </div>
                 )}
-                
-                <button 
+
+                <button
                     className="btn btn-primary btn-lg"
                     onClick={joinMeeting}
                     disabled={joined === 'JOINING'}
@@ -662,25 +662,25 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
     const getLayoutConfig = () => {
         const participantArray = [...participants.values()];
         const isScreenShareActive = !!presenterId;
-        
+
         console.log("🎨 LAYOUT CALCULATION:", {
             isScreenShareActive,
             presenterId: presenterId,
             participantCount: participantArray.length
         });
-        
+
         if (isScreenShareActive) {
             // Find the presenter
             let presenter = participantArray.find(p => p.id === presenterId);
-            
+
             // If presenter is local participant
             if (!presenter && localParticipant && localParticipant.id === presenterId) {
                 presenter = localParticipant;
             }
-            
+
             // Create sidebar list including all participants
             const sidebarParticipants = [...participantArray];
-            
+
             // Add local participant if not in the list
             if (localParticipant && !participantArray.find(p => p.id === localParticipant.id)) {
                 sidebarParticipants.unshift({
@@ -688,7 +688,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                     displayName: userName + " (You)"
                 });
             }
-            
+
             return {
                 type: 'screenShare',
                 pinnedParticipant: presenter,
@@ -698,7 +698,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             // Regular layout
             const pinnedParticipant = participantArray[0];
             const sidebarParticipants = [];
-            
+
             // Add local participant to sidebar
             if (localParticipant) {
                 sidebarParticipants.push({
@@ -706,10 +706,10 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                     displayName: userName + " (You)"
                 });
             }
-            
+
             // Add other participants
             sidebarParticipants.push(...participantArray.slice(1));
-            
+
             return {
                 type: 'regular',
                 pinnedParticipant,
@@ -722,42 +722,42 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
     const getLayoutDimensions = () => {
         const isScreenShareActive = !!presenterId;
         const controlsHeight = 80; // Approximate height of bottom controls
-        
+
         if (!isScreenShareActive) {
             // No screen share, always use default layout
-            return { 
-                mainWidth: '75%', 
-                sidebarWidth: '25%', 
+            return {
+                mainWidth: '75%',
+                sidebarWidth: '25%',
                 overlayMode: false,
                 mainHeight: `calc(100vh - ${controlsHeight}px)`,
                 sidebarHeight: `calc(100vh - ${controlsHeight}px)`
             };
         }
-        
+
         switch (viewMode) {
             case 'expanded':
                 // Expand both horizontally AND vertically for better use of space
-                return { 
-                    mainWidth: '85%', 
-                    sidebarWidth: '15%', 
+                return {
+                    mainWidth: '85%',
+                    sidebarWidth: '15%',
                     overlayMode: false,
                     mainHeight: `calc(100vh - ${controlsHeight}px)`,
                     sidebarHeight: `calc(100vh - ${controlsHeight}px)`
                 };
             case 'fullscreen':
                 // Use absolute positioning to cover the entire viewport
-                return { 
-                    mainWidth: '100vw', 
-                    sidebarWidth: '250px', 
+                return {
+                    mainWidth: '100vw',
+                    sidebarWidth: '250px',
                     overlayMode: true,
                     mainHeight: '100vh',  // Full height, will layer over controls
                     sidebarHeight: 'auto',
                     isAbsoluteFullscreen: true
                 };
             default:
-                return { 
-                    mainWidth: '75%', 
-                    sidebarWidth: '25%', 
+                return {
+                    mainWidth: '75%',
+                    sidebarWidth: '25%',
                     overlayMode: false,
                     mainHeight: `calc(100vh - ${controlsHeight}px)`,
                     sidebarHeight: `calc(100vh - ${controlsHeight}px)`
@@ -778,14 +778,14 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                         {tokenExpiryWarning && (
                             <div className="alert alert-warning alert-dismissible fade show mb-1" role="alert">
                                 <small>🔄 Refreshing connection token...</small>
-                                <button 
-                                    type="button" 
-                                    className="btn-close btn-close-sm" 
+                                <button
+                                    type="button"
+                                    className="btn-close btn-close-sm"
                                     onClick={() => setTokenExpiryWarning(false)}
                                 ></button>
                             </div>
                         )}
-                        
+
                         {connectionStatus === 'error' && (
                             <div className="alert alert-danger mb-1" role="alert">
                                 <small>⚠️ Connection issue detected. Attempting to reconnect...</small>
@@ -795,9 +795,9 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                         {screenShareError && (
                             <div className="alert alert-warning alert-dismissible fade show mb-1" role="alert">
                                 <small>🖥️ {screenShareError}</small>
-                                <button 
-                                    type="button" 
-                                    className="btn-close btn-close-sm" 
+                                <button
+                                    type="button"
+                                    className="btn-close btn-close-sm"
                                     onClick={() => setScreenShareError(null)}
                                 ></button>
                             </div>
@@ -807,7 +807,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             )}
 
             {/* Meeting Controls - FIXED: Higher z-index for fullscreen mode */}
-            <div className="position-fixed bottom-0 start-0 end-0 bg-dark bg-opacity-90 p-3" style={{ 
+            <div className="position-fixed bottom-0 start-0 end-0 bg-dark bg-opacity-90 p-3" style={{
                 zIndex: layoutDimensions.isAbsoluteFullscreen ? 1050 : 1040  // Ensure controls stay on top
             }}>
                 <div className="d-flex justify-content-center align-items-center flex-wrap gap-3">
@@ -830,9 +830,9 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                         onClick={handleScreenShare}
                         disabled={isSomeoneElsePresenting}
                         title={
-                            isLocalPresenting ? 'Stop Screen Sharing' : 
-                            isSomeoneElsePresenting ? 'Someone else is presenting' : 
-                            'Start Screen Sharing'
+                            isLocalPresenting ? 'Stop Screen Sharing' :
+                                isSomeoneElsePresenting ? 'Someone else is presenting' :
+                                    'Start Screen Sharing'
                         }
                     >
                         {isLocalPresenting ? (
@@ -857,28 +857,27 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                     >
                         📞 Leave
                     </button>
-                    
+
                     {/* Connection status */}
                     <div className="d-flex align-items-center gap-2">
-                        <span className={`badge ${
-                            connectionStatus === 'connected' ? 'bg-success' : 
+                        <span className={`badge ${connectionStatus === 'connected' ? 'bg-success' :
                             connectionStatus === 'connecting' ? 'bg-warning' : 'bg-danger'
-                        }`}>
-                            {connectionStatus === 'connected' ? '🟢' : 
-                             connectionStatus === 'connecting' ? '🟡' : '🔴'}
+                            }`}>
+                            {connectionStatus === 'connected' ? '🟢' :
+                                connectionStatus === 'connecting' ? '🟡' : '🔴'}
                         </span>
-                        
+
                         {presenterId && (
                             <span className="badge bg-info">
                                 🖥️ Screen Active
                             </span>
                         )}
-                        
+
                         {/* View mode indicator for screen sharing */}
                         {presenterId && (
                             <span className="badge bg-secondary">
-                                {viewMode === 'default' ? '📱 Default' : 
-                                 viewMode === 'expanded' ? '📺 Expanded' : '🖥️ Fullscreen'}
+                                {viewMode === 'default' ? '📱 Default' :
+                                    viewMode === 'expanded' ? '📺 Expanded' : '🖥️ Fullscreen'}
                             </span>
                         )}
                     </div>
@@ -886,16 +885,16 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             </div>
 
             {/* Main Meeting Layout */}
-            <div className="d-flex h-100" style={{ 
+            <div className="d-flex h-100" style={{
                 position: 'relative',
                 height: layoutDimensions.isAbsoluteFullscreen ? '100vh' : `calc(100vh - 80px)` // Account for controls
             }}>
                 {/* Main Content Area - FIXED: Better height and width management */}
-                <div 
+                <div
                     ref={mainContentRef}
-                    className="flex-grow-1" 
-                    style={{ 
-                        width: layoutDimensions.mainWidth, 
+                    className="flex-grow-1"
+                    style={{
+                        width: layoutDimensions.mainWidth,
                         height: layoutDimensions.mainHeight,
                         transition: 'width 0.3s ease',
                         overflow: 'hidden',
@@ -919,8 +918,8 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                         }}
                     >
                         {layoutConfig.pinnedParticipant ? (
-                            <ParticipantView 
-                                participantId={layoutConfig.pinnedParticipant.id} 
+                            <ParticipantView
+                                participantId={layoutConfig.pinnedParticipant.id}
                                 viewMode={layoutConfig.type === 'screenShare' ? 'screenShare' : 'pinned'}
                                 isLocal={localParticipant && layoutConfig.pinnedParticipant.id === localParticipant.id}
                             />
@@ -936,10 +935,10 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                             </div>
                         )}
                     </div>
-                    
+
                     {/* Zoom Controls */}
                     {viewMode === 'fullscreen' && presenterId && (
-                        <div 
+                        <div
                             className="position-absolute"
                             style={{
                                 bottom: '20px',
@@ -962,10 +961,10 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                             >
                                 ➖
                             </button>
-                            <span 
-                                className="text-white" 
-                                style={{ 
-                                    minWidth: '50px', 
+                            <span
+                                className="text-white"
+                                style={{
+                                    minWidth: '50px',
                                     textAlign: 'center',
                                     fontSize: '14px',
                                     userSelect: 'none'
@@ -993,10 +992,10 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                             </button>
                         </div>
                     )}
-                    
+
                     {/* View Mode Toggle Hint */}
                     {presenterId && viewMode !== 'fullscreen' && (
-                        <div 
+                        <div
                             className="position-absolute"
                             style={{
                                 top: '20px',
@@ -1016,10 +1015,10 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                 </div>
 
                 {/* Sidebar - Regular or Overlay mode - FIXED: Better responsive sizing */}
-                <div 
+                <div
                     className={`bg-dark d-flex flex-column ${layoutDimensions.overlayMode ? 'position-fixed' : ''}`}
-                    style={{ 
-                        width: layoutDimensions.overlayMode ? '250px' : layoutDimensions.sidebarWidth, 
+                    style={{
+                        width: layoutDimensions.overlayMode ? '250px' : layoutDimensions.sidebarWidth,
                         height: layoutDimensions.overlayMode ? 'auto' : layoutDimensions.sidebarHeight,
                         maxHeight: layoutDimensions.overlayMode ? '80vh' : '100%',
                         padding: '8px',
@@ -1040,7 +1039,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                     onMouseDown={layoutDimensions.overlayMode ? handleDragStart : undefined}
                 >
                     {/* Sidebar Content - FIXED: Better spacing and sizing */}
-                    <div className="flex-grow-1" style={{ 
+                    <div className="flex-grow-1" style={{
                         minHeight: 0,
                         display: 'flex',
                         flexDirection: 'column',
@@ -1049,23 +1048,23 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                         {layoutConfig.sidebarParticipants && layoutConfig.sidebarParticipants.map((participant, index) => (
                             <div key={participant.id || index} style={{
                                 // Adjust participant size based on view mode
-                                height: layoutDimensions.overlayMode ? '100px' : 
-                                       (viewMode === 'expanded' ? '140px' : '120px')
+                                height: layoutDimensions.overlayMode ? '100px' :
+                                    (viewMode === 'expanded' ? '140px' : '120px')
                             }}>
-                                <ParticipantView 
-                                    participantId={participant.id} 
+                                <ParticipantView
+                                    participantId={participant.id}
                                     viewMode="sidebar"
                                     isLocal={localParticipant && participant.id === localParticipant.id}
                                 />
                             </div>
                         ))}
                     </div>
-                    
+
                     {/* Meeting info at bottom */}
                     <div className="mt-2 pt-2 border-top border-secondary">
                         <div className="text-light small text-center">
                             <div className="mb-1">
-                                <MeetingTimer />
+                                <MeetingTimer meetingId={meetingId} />
                             </div>
                             <div className="text-muted" style={{ fontSize: '10px' }}>
                                 {participants.size + (localParticipant ? 1 : 0)} participant{participants.size !== 0 ? 's' : ''}
@@ -1083,32 +1082,86 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
     );
 }
 
-// Meeting Timer Component
-function MeetingTimer() {
+// Enhanced Meeting Timer Component with Session Limits
+function MeetingTimer({ meetingId }) {
     const [duration, setDuration] = useState(0);
-    
+    const [sessionData, setSessionData] = useState(null);
+    const [timeLeft, setTimeLeft] = useState(null);
+
     useEffect(() => {
+        // Fetch session information
+        const fetchSessionData = async () => {
+            if (meetingId) {
+                try {
+                    const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/session-status/${meetingId}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        setSessionData(data);
+                    }
+                } catch (error) {
+                    console.error('Error fetching session data:', error);
+                }
+            }
+        };
+
+        fetchSessionData();
+
         const startTime = Date.now();
         const interval = setInterval(() => {
             const elapsed = Math.floor((Date.now() - startTime) / 1000);
             setDuration(elapsed);
+
+            // Calculate time left based on session limits
+            if (sessionData) {
+                const maxDurationSeconds = sessionData.max_duration_minutes * 60;
+                const remainingSeconds = Math.max(0, maxDurationSeconds - elapsed);
+                setTimeLeft(remainingSeconds);
+
+                // Auto-end meeting when time expires
+                if (remainingSeconds <= 0) {
+                    alert('⏰ Session time limit reached. The meeting will now end.');
+                    // You could call onMeetingLeave here if passed as prop
+                }
+            }
         }, 1000);
-        
+
         return () => clearInterval(interval);
-    }, []);
-    
+    }, [meetingId, sessionData]);
+
     const formatTime = (seconds) => {
         const hrs = Math.floor(seconds / 3600);
         const mins = Math.floor((seconds % 3600) / 60);
         const secs = seconds % 60;
-        
+
         if (hrs > 0) {
             return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         }
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
-    
-    return <span>{formatTime(duration)}</span>;
+
+    const getTimerColor = () => {
+        if (timeLeft === null) return 'text-light';
+        if (timeLeft < 300) return 'text-danger'; // Last 5 minutes
+        if (timeLeft < 900) return 'text-warning'; // Last 15 minutes
+        return 'text-success';
+    };
+
+    return (
+        <div className="text-center">
+            <div className="small text-light">
+                Meeting: {formatTime(duration)}
+            </div>
+            {timeLeft !== null && sessionData && (
+                <div className={`small ${getTimerColor()}`}>
+                    <span className="me-1">⏰</span>
+                    {Math.floor(timeLeft / 3600)}h {Math.floor((timeLeft % 3600) / 60)}m left
+                    <div style={{ fontSize: '10px' }} className="text-muted">
+                        {sessionData.max_duration_minutes === 360 ? 'Premium' : 'Free'} Session
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 }
 
 const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
@@ -1127,7 +1180,7 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
 
     useEffect(() => {
         console.log("⚙️ Setting up meeting config");
-        
+
         setMeetingConfig({
             meetingId,
             micEnabled: true,
@@ -1154,24 +1207,24 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
                 <div className="text-center">
                     <h3 className="mb-3">Meeting Ended</h3>
                     <p className="text-muted mb-4">Thank you for participating in the session!</p>
-                    
+
                     <div className="d-flex gap-2 justify-content-center">
-                        <button 
+                        <button
                             className="btn btn-primary"
                             onClick={() => window.location.href = '/customer-dashboard'}
                         >
                             Customer Dashboard
                         </button>
-                        <button 
+                        <button
                             className="btn btn-secondary"
                             onClick={() => window.location.href = '/mentor-dashboard'}
                         >
                             Mentor Dashboard
                         </button>
                     </div>
-                    
+
                     <div className="mt-3">
-                        <button 
+                        <button
                             className="btn btn-outline-primary btn-sm"
                             onClick={() => window.location.reload()}
                         >
@@ -1189,7 +1242,7 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
             hasCurrentToken: !!currentToken,
             hasMeetingConfig: !!meetingConfig
         });
-        
+
         return (
             <div className="d-flex flex-column align-items-center justify-content-center" style={{ height: '100vh' }}>
                 <div className="text-center">
@@ -1220,8 +1273,8 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
                     {() => {
                         console.log("🎬 MeetingConsumer: Rendering MeetingView");
                         return (
-                            <MeetingView 
-                                onMeetingLeave={onMeetingLeave} 
+                            <MeetingView
+                                onMeetingLeave={onMeetingLeave}
                                 meetingId={meetingId}
                                 onTokenRefresh={handleTokenRefresh}
                                 userName={userName}
@@ -1233,7 +1286,7 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
             </MeetingProvider>
         </div>
     );
-    
+
 };
 
 export default VideoMeeting;

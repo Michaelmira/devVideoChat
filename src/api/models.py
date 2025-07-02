@@ -11,25 +11,31 @@ import datetime
 
 db = SQLAlchemy()
 
-    
-class Customer(db.Model):
+# Renamed Customer to User, added subscription fields
+class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(30), unique=False, nullable=False)
     last_name = db.Column(db.String(30), unique=False, nullable=False)
     phone = db.Column(db.String(30), nullable=False, index=True)
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     password = db.Column(db.String(256), unique=False, nullable=False)
-    is_active = db.Column(db.Boolean(), unique=False,)
+    is_active = db.Column(db.Boolean(), unique=False, default=True)
     last_active = db.Column(db.DateTime(timezone=True), unique=False)
     date_joined = db.Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
     about_me = db.Column(db.String(2500), unique=False)
     is_verified = db.Column(db.Boolean(), default=False, nullable=False)
     verification_code = db.Column(db.String(6), nullable=True)
 
-    profile_photo = db.relationship("CustomerImage", back_populates="customer", uselist=False)
+    # Add subscription fields
+    subscription_status = db.Column(db.String(50), default='free')  # free, premium
+    stripe_customer_id = db.Column(db.String(255))
+    subscription_id = db.Column(db.String(255))
+    current_period_end = db.Column(DateTime(timezone=True))
+
+    profile_photo = db.relationship("UserImage", back_populates="user", uselist=False)
 
     def __repr__(self):
-        return f'<Customer {self.email}>'
+        return f'<User {self.email}>'
 
     def serialize(self):
         return {
@@ -44,28 +50,112 @@ class Customer(db.Model):
             "profile_photo": self.profile_photo.serialize() if self.profile_photo else None,
             "about_me": self.about_me,
             "is_verified": self.is_verified,
+            "subscription_status": self.subscription_status,
+            "current_period_end": self.current_period_end.isoformat() if self.current_period_end else None,
         }
     
-class CustomerImage(db.Model):
-    """Profile face image to be uploaded by the customer """
+class UserImage(db.Model):
+    """Profile face image to be uploaded by the user"""
     id = db.Column(db.Integer, primary_key=True)
     public_id = db.Column(db.String(500), nullable=False, unique=True)
     image_url = db.Column(db.String(500), nullable=False, unique=True)
-    customer_id = db.Column(db.Integer, db.ForeignKey("customer.id"), nullable=False, unique=True)
-    customer = db.relationship("Customer", back_populates="profile_photo", uselist=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, unique=True)
+    user = db.relationship("User", back_populates="profile_photo", uselist=False)
 
-    def __init__(self, public_id, image_url, customer_id):
+    def __init__(self, public_id, image_url, user_id):
         self.public_id = public_id
         self.image_url = image_url.strip()
-        self.customer_id = customer_id
+        self.user_id = user_id
 
     def serialize(self):
         return {
             "id": self.id,
             "image_url": self.image_url
         }
+
+# New VideoSession Model
+class VideoSession(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    creator_id = db.Column(db.Integer, ForeignKey('user.id'), nullable=False)
+    meeting_id = db.Column(db.String(255), unique=True, nullable=False)
+    session_url = db.Column(db.String(500), nullable=False)
+    created_at = db.Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
+    expires_at = db.Column(DateTime(timezone=True), nullable=False)  # +6 hours
+    max_duration_minutes = db.Column(db.Integer, default=50)  # 50 or 360
+    started_at = db.Column(DateTime(timezone=True))
+    status = db.Column(db.String(20), default='active')  # active, expired, ended
     
+    # VideoSDK fields
+    meeting_token = db.Column(db.Text, nullable=True)
+    recording_url = db.Column(db.String(500), nullable=True)
+    
+    creator = relationship("User", backref=db.backref("video_sessions", lazy=True))
+
+    def __repr__(self):
+        return f'<VideoSession {self.meeting_id} - Creator: {self.creator_id} Status: {self.status}>'
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "meeting_id": self.meeting_id,
+            "session_url": self.session_url,
+            "created_at": self.created_at.isoformat(),
+            "expires_at": self.expires_at.isoformat(),
+            "max_duration_minutes": self.max_duration_minutes,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "status": self.status,
+            "creator_name": f"{self.creator.first_name} {self.creator.last_name}" if self.creator else "Unknown",
+            "has_recording": bool(self.recording_url)
+        }
+
+# Keep these models for backward compatibility during migration
+# TODO: Remove these after migration is complete
+class Customer(db.Model):
+    __tablename__ = 'customer_deprecated'
+    id = db.Column(db.Integer, primary_key=True)
+    first_name = db.Column(db.String(30), unique=False, nullable=False)
+    last_name = db.Column(db.String(30), unique=False, nullable=False)
+    phone = db.Column(db.String(30), nullable=False, index=True)
+    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    password = db.Column(db.String(256), unique=False, nullable=False)
+    is_active = db.Column(db.Boolean(), unique=False,)
+    last_active = db.Column(db.DateTime(timezone=True), unique=False)
+    date_joined = db.Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
+    about_me = db.Column(db.String(2500), unique=False)
+    is_verified = db.Column(db.Boolean(), default=False, nullable=False)
+    verification_code = db.Column(db.String(6), nullable=True)
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
+            "phone": self.phone,
+            "email": self.email,
+            "is_active": self.is_active,
+            "last_active": self.last_active,
+            "date_joined": self.date_joined,
+            "about_me": self.about_me,
+            "is_verified": self.is_verified,
+        }
+
+# TODO: Remove these models after migration
+class CustomerImage(db.Model):
+    __tablename__ = 'customer_image_deprecated'
+    id = db.Column(db.Integer, primary_key=True)
+    public_id = db.Column(db.String(500), nullable=False, unique=True)
+    image_url = db.Column(db.String(500), nullable=False, unique=True)
+    customer_id = db.Column(db.Integer, db.ForeignKey("customer_deprecated.id"), nullable=False, unique=True)
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "image_url": self.image_url
+        }
+
+# TODO: Remove all these Mentor-related models after migration
 class Mentor(db.Model):
+    __tablename__ = 'mentor_deprecated'
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     is_active = db.Column(db.Boolean, default=True)
@@ -88,16 +178,9 @@ class Mentor(db.Model):
     verification_code = db.Column(db.String(6), nullable=True)
     linkedin_url = db.Column(db.String(500), nullable=True)
     github_url = db.Column(db.String(500), nullable=True)
-    
-    profile_photo = db.relationship("MentorImage", back_populates="mentor", uselist=False)
-    portfolio_photos = db.relationship("PortfolioPhoto", back_populates="mentor")
     stripe_account_id = db.Column(db.String(255), unique=True, nullable=True)
 
-    def __repr__(self):
-        return f'<Mentor {self.email}>'
-
     def serialize(self):
-
         return {
             "id": self.id,
             "email": self.email,
@@ -113,32 +196,22 @@ class Mentor(db.Model):
             "country": self.country,
             "years_exp": self.years_exp,
             "skills": [skill for skill in self.skills] if self.skills is not None else [],
-            "profile_photo": self.profile_photo.serialize() if self.profile_photo else None,
-            "portfolio_photos": [portfolio_photo.serialize() for portfolio_photo in self.portfolio_photos] if self.portfolio_photos is not None else [],
             "about_me": self.about_me,
             "price": str(self.price),
             "linkedin_url": self.linkedin_url,
             "github_url": self.github_url
         }
 
+# Deprecated models - keeping for migration compatibility
 class MentorImage(db.Model):
-    """Profile face image to be uploaded by the mentor for profile """
+    __tablename__ = 'mentor_image_deprecated'
     id = db.Column(db.Integer, primary_key=True)
     public_id = db.Column(db.String(500), nullable=False, unique=True)
     image_url = db.Column(db.String(500), nullable=False, unique=True)
-    mentor_id = db.Column(db.Integer, db.ForeignKey("mentor.id"), nullable=False, unique=True)
-    mentor = db.relationship("Mentor", back_populates="profile_photo", uselist=False)
+    mentor_id = db.Column(db.Integer, db.ForeignKey("mentor_deprecated.id"), nullable=False, unique=True)
     position_x = db.Column(db.Float, nullable=True)
     position_y = db.Column(db.Float, nullable=True)
     scale = db.Column(db.Float, nullable=True)
-
-    def __init__(self, public_id, image_url, mentor_id, position_x, position_y, scale):
-        self.public_id = public_id
-        self.image_url = image_url.strip()
-        self.mentor_id = mentor_id
-        self.position_x = position_x
-        self.position_y = position_y
-        self.scale = scale
 
     def serialize(self):
         return {
@@ -150,38 +223,30 @@ class MentorImage(db.Model):
         }
     
 class PortfolioPhoto(db.Model):
-    """Portfolio Images to be uploaded by the mentor for profile """
+    __tablename__ = 'portfolio_photo_deprecated'
     id = db.Column(db.Integer, primary_key=True)
     public_id = db.Column(db.String(500), nullable=False, unique=True)
     image_url = db.Column(db.String(500), nullable=False, unique=True)
-    mentor_id = db.Column(db.Integer, db.ForeignKey("mentor.id"), nullable=False)
-    mentor = db.relationship("Mentor", back_populates="portfolio_photos")
-
-    def __init__(self, public_id, image_url, mentor_id):
-        self.public_id = public_id
-        self.image_url = image_url.strip()
-        self.mentor_id = mentor_id
+    mentor_id = db.Column(db.Integer, db.ForeignKey("mentor_deprecated.id"), nullable=False)
 
     def serialize(self):
         return {
             "id": self.id,
             "image_url": self.image_url
-    }
+        }
 
-# NEW Calendar Models
+# Deprecated calendar models
 class MentorAvailability(db.Model):
-    """Stores mentor's recurring weekly availability"""
+    __tablename__ = 'mentor_availability_deprecated'
     id = db.Column(db.Integer, primary_key=True)
-    mentor_id = db.Column(db.Integer, db.ForeignKey('mentor.id'), nullable=False)
-    day_of_week = db.Column(db.Integer, nullable=False)  # 0=Monday, 6=Sunday
+    mentor_id = db.Column(db.Integer, db.ForeignKey('mentor_deprecated.id'), nullable=False)
+    day_of_week = db.Column(db.Integer, nullable=False)
     start_time = db.Column(db.Time, nullable=False)
     end_time = db.Column(db.Time, nullable=False)
     timezone = db.Column(db.String(50), default='America/Los_Angeles', nullable=False)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
     updated_at = db.Column(DateTime(timezone=True), default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
-    
-    mentor = relationship("Mentor", backref=db.backref("availabilities", lazy=True))
     
     def serialize(self):
         return {
@@ -194,15 +259,13 @@ class MentorAvailability(db.Model):
         }
 
 class MentorUnavailability(db.Model):
-    """Stores specific dates/times when mentor is unavailable (vacations, holidays, etc.)"""
+    __tablename__ = 'mentor_unavailability_deprecated'
     id = db.Column(db.Integer, primary_key=True)
-    mentor_id = db.Column(db.Integer, db.ForeignKey('mentor.id'), nullable=False)
+    mentor_id = db.Column(db.Integer, db.ForeignKey('mentor_deprecated.id'), nullable=False)
     start_datetime = db.Column(DateTime(timezone=True), nullable=False)
     end_datetime = db.Column(DateTime(timezone=True), nullable=False)
     reason = db.Column(db.String(255), nullable=True)
     created_at = db.Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
-    
-    mentor = relationship("Mentor", backref=db.backref("unavailabilities", lazy=True))
     
     def serialize(self):
         return {
@@ -213,16 +276,14 @@ class MentorUnavailability(db.Model):
         }
 
 class CalendarSettings(db.Model):
-    """Stores mentor's calendar preferences"""
+    __tablename__ = 'calendar_settings_deprecated'
     id = db.Column(db.Integer, primary_key=True)
-    mentor_id = db.Column(db.Integer, db.ForeignKey('mentor.id'), nullable=False, unique=True)
-    session_duration = db.Column(db.Integer, default=60)  # in minutes
-    buffer_time = db.Column(db.Integer, default=15)  # minutes between sessions
-    advance_booking_days = db.Column(db.Integer, default=30)  # how far in advance can book
-    minimum_notice_hours = db.Column(db.Integer, default=24)  # minimum hours before booking
-    timezone = db.Column(db.String(50), default='America/New_York')  # Change from Los_Angeles
-    
-    mentor = relationship("Mentor", backref=db.backref("calendar_settings", uselist=False))
+    mentor_id = db.Column(db.Integer, db.ForeignKey('mentor_deprecated.id'), nullable=False, unique=True)
+    session_duration = db.Column(db.Integer, default=60)
+    buffer_time = db.Column(db.Integer, default=15)
+    advance_booking_days = db.Column(db.Integer, default=30)
+    minimum_notice_hours = db.Column(db.Integer, default=24)
+    timezone = db.Column(db.String(50), default='America/New_York')
     
     def serialize(self):
         return {
@@ -233,7 +294,6 @@ class CalendarSettings(db.Model):
             "timezone": self.timezone
         }
 
-# Updated Booking Model
 class BookingStatus(PyEnum):
     PENDING_PAYMENT = "pending_payment"
     PAID = "paid"
@@ -245,9 +305,10 @@ class BookingStatus(PyEnum):
     REQUIRES_RATING = "requires_rating" 
 
 class Booking(db.Model):
+    __tablename__ = 'booking_deprecated'
     id = db.Column(db.Integer, primary_key=True)
-    mentor_id = db.Column(db.Integer, ForeignKey('mentor.id'), nullable=False)
-    customer_id = db.Column(db.Integer, ForeignKey('customer.id'), nullable=False)
+    mentor_id = db.Column(db.Integer, ForeignKey('mentor_deprecated.id'), nullable=False)
+    customer_id = db.Column(db.Integer, ForeignKey('customer_deprecated.id'), nullable=False)
     
     # Timestamps
     created_at = db.Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
@@ -255,10 +316,10 @@ class Booking(db.Model):
     paid_at = db.Column(DateTime(timezone=True), nullable=True)
     scheduled_at = db.Column(DateTime(timezone=True), nullable=True)
 
-    # Session fields (renamed from calendly_event_*)
+    # Session fields
     session_start_time = db.Column(DateTime(timezone=True), nullable=True)
     session_end_time = db.Column(DateTime(timezone=True), nullable=True)
-    session_duration = db.Column(db.Integer, nullable=True)  # in minutes
+    session_duration = db.Column(db.Integer, nullable=True)
     timezone = db.Column(db.String(50), default='America/Los_Angeles')
 
     invitee_name = db.Column(db.String(255), nullable=True)
@@ -283,68 +344,14 @@ class Booking(db.Model):
     meeting_token = db.Column(db.Text, nullable=True)
     recording_url = db.Column(db.String(500), nullable=True)
 
-    # Relationships
-    mentor = relationship("Mentor", backref=db.backref("bookings", lazy=True))
-    customer = relationship("Customer", backref=db.backref("bookings", lazy=True))
-
-    # NEW RATING SYSTEM FIELDS 
-    customer_rating = db.Column(db.Integer, nullable=True)  # 1-5 stars
-    customer_notes = db.Column(db.Text, nullable=True)     # Admin-only
-    mentor_notes = db.Column(db.Text, nullable=True)       # Admin-only
+    # Rating system fields 
+    customer_rating = db.Column(db.Integer, nullable=True)
+    customer_notes = db.Column(db.Text, nullable=True)
+    mentor_notes = db.Column(db.Text, nullable=True)
     rating_submitted_at = db.Column(DateTime(timezone=True), nullable=True)
 
     flagged_by_customer = db.Column(db.Boolean, default=False, nullable=False)
     flagged_by_mentor = db.Column(db.Boolean, default=False, nullable=False)
-
-    def __repr__(self):
-        return f'<Booking {self.id} - Mentor: {self.mentor_id} Customer: {self.customer_id} Status: {self.status.value}>'
-
-    def serialize_for_mentor(self):
-        return {
-            "id": self.id,
-            "customer_name": self.customer.first_name + " " + self.customer.last_name if self.customer else "N/A",
-            "session_start_time": self.session_start_time.isoformat() if self.session_start_time else None,
-            "session_end_time": self.session_end_time.isoformat() if self.session_end_time else None,
-            "session_duration": self.session_duration,
-            "timezone": self.timezone,
-            "status": self.status.value,
-            "customer_rating": self.customer_rating,
-            "rating_submitted_at": self.rating_submitted_at.isoformat() if self.rating_submitted_at else None,
-            "amount_paid": str(self.amount_paid) if self.amount_paid else None,
-            "mentor_payout_amount": str(self.mentor_payout_amount) if self.mentor_payout_amount else None,
-            "google_meet_link": self.google_meet_link,
-            "meeting_id": self.meeting_id,
-            "meeting_url": self.meeting_url,
-            "has_recording": bool(self.recording_url),
-            "invitee_name": self.invitee_name,
-            "invitee_email": self.invitee_email,
-            "invitee_notes": self.invitee_notes,
-            "flagged_by_customer": self.flagged_by_customer,
-            "flagged_by_mentor": self.flagged_by_mentor
-        }
-
-    def serialize_for_customer(self):
-        return {
-            "id": self.id,
-            "mentor_name": self.mentor.first_name + " " + self.mentor.last_name if self.mentor else "N/A",
-            "mentor_id": self.mentor_id,
-            "session_start_time": self.session_start_time.isoformat() if self.session_start_time else None,
-            "session_end_time": self.session_end_time.isoformat() if self.session_end_time else None,
-            "session_duration": self.session_duration,
-            "status": self.status.value,
-            "customer_rating": self.customer_rating,
-            "amount_paid": str(self.amount_paid),
-            "google_meet_link": self.google_meet_link,
-            "invitee_name": self.invitee_name,
-            "invitee_email": self.invitee_email,
-            "invitee_notes": self.invitee_notes,
-            "timezone": self.timezone,
-            "meeting_id": self.meeting_id,
-            "meeting_url": self.meeting_url,
-            "has_recording": bool(self.recording_url),
-            "flagged_by_customer": self.flagged_by_customer,
-            "flagged_by_mentor": self.flagged_by_mentor
-        }
 
     def serialize(self):
         return {
@@ -353,29 +360,6 @@ class Booking(db.Model):
             "customer_id": self.customer_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-            "paid_at": self.paid_at.isoformat() if self.paid_at else None,
-            "scheduled_at": self.scheduled_at.isoformat() if self.scheduled_at else None,
-            
-            "session_start_time": self.session_start_time.isoformat() if self.session_start_time else None,
-            "session_end_time": self.session_end_time.isoformat() if self.session_end_time else None,
-            "session_duration": self.session_duration,
-            "timezone": self.timezone,
-            
-            "invitee_name": self.invitee_name,
-            "invitee_email": self.invitee_email,
-            "invitee_notes": self.invitee_notes,
-            
-            "stripe_payment_intent_id": self.stripe_payment_intent_id,
-            "amount_paid": str(self.amount_paid) if self.amount_paid is not None else None,
-            "currency": self.currency,
-            "platform_fee": str(self.platform_fee) if self.platform_fee is not None else None,
-            "mentor_payout_amount": str(self.mentor_payout_amount) if self.mentor_payout_amount is not None else None,
-            
             "status": self.status.value,
-            "google_meet_link": self.google_meet_link,
-            
-            # Optional: include serialized mentor/customer details
-            "mentor": self.mentor.serialize() if self.mentor else None, 
-            "customer": self.customer.serialize() if self.customer else None,
         }
         
