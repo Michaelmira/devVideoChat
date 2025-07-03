@@ -8,14 +8,52 @@ export const Home = () => {
 	const { store, actions } = useContext(Context);
 	const navigate = useNavigate();
 
-	// Check if user is already logged in
+	// Handle OAuth callback and check if user is already logged in
 	useEffect(() => {
-		const token = sessionStorage.getItem('token');
-		if (token) {
-			// Redirect to dashboard if already logged in
-			navigate('/dashboard');
-		}
-	}, [navigate]);
+		const handleOAuthCallback = async () => {
+			// Check for OAuth callback parameters in URL
+			const urlParams = new URLSearchParams(window.location.search);
+			const googleAuthSuccess = urlParams.get('google_auth');
+			const githubAuthSuccess = urlParams.get('github_auth');
+			const token = urlParams.get('token');
+			const userId = urlParams.get('user_id');
+			const newUser = urlParams.get('new_user');
+
+			if ((googleAuthSuccess === 'success' || githubAuthSuccess === 'success') && token) {
+				console.log('🎉 OAuth callback detected, processing login...');
+
+				// Store token and login user
+				sessionStorage.setItem('token', token);
+
+				// Get user data
+				const success = await actions.getCurrentUser();
+
+				if (success) {
+					console.log('🎯 OAuth login successful, redirecting to dashboard...');
+
+					// Clean up URL parameters
+					window.history.replaceState({}, document.title, window.location.pathname);
+
+					// Redirect to dashboard
+					navigate('/dashboard');
+				} else {
+					console.error('❌ Failed to get user data after OAuth');
+					// Clean up URL parameters even on failure
+					window.history.replaceState({}, document.title, window.location.pathname);
+				}
+				return;
+			}
+
+			// Regular check if user is already logged in
+			const existingToken = sessionStorage.getItem('token');
+			if (existingToken) {
+				// Redirect to dashboard if already logged in
+				navigate('/dashboard');
+			}
+		};
+
+		handleOAuthCallback();
+	}, [navigate, actions]);
 
 	return (
 		<div className="container-fluid">
