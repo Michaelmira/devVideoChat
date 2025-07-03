@@ -67,7 +67,7 @@ class UserImage(db.Model):
             "id": self.id,
             "image_url": self.image_url
         }
-
+    
 # New VideoSession Model
 class VideoSession(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -83,7 +83,7 @@ class VideoSession(db.Model):
     # VideoSDK fields
     meeting_token = db.Column(db.Text, nullable=True)
     recording_url = db.Column(db.String(500), nullable=True)
-    
+
     creator = relationship("User", backref=db.backref("video_sessions", lazy=True))
 
     def __repr__(self):

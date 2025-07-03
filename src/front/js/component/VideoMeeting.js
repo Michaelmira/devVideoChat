@@ -1126,7 +1126,7 @@ function MeetingTimer({ meetingId }) {
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [meetingId, sessionData]);
+    }, [meetingId]);
 
     const formatTime = (seconds) => {
         const hrs = Math.floor(seconds / 3600);

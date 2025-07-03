@@ -55,7 +55,7 @@ export const VideoMeetingPage = () => {
                 }
 
                 const data = await response.json();
-
+                
                 if (data.success) {
                     setToken(data.token);
                     setUserName(data.userName || 'Participant');
@@ -124,8 +124,8 @@ export const VideoMeetingPage = () => {
 
     return (
         <div className="video-meeting-page">
-            <VideoMeeting
-                meetingId={meetingId}
+            <VideoMeeting 
+                meetingId={meetingId} 
                 token={token}
                 userName={userName}
                 isModerator={isModerator}
