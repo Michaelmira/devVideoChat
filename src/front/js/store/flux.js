@@ -22,6 +22,34 @@ const getState = ({ getStore, getActions, setStore }) => {
         },
 
         actions: {
+            // NEW: Set user for unified video chat app
+            setUser: (userData) => {
+                console.log('🔄 Store: Setting user data:', userData);
+                setStore({
+                    currentUserData: { role: "user", user_data: userData },
+                    token: sessionStorage.getItem('token'),
+                    isLoggedIn: true,
+                    // Clear old system flags
+                    isMentorLoggedIn: false,
+                    isCustomerLoggedIn: false
+                });
+            },
+
+            // NEW: Unified logout
+            logOut: () => {
+                console.log('🚪 Logging out user');
+                setStore({
+                    token: null,
+                    currentUserData: null,
+                    isLoggedIn: false,
+                    isMentorLoggedIn: false,
+                    isCustomerLoggedIn: false,
+                    mentorId: null,
+                    customerId: null
+                });
+                sessionStorage.clear();
+            },
+
             getCurrentUser: async () => {
                 try {
                     const response = await fetch(`${process.env.BACKEND_URL}/api/current/user`, {
@@ -33,6 +61,20 @@ const getState = ({ getStore, getActions, setStore }) => {
                     });
                     if (response.ok) {
                         const data = await response.json();
+
+                        // Handle new unified user system
+                        if (data.role == "user") {
+                            setStore({
+                                currentUserData: data,
+                                isLoggedIn: true,
+                                // Clear old system flags
+                                isMentorLoggedIn: false,
+                                isCustomerLoggedIn: false
+                            });
+                            return true;
+                        }
+
+                        // Keep old system compatibility
                         if (data.role == "mentor") {
                             setStore({
                                 isMentorLoggedIn: true,
@@ -380,20 +422,6 @@ const getState = ({ getStore, getActions, setStore }) => {
                     console.error('Error deleting profile photo:', error);
                     return false;
                 }
-            },
-
-            logOut: () => {
-                setStore({
-                    token: undefined,
-                    customerId: undefined,
-                    mentorId: undefined,
-                    isMentorLoggedIn: false,
-                    isCustomerLoggedIn: false,
-                    currentUserData: null
-                });
-
-                sessionStorage.clear();
-                console.log("Logged out. Token should be undefined:", getStore().token === undefined);
             },
 
             signUpCustomer: async (customer) => {

@@ -161,28 +161,6 @@ def user_login():
     }), 200
 
 
-# DEBUG: Test JWT endpoint
-@api.route('/debug-jwt', methods=['GET'])
-@jwt_required()  
-def debug_jwt():
-    """Debug endpoint to test JWT parsing"""
-    try:
-        user_id = get_jwt_identity()
-        user = User.query.get(user_id)
-        return jsonify({
-            "success": True,
-            "user_id": user_id,
-            "user_exists": user is not None,
-            "user_email": user.email if user else None
-        }), 200
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "error_type": type(e).__name__
-        }), 500
-
-
 # NEW: Video Session Management Routes
 @api.route('/create-session', methods=['POST'])
 @jwt_required()
