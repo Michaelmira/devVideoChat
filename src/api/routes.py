@@ -269,8 +269,12 @@ def join_session_public(meeting_id):
     if not session:
         return jsonify({"msg": "Session not found"}), 404
     
+    # Use timezone-aware datetime for comparison
+    from datetime import timezone
+    current_time = datetime.now(timezone.utc)
+    
     # Check if session is expired
-    if session.expires_at < datetime.utcnow():
+    if session.expires_at < current_time:
         session.status = 'expired'
         db.session.commit()
         return jsonify({"msg": "This session has expired"}), 410
@@ -293,7 +297,7 @@ def join_session_public(meeting_id):
             "guest_token": guest_token,
             "max_duration_minutes": session.max_duration_minutes,
             "creator_name": session.creator.first_name if session.creator else "Host",
-            "time_remaining_minutes": int((session.expires_at - datetime.utcnow()).total_seconds() / 60)
+            "time_remaining_minutes": int((session.expires_at - current_time).total_seconds() / 60)
         }), 200
         
     except Exception as e:
