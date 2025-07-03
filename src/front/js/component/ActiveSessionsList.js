@@ -72,8 +72,8 @@ export const ActiveSessionsList = ({ sessions, onCopy, onRefresh }) => {
                                 <div className="d-flex align-items-center">
                                     <span
                                         className={`badge me-2 ${formatTimeRemaining(session.expires_at).includes('Expired')
-                                                ? 'bg-danger'
-                                                : 'bg-warning text-dark'
+                                            ? 'bg-danger'
+                                            : 'bg-warning text-dark'
                                             }`}
                                     >
                                         ⏰ {formatTimeRemaining(session.expires_at)}
@@ -95,8 +95,6 @@ export const ActiveSessionsList = ({ sessions, onCopy, onRefresh }) => {
                                     </button>
                                     <a
                                         href={session.session_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
                                         className="btn btn-outline-primary flex-fill"
                                     >
                                         <i className="fas fa-external-link-alt me-2"></i>
