@@ -11,6 +11,8 @@ export const Home = () => {
 	// Handle OAuth callback and check if user is already logged in
 	useEffect(() => {
 		const handleOAuthCallback = async () => {
+			console.log('🔍 Home useEffect running, checking for OAuth callback...');
+			
 			// Check for OAuth callback parameters in URL
 			const urlParams = new URLSearchParams(window.location.search);
 			const googleAuthSuccess = urlParams.get('google_auth');
@@ -19,6 +21,15 @@ export const Home = () => {
 			const token = urlParams.get('token');
 			const userId = urlParams.get('user_id');
 			const newUser = urlParams.get('new_user');
+			
+			console.log('🔍 OAuth params:', { 
+				googleAuthSuccess, 
+				githubAuthSuccess, 
+				mvpGithubAuthSuccess, 
+				token: token ? 'Present' : 'Missing', 
+				userId, 
+				newUser 
+			});
 
 			// Handle OAuth errors first
 			if (googleAuthSuccess === 'error' || githubAuthSuccess === 'error' || mvpGithubAuthSuccess === 'error') {
@@ -33,14 +44,26 @@ export const Home = () => {
 				return;
 			}
 
+			console.log('🔍 Checking OAuth success condition...');
+			console.log('🔍 Success conditions:', {
+				googleAuthSuccess: googleAuthSuccess === 'success',
+				githubAuthSuccess: githubAuthSuccess === 'success',
+				mvpGithubAuthSuccess: mvpGithubAuthSuccess === 'success',
+				hasToken: !!token
+			});
+
 			if ((googleAuthSuccess === 'success' || githubAuthSuccess === 'success' || mvpGithubAuthSuccess === 'success') && token) {
 				console.log('🎉 OAuth callback detected, processing login...');
+				console.log('🔑 About to store token in sessionStorage...');
 
 				// Store token and login user
 				sessionStorage.setItem('token', token);
+				console.log('✅ Token stored in sessionStorage');
 
 				// Get user data
+				console.log('📡 Calling getCurrentUser...');
 				const success = await actions.getCurrentUser();
+				console.log('📡 getCurrentUser result:', success);
 
 				if (success) {
 					console.log('🎯 OAuth login successful, redirecting to dashboard...');
@@ -58,11 +81,16 @@ export const Home = () => {
 				return;
 			}
 
+			console.log('🔍 OAuth success condition not met, checking for existing token...');
+
 			// Regular check if user is already logged in
 			const existingToken = sessionStorage.getItem('token');
 			if (existingToken) {
+				console.log('🔍 Found existing token, redirecting to dashboard...');
 				// Redirect to dashboard if already logged in
 				navigate('/dashboard');
+			} else {
+				console.log('🔍 No existing token found, staying on home page');
 			}
 		};
 
