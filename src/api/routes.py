@@ -309,12 +309,16 @@ def get_session_status(meeting_id):
     if not session:
         return jsonify({"msg": "Session not found"}), 404
     
+    # Use timezone-aware datetime for comparison
+    from datetime import timezone
+    current_time = datetime.now(timezone.utc)
+    
     # Auto-update expired sessions
-    if session.expires_at < datetime.utcnow() and session.status == 'active':
+    if session.expires_at < current_time and session.status == 'active':
         session.status = 'expired'
         db.session.commit()
 
-    time_remaining = max(0, int((session.expires_at - datetime.utcnow()).total_seconds() / 60))
+    time_remaining = max(0, int((session.expires_at - current_time).total_seconds() / 60))
     
     return jsonify({
         "status": session.status,
