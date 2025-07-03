@@ -15,11 +15,25 @@ export const Home = () => {
 			const urlParams = new URLSearchParams(window.location.search);
 			const googleAuthSuccess = urlParams.get('google_auth');
 			const githubAuthSuccess = urlParams.get('github_auth');
+			const mvpGithubAuthSuccess = urlParams.get('mvp_github_auth');
 			const token = urlParams.get('token');
 			const userId = urlParams.get('user_id');
 			const newUser = urlParams.get('new_user');
 
-			if ((googleAuthSuccess === 'success' || githubAuthSuccess === 'success') && token) {
+			// Handle OAuth errors first
+			if (googleAuthSuccess === 'error' || githubAuthSuccess === 'error' || mvpGithubAuthSuccess === 'error') {
+				const error = urlParams.get('error');
+				console.error('❌ OAuth error:', error);
+				
+				// Show user-friendly error message
+				alert(`Login failed: ${error || 'Unknown error'}. Please try again.`);
+				
+				// Clean up URL parameters
+				window.history.replaceState({}, document.title, window.location.pathname);
+				return;
+			}
+
+			if ((googleAuthSuccess === 'success' || githubAuthSuccess === 'success' || mvpGithubAuthSuccess === 'success') && token) {
 				console.log('🎉 OAuth callback detected, processing login...');
 
 				// Store token and login user
