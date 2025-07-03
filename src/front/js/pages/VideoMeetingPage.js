@@ -15,7 +15,23 @@ export const VideoMeetingPage = () => {
     useEffect(() => {
         const initializeMeeting = async () => {
             try {
-                // First ensure we're authenticated
+                // Check if we have guest data (for public join)
+                const guestToken = sessionStorage.getItem('guest_token');
+                const guestName = sessionStorage.getItem('guest_name');
+                const meetingData = sessionStorage.getItem('meeting_data');
+
+                if (guestToken && guestName && meetingData) {
+                    // Guest user joining via public link
+                    console.log('🎯 Guest user joining meeting');
+                    const data = JSON.parse(meetingData);
+                    setToken(guestToken);
+                    setUserName(guestName);
+                    setIsModerator(false); // Guests are never moderators
+                    setLoading(false);
+                    return;
+                }
+
+                // Authenticated user path (existing logic)
                 if (!store.token) {
                     // Try to restore session from storage
                     const success = await actions.checkStorageMentor() || await actions.checkStorage();
@@ -26,7 +42,7 @@ export const VideoMeetingPage = () => {
                     }
                 }
 
-                // Now get the meeting token
+                // Get meeting token for authenticated users
                 const response = await fetch(`${process.env.BACKEND_URL}/api/videosdk/meeting-token/${meetingId}`, {
                     headers: {
                         'Authorization': 'Bearer ' + (store.token || sessionStorage.getItem('token'))
@@ -39,7 +55,7 @@ export const VideoMeetingPage = () => {
                 }
 
                 const data = await response.json();
-                
+
                 if (data.success) {
                     setToken(data.token);
                     setUserName(data.userName || 'Participant');
@@ -81,16 +97,13 @@ export const VideoMeetingPage = () => {
                         <div className="mt-3">
                             <button
                                 className="btn btn-primary me-2"
-                                onClick={() => window.location.href = '/mentor-login'}
+                                onClick={() => window.location.href = '/'}
                             >
-                                Mentor Login
+                                Go to Home Page
                             </button>
-                            <button
-                                className="btn btn-primary"
-                                onClick={() => window.location.href = '/customer-login'}
-                            >
-                                Customer Login
-                            </button>
+                            <p className="mt-2 text-muted">
+                                <small>If you have a meeting link, please use it to join as a guest.</small>
+                            </p>
                         </div>
                     )}
                 </div>
@@ -111,8 +124,8 @@ export const VideoMeetingPage = () => {
 
     return (
         <div className="video-meeting-page">
-            <VideoMeeting 
-                meetingId={meetingId} 
+            <VideoMeeting
+                meetingId={meetingId}
                 token={token}
                 userName={userName}
                 isModerator={isModerator}

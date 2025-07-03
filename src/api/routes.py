@@ -206,10 +206,13 @@ def create_video_session():
         # Create VideoSession record
         expires_at = datetime.utcnow() + timedelta(hours=6)  # All links expire in 6 hours
         
+        # Generate public join URL for our frontend
+        frontend_join_url = f"{os.getenv('FRONTEND_URL')}/join/{meeting_result['meeting_id']}"
+        
         video_session = VideoSession(
             creator_id=user_id,
             meeting_id=meeting_result['meeting_id'],
-            session_url=meeting_result['meeting_url'],
+            session_url=frontend_join_url,  # Use our public join route
             expires_at=expires_at,
             max_duration_minutes=max_duration,
             meeting_token=meeting_result['token'],
@@ -222,7 +225,7 @@ def create_video_session():
         return jsonify({
             "success": True,
             "session": video_session.serialize(),
-            "meeting_url": meeting_result['meeting_url']
+            "meeting_url": frontend_join_url  # Return our public join URL
         }), 201
         
     except Exception as e:
