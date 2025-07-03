@@ -997,7 +997,7 @@ def mvp_github_oauth_initiate():
         # Use MVP GitHub credentials
         github_auth_url = (
             f"https://github.com/login/oauth/authorize?"
-            f"client_id={os.getenv('MVP_GITHUB_CLIENT_ID')}&"
+            f"client_id={os.getenv('GITHUB_CLIENT_ID_MVP')}&"
             f"redirect_uri={os.getenv('BACKEND_URL')}/api/auth/mvp/github/callback&"
             f"scope=user:email&"
             f"state={state}"
@@ -1042,8 +1042,8 @@ def mvp_github_oauth_callback():
         
         # Exchange code for token
         token_data = {
-            'client_id': os.getenv('MVP_GITHUB_CLIENT_ID'),
-            'client_secret': os.getenv('MVP_GITHUB_CLIENT_SECRET'),
+            'client_id': os.getenv('GITHUB_CLIENT_ID_MVP'),
+            'client_secret': os.getenv('GITHUB_CLIENT_MVP_SECRET'),
             'code': code
         }
         
