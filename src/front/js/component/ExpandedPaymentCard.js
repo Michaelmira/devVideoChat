@@ -39,6 +39,8 @@ const PaymentForm = ({ onSuccess, onCancel }) => {
 
             if (!response.ok) {
                 const errorData = await response.json();
+                console.error('❌ Backend error:', errorData);
+                console.error('❌ Response status:', response.status);
                 throw new Error(errorData.msg || 'Failed to create subscription');
             }
 
