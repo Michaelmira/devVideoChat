@@ -15,59 +15,54 @@ const PaymentForm = ({ onSuccess, onCancel }) => {
     const elements = useElements();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [clientSecret, setClientSecret] = useState('');
-
-    useEffect(() => {
-        // Create subscription when component mounts
-        const createSubscription = async () => {
-            try {
-                const token = sessionStorage.getItem('token');
-                const response = await fetch(`${process.env.BACKEND_URL}/api/create-subscription`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    setClientSecret(data.client_secret);
-                } else {
-                    const errorData = await response.json();
-                    setError(errorData.msg || 'Failed to create subscription');
-                }
-            } catch (err) {
-                setError('Network error. Please try again.');
-            }
-        };
-
-        createSubscription();
-    }, []);
 
     const handleSubmit = async (event) => {
         event.preventDefault();
 
-        if (!stripe || !elements || !clientSecret) {
+        if (!stripe || !elements) {
             return;
         }
 
         setLoading(true);
         setError(null);
 
-        const cardElement = elements.getElement(CardElement);
+        try {
+            // Step 1: Create subscription and get client secret
+            const token = sessionStorage.getItem('token');
+            const response = await fetch(`${process.env.BACKEND_URL}/api/create-subscription`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
 
-        const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-            payment_method: {
-                card: cardElement,
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.msg || 'Failed to create subscription');
             }
-        });
 
-        if (error) {
-            setError(error.message);
-        } else {
-            // Payment succeeded
-            onSuccess(paymentIntent);
+            const subscriptionData = await response.json();
+            const clientSecret = subscriptionData.client_secret;
+
+            // Step 2: Confirm payment with Stripe
+            const cardElement = elements.getElement(CardElement);
+
+            const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+                payment_method: {
+                    card: cardElement,
+                }
+            });
+
+            if (error) {
+                setError(error.message);
+            } else {
+                // Payment succeeded
+                onSuccess(paymentIntent);
+            }
+
+        } catch (err) {
+            setError(err.message || 'Network error. Please try again.');
         }
 
         setLoading(false);
@@ -119,9 +114,9 @@ const PaymentForm = ({ onSuccess, onCancel }) => {
             )}
 
             <div className="payment-buttons">
-                <button
-                    type="submit"
-                    disabled={!stripe || loading || !clientSecret}
+                                <button 
+                    type="submit" 
+                    disabled={!stripe || loading}
                     className="btn btn-primary btn-lg w-100"
                 >
                     {loading ? (
