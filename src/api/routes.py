@@ -441,8 +441,22 @@ def create_subscription():
         if subscription.latest_invoice and subscription.latest_invoice.payment_intent:
             client_secret = subscription.latest_invoice.payment_intent.client_secret
             print(f"🔍 DEBUG - Got client_secret: {client_secret[:20]}...")
+        elif subscription.latest_invoice and subscription.latest_invoice.status == 'open':
+            # No payment_intent exists, create one for the invoice
+            print("🔍 DEBUG - Creating payment_intent for invoice")
+            payment_intent = stripe.PaymentIntent.create(
+                amount=subscription.latest_invoice.amount_due,
+                currency=subscription.latest_invoice.currency,
+                customer=user.stripe_customer_id,
+                metadata={
+                    'subscription_id': subscription.id,
+                    'invoice_id': subscription.latest_invoice.id
+                }
+            )
+            client_secret = payment_intent.client_secret
+            print(f"🔍 DEBUG - Created payment_intent: {payment_intent.id}")
         else:
-            print("🔍 DEBUG - No payment_intent found")
+            print("🔍 DEBUG - No payment_intent found and cannot create one")
         
         return jsonify({
             "subscription_id": subscription.id,
