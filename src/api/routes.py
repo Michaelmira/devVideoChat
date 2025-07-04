@@ -347,6 +347,10 @@ def create_subscription():
         return jsonify({"msg": "User already has premium subscription"}), 400
     
     try:
+        # DEBUG: Check environment variables
+        print(f"🔍 DEBUG - STRIPE_PRICE_ID loaded as: {os.getenv('STRIPE_PRICE_ID')}")
+        print(f"🔍 DEBUG - User subscription status: {user.subscription_status}")
+        
         # Create or get Stripe customer
         if not user.stripe_customer_id:
             stripe_customer = stripe.Customer.create(
