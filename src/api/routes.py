@@ -333,6 +333,48 @@ def get_session_status(meeting_id):
 
 
 # NEW: Subscription Management Routes
+@api.route('/debug-stripe', methods=['GET'])
+@jwt_required()
+def debug_stripe():
+    """Debug Stripe API connection and list available prices"""
+    try:
+        # Test API connection and list prices
+        prices = stripe.Price.list(limit=10)
+        
+        # Check if our specific price exists
+        target_price_id = os.getenv('STRIPE_PRICE_ID')
+        price_found = False
+        
+        for price in prices.data:
+            if price.id == target_price_id:
+                price_found = True
+                break
+        
+        return jsonify({
+            "api_connection": "success",
+            "stripe_key_type": "test" if os.getenv('STRIPE_SECRET_KEY', '').startswith('sk_test_') else "live",
+            "target_price_id": target_price_id,
+            "price_found": price_found,
+            "available_prices": [
+                {
+                    "id": price.id,
+                    "product": price.product,
+                    "unit_amount": price.unit_amount,
+                    "currency": price.currency,
+                    "recurring": price.recurring
+                } for price in prices.data
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "api_connection": "failed",
+            "error": str(e),
+            "stripe_key_type": "test" if os.getenv('STRIPE_SECRET_KEY', '').startswith('sk_test_') else "live",
+            "target_price_id": os.getenv('STRIPE_PRICE_ID')
+        }), 500
+
+
 @api.route('/create-subscription', methods=['POST'])
 @jwt_required()
 def create_subscription():
@@ -350,6 +392,14 @@ def create_subscription():
         # DEBUG: Check environment variables
         print(f"🔍 DEBUG - STRIPE_PRICE_ID loaded as: {os.getenv('STRIPE_PRICE_ID')}")
         print(f"🔍 DEBUG - User subscription status: {user.subscription_status}")
+        
+        # ADDITIONAL DEBUG: Try to fetch the specific price
+        try:
+            price_check = stripe.Price.retrieve(os.getenv('STRIPE_PRICE_ID'))
+            print(f"🔍 DEBUG - Price found: {price_check.id}, amount: {price_check.unit_amount}")
+        except Exception as price_error:
+            print(f"🔍 DEBUG - Price NOT found: {str(price_error)}")
+            return jsonify({"msg": f"Price not found: {str(price_error)}"}), 400
         
         # Create or get Stripe customer
         if not user.stripe_customer_id:
