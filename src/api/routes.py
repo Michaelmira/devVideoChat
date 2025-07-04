@@ -393,13 +393,7 @@ def create_subscription():
         print(f"🔍 DEBUG - STRIPE_PRICE_ID loaded as: {os.getenv('STRIPE_PRICE_ID')}")
         print(f"🔍 DEBUG - User subscription status: {user.subscription_status}")
         
-        # ADDITIONAL DEBUG: Try to fetch the specific price
-        try:
-            price_check = stripe.Price.retrieve(os.getenv('STRIPE_PRICE_ID'))
-            print(f"🔍 DEBUG - Price found: {price_check.id}, amount: {price_check.unit_amount}")
-        except Exception as price_error:
-            print(f"🔍 DEBUG - Price NOT found: {str(price_error)}")
-            return jsonify({"msg": f"Price not found: {str(price_error)}"}), 400
+        # Let Stripe handle price validation directly in subscription creation
         
         # Create or get Stripe customer
         if not user.stripe_customer_id:
@@ -409,6 +403,18 @@ def create_subscription():
             )
             user.stripe_customer_id = stripe_customer.id
             db.session.commit()
+        else:
+            # Verify the customer exists, if not create a new one
+            try:
+                stripe.Customer.retrieve(user.stripe_customer_id)
+            except stripe.error.InvalidRequestError:
+                print(f"🔍 DEBUG - Customer {user.stripe_customer_id} not found, creating new one")
+                stripe_customer = stripe.Customer.create(
+                    email=user.email,
+                    name=f"{user.first_name} {user.last_name}"
+                )
+                user.stripe_customer_id = stripe_customer.id
+                db.session.commit()
         
         # Create subscription
         subscription = stripe.Subscription.create(
