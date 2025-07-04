@@ -1,0 +1,263 @@
+/* Upgrade Card Transformation Styles */
+
+.upgrade-card {
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    border-radius: 12px;
+    background: white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    position: relative;
+}
+
+/* Compact State */
+.upgrade-card.compact {
+    padding: 1.5rem;
+    border: 1px solid #e0e0e0;
+    margin: 1rem 0;
+}
+
+.upgrade-card.compact:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px);
+}
+
+/* Expanded State */
+.upgrade-card.expanded {
+    padding: 2rem;
+    border: 2px solid #667eea;
+    box-shadow: 0 12px 40px rgba(102, 126, 234, 0.25);
+    max-width: 600px;
+    margin: 2rem auto;
+    animation: expandCard 0.5s ease-out;
+}
+
+@keyframes expandCard {
+    from { 
+        transform: scale(0.95) translateY(-20px); 
+        opacity: 0.8; 
+    }
+    to { 
+        transform: scale(1) translateY(0); 
+        opacity: 1; 
+    }
+}
+
+/* Compact Button Styles */
+.upgrade-content {
+    text-align: center;
+}
+
+.upgrade-header h5 {
+    color: #2d3748;
+    font-weight: 600;
+}
+
+.upgrade-benefits {
+    text-align: left;
+    margin: 1rem 0;
+}
+
+.benefit-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    color: #4a5568;
+}
+
+.benefit-item i {
+    width: 20px;
+    text-align: center;
+}
+
+.btn-upgrade {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    font-weight: 600;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.btn-upgrade:hover {
+    background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    color: white;
+}
+
+.btn-upgrade:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+/* Expanded Payment Form Styles */
+.expanded-payment-wrapper {
+    width: 100%;
+}
+
+.payment-form {
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.payment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #f7fafc;
+}
+
+.payment-header h4 {
+    color: #2d3748;
+    font-weight: 600;
+    margin: 0;
+}
+
+.btn-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: #a0aec0;
+    cursor: pointer;
+    transition: color 0.3s ease;
+}
+
+.btn-close:hover {
+    color: #667eea;
+}
+
+.upgrade-badges {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.upgrade-badges .badge {
+    font-size: 0.8rem;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-weight: 500;
+}
+
+.card-element-container {
+    padding: 1rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    background: #f8fafc;
+    transition: border-color 0.3s ease;
+}
+
+.card-element-container:focus-within {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.payment-buttons {
+    margin-top: 1.5rem;
+}
+
+.payment-buttons .btn {
+    font-weight: 500;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.payment-buttons .btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    padding: 0.75rem 1.5rem;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.payment-buttons .btn-primary:hover {
+    background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.payment-buttons .btn-primary:disabled {
+    background: #a0aec0;
+    transform: none;
+    box-shadow: none;
+}
+
+.payment-buttons .btn-outline-secondary {
+    border: 2px solid #e2e8f0;
+    color: #64748b;
+    background: white;
+}
+
+.payment-buttons .btn-outline-secondary:hover {
+    background: #f8fafc;
+    border-color: #cbd5e0;
+    color: #4a5568;
+}
+
+.payment-footer {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.payment-footer small {
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .upgrade-card.expanded {
+        margin: 1rem;
+        padding: 1.5rem;
+    }
+    
+    .payment-header {
+        flex-direction: column;
+        text-align: center;
+        gap: 1rem;
+    }
+    
+    .upgrade-badges {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .payment-buttons .btn {
+        font-size: 1rem;
+    }
+}
+
+/* Loading State */
+.payment-form .spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+}
+
+/* Error State */
+.alert-danger {
+    border-radius: 8px;
+    border: 1px solid #feb2b2;
+    background: #fed7d7;
+    color: #c53030;
+}
+
+/* Success Animation */
+@keyframes successPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.upgrade-card.success {
+    animation: successPulse 0.6s ease-out;
+    border-color: #48bb78;
+} 

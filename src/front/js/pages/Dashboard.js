@@ -2,7 +2,8 @@ import React, { useState, useEffect, useContext } from "react";
 import { Context } from "../store/appContext";
 import { useNavigate } from "react-router-dom";
 import { ActiveSessionsList } from "../component/ActiveSessionsList";
-import { UpgradeCard } from "../component/UpgradeCard";
+import { UpgradeSection } from "../component/UpgradeSection";
+import "../../styles/upgrade-card.css";
 
 export const Dashboard = () => {
     const { store, actions } = useContext(Context);
@@ -11,6 +12,7 @@ export const Dashboard = () => {
     const [loading, setLoading] = useState(false);
     const [user, setUser] = useState(null);
     const [creating, setCreating] = useState(false);
+    const [upgradeExpanded, setUpgradeExpanded] = useState(false);
 
     useEffect(() => {
         // Check if user is logged in
@@ -92,6 +94,32 @@ export const Dashboard = () => {
         alert('📋 Link copied to clipboard!');
     };
 
+    const handleStartUpgrade = () => {
+        setUpgradeExpanded(true);
+    };
+
+    const handlePaymentSuccess = async (paymentIntent) => {
+        setUpgradeExpanded(false);
+        
+        // Refresh user data to show premium status
+        const userData = sessionStorage.getItem('user_data');
+        if (userData) {
+            const updatedUser = JSON.parse(userData);
+            updatedUser.subscription_status = 'premium';
+            sessionStorage.setItem('user_data', JSON.stringify(updatedUser));
+            setUser(updatedUser);
+        }
+        
+        // Also refresh sessions
+        loadSessions();
+        
+        alert('🎉 Welcome to Premium! You now have 6-hour sessions!');
+    };
+
+    const handlePaymentCancel = () => {
+        setUpgradeExpanded(false);
+    };
+
     const isPremium = user?.subscription_status === 'premium';
 
     if (loading && sessions.length === 0) {
@@ -160,7 +188,14 @@ export const Dashboard = () => {
             />
 
             {/* Upgrade CTA for Free Users */}
-            {!isPremium && <UpgradeCard />}
+            {!isPremium && (
+                <UpgradeSection
+                    expanded={upgradeExpanded}
+                    onStartUpgrade={handleStartUpgrade}
+                    onPaymentSuccess={handlePaymentSuccess}
+                    onCancel={handlePaymentCancel}
+                />
+            )}
 
             {/* Quick Stats */}
             <div className="card mt-4">
