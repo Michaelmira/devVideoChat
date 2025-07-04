@@ -444,19 +444,25 @@ def create_subscription():
         elif subscription.latest_invoice and subscription.latest_invoice.status == 'open':
             # No payment_intent exists, create one for the invoice
             print("🔍 DEBUG - Creating payment_intent for invoice")
-            payment_intent = stripe.PaymentIntent.create(
-                amount=subscription.latest_invoice.amount_due,
-                currency=subscription.latest_invoice.currency,
-                customer=user.stripe_customer_id,
-                metadata={
-                    'subscription_id': subscription.id,
-                    'invoice_id': subscription.latest_invoice.id
-                }
-            )
-            client_secret = payment_intent.client_secret
-            print(f"🔍 DEBUG - Created payment_intent: {payment_intent.id}")
+            try:
+                payment_intent = stripe.PaymentIntent.create(
+                    amount=subscription.latest_invoice.amount_due,
+                    currency=subscription.latest_invoice.currency,
+                    customer=user.stripe_customer_id,
+                    metadata={
+                        'subscription_id': subscription.id,
+                        'invoice_id': subscription.latest_invoice.id
+                    }
+                )
+                client_secret = payment_intent.client_secret
+                print(f"🔍 DEBUG - Created payment_intent: {payment_intent.id}")
+            except Exception as pi_error:
+                print(f"🔍 DEBUG - Error creating payment_intent: {str(pi_error)}")
+                raise pi_error
         else:
             print("🔍 DEBUG - No payment_intent found and cannot create one")
+        
+        print(f"🔍 DEBUG - Final client_secret: {client_secret[:20] if client_secret else None}...")
         
         return jsonify({
             "subscription_id": subscription.id,
