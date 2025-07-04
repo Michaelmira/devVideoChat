@@ -429,9 +429,25 @@ def create_subscription():
         user.subscription_id = subscription.id
         db.session.commit()
         
+        # Debug: Check what we got back
+        print(f"🔍 DEBUG - Subscription status: {subscription.status}")
+        print(f"🔍 DEBUG - Has latest_invoice: {hasattr(subscription, 'latest_invoice') and subscription.latest_invoice is not None}")
+        if subscription.latest_invoice:
+            print(f"🔍 DEBUG - Invoice status: {subscription.latest_invoice.status}")
+            print(f"🔍 DEBUG - Has payment_intent: {hasattr(subscription.latest_invoice, 'payment_intent') and subscription.latest_invoice.payment_intent is not None}")
+        
+        # Get client_secret for payment
+        client_secret = None
+        if subscription.latest_invoice and subscription.latest_invoice.payment_intent:
+            client_secret = subscription.latest_invoice.payment_intent.client_secret
+            print(f"🔍 DEBUG - Got client_secret: {client_secret[:20]}...")
+        else:
+            print("🔍 DEBUG - No payment_intent found")
+        
         return jsonify({
             "subscription_id": subscription.id,
-            "client_secret": subscription.latest_invoice.payment_intent.client_secret
+            "client_secret": client_secret,
+            "status": subscription.status
         }), 200
         
     except Exception as e:
