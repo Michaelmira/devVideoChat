@@ -438,31 +438,54 @@ def create_subscription():
         
         # Get client_secret for payment
         client_secret = None
-        if subscription.latest_invoice and subscription.latest_invoice.payment_intent:
-            client_secret = subscription.latest_invoice.payment_intent.client_secret
-            print(f"🔍 DEBUG - Got client_secret: {client_secret[:20]}...")
-        elif subscription.latest_invoice and subscription.latest_invoice.status == 'open':
-            # No payment_intent exists, create one for the invoice
-            print("🔍 DEBUG - Creating payment_intent for invoice")
+        
+        # Check if we have a subscription with an invoice
+        if subscription.latest_invoice:
+            # Try to get payment_intent from the invoice
             try:
-                payment_intent = stripe.PaymentIntent.create(
-                    amount=subscription.latest_invoice.amount_due,
-                    currency=subscription.latest_invoice.currency,
-                    customer=user.stripe_customer_id,
-                    metadata={
-                        'subscription_id': subscription.id,
-                        'invoice_id': subscription.latest_invoice.id
-                    }
-                )
-                client_secret = payment_intent.client_secret
-                print(f"🔍 DEBUG - Created payment_intent: {payment_intent.id}")
+                if hasattr(subscription.latest_invoice, 'payment_intent') and subscription.latest_invoice.payment_intent:
+                    client_secret = subscription.latest_invoice.payment_intent.client_secret
+                    print(f"🔍 DEBUG - Got client_secret from invoice: {client_secret[:20]}...")
+                else:
+                    # No payment_intent exists, create one for the invoice
+                    print("🔍 DEBUG - Creating payment_intent for invoice")
+                    payment_intent = stripe.PaymentIntent.create(
+                        amount=subscription.latest_invoice.amount_due,
+                        currency=subscription.latest_invoice.currency,
+                        customer=user.stripe_customer_id,
+                        metadata={
+                            'subscription_id': subscription.id,
+                            'invoice_id': subscription.latest_invoice.id
+                        }
+                    )
+                    client_secret = payment_intent.client_secret
+                    print(f"🔍 DEBUG - Created payment_intent: {payment_intent.id}")
             except Exception as pi_error:
-                print(f"🔍 DEBUG - Error creating payment_intent: {str(pi_error)}")
-                raise pi_error
+                print(f"🔍 DEBUG - Error with payment_intent: {str(pi_error)}")
+                # Fall back to creating a new payment_intent
+                try:
+                    payment_intent = stripe.PaymentIntent.create(
+                        amount=subscription.latest_invoice.amount_due,
+                        currency=subscription.latest_invoice.currency,
+                        customer=user.stripe_customer_id,
+                        metadata={
+                            'subscription_id': subscription.id,
+                            'invoice_id': subscription.latest_invoice.id
+                        }
+                    )
+                    client_secret = payment_intent.client_secret
+                    print(f"🔍 DEBUG - Fallback created payment_intent: {payment_intent.id}")
+                except Exception as fallback_error:
+                    print(f"🔍 DEBUG - Fallback error: {str(fallback_error)}")
+                    raise fallback_error
         else:
-            print("🔍 DEBUG - No payment_intent found and cannot create one")
+            print("🔍 DEBUG - No latest_invoice found")
+            raise Exception("No invoice found for subscription")
         
         print(f"🔍 DEBUG - Final client_secret: {client_secret[:20] if client_secret else None}...")
+        
+        if not client_secret:
+            raise Exception("Could not obtain client_secret for payment")
         
         return jsonify({
             "subscription_id": subscription.id,
