@@ -8,6 +8,7 @@ import {
 } from '@stripe/react-stripe-js';
 
 // Initialize Stripe
+console.log('🔍 DEBUG - Stripe Public Key:', process.env.REACT_APP_STRIPE_PUBLIC_KEY);
 const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLIC_KEY);
 
 const PaymentForm = ({ onSuccess, onCancel }) => {

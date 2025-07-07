@@ -12,6 +12,7 @@ import axios from 'axios';
 import '../../styles/StripePayment.css';
 
 // Initialize Stripe with your public key from env variables
+console.log('🔍 DEBUG - Stripe Public Key (StripePaymentComponent):', process.env.REACT_APP_STRIPE_PUBLIC_KEY);
 const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLIC_KEY);
 
 // Payment Form Component
