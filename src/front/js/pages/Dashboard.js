@@ -213,7 +213,7 @@ export const Dashboard = () => {
     return (
         <div className="container mt-4">
             <div className="text-center mb-4">
-                <h2>Quick Video Chat</h2>
+                <h2>GuildMeet</h2>
                 <p>Create shareable video links instantly</p>
                 {user && (
                     <p className="text-muted">

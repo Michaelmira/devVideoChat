@@ -104,7 +104,7 @@ export const Home = () => {
 				<div className="col-lg-6">
 					<div className="px-4">
 						<h1 className="display-4 fw-bold mb-4">
-							Quick Video Chat Links
+							GuildMeet
 						</h1>
 						<p className="lead mb-4">
 							Create instant video chat links. Share with anyone.

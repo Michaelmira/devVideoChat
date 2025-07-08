@@ -20,7 +20,7 @@ export const Navbar = () => {
 					<div className="brand-icon me-2">
 						<i className="fas fa-video text-primary" style={{ fontSize: '1.5rem' }}></i>
 					</div>
-					<span className="brand-text fw-bold text-dark">QuickChat</span>
+					<span className="brand-text fw-bold text-dark">GuildMeet</span>
 				</Link>
 
 				{/* Right side content */}
