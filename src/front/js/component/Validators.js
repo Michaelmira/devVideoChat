@@ -1,5 +1,5 @@
-import phoneRegex from '../store/phoneRegex';
-
+// Basic phone validation regex
+const basicPhoneRegex = /^[\+]?[\d\s\-\(\)]{10,15}$/;
 
 export const ValidateEmail = (email, setInvalidItems) => {
     let validRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*$/;
@@ -11,45 +11,27 @@ export const ValidateEmail = (email, setInvalidItems) => {
     }
 };
 
-// export const ValidatePhone = (phone, setInvalidItems) => {
-//     if (phone.trim() === "" || phone.length < 10 || phone.length > 15) {
-//         setInvalidItems(prevInvalidItems => [...prevInvalidItems, "phone"]);
-//         return false;
-//     }
-//     return true;
-// };
-
+// Simplified phone validation for video chat app
 export const ValidatePhone = (phoneNumber, countryCode, setInvalidItems) => {
-    const regex = phoneRegex[countryCode];
-    // leave the 3 console log statements below for testing purposes:
-    // console.log(countryCode);
-    // console.log(phoneNumber)
-    // console.log("regex:", regex);
+    // Basic phone validation - accepts international formats
+    const cleanPhone = phoneNumber.replace(/\s/g, '');
 
-    if (!regex || !regex.test(phoneNumber)) {
+    if (cleanPhone.length < 10 || cleanPhone.length > 15 || !basicPhoneRegex.test(phoneNumber)) {
         setInvalidItems(prevInvalidItems => [...prevInvalidItems, "phone"]);
         return false;
     }
-
     return true;
 };
 
-
 export const ValidatePhoneNumber = (phoneNumber, country) => {
-    console.log(country);
-    console.log(phoneNumber);
-    const regex = phoneRegex[country];
-    console.log("regex:", regex);
+    // Basic phone validation - accepts international formats
+    const cleanPhone = phoneNumber.replace(/\s/g, '');
 
-    if (!regex) {
-        return { isValid: false, message: 'Invalid country code or phone number format' };
+    if (cleanPhone.length < 10 || cleanPhone.length > 15 || !basicPhoneRegex.test(phoneNumber)) {
+        return { isValid: false, message: 'Please enter a valid phone number (10-15 digits)' };
     }
 
-    if (regex.test(phoneNumber)) {
-        return { isValid: true, message: '' };
-    } else {
-        return { isValid: false, message: 'Invalid phone number' };
-    }
+    return { isValid: true, message: '' };
 };
 
 export const ValidateFirstName = (first_name, setInvalidItems) => {

@@ -2,8 +2,7 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 import os
-import logging
-from datetime import datetime, timedelta, date, time as datetime_time 
+from datetime import datetime, timedelta
 import stripe
 
 from flask import Flask, request, jsonify, url_for, Blueprint, current_app, redirect, session, Response
@@ -11,37 +10,19 @@ from flask_cors import CORS, cross_origin
 import jwt
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, get_jwt
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy.orm.attributes import flag_modified
-
-import cloudinary.uploader as uploader
-from cloudinary.uploader import destroy
-from cloudinary.api import delete_resources_by_tag
 
 from api.services.videosdk_service import VideoSDKService
 
 # Updated imports for new models
 from api.models import db, User, UserImage, VideoSession
 from api.utils import generate_sitemap, APIException
-# Removed old decorators for mentor/customer system
 from api.send_email import send_email, send_verification_email_code
 
-import pytz
-from enum import Enum as PyEnum
-
-# from .googlemeet import meet_service
 from urllib.parse import urlencode
-
-# from .mentorGoogleCalendar import calendar_service
 import json
 from google.oauth2.credentials import Credentials
-import requests # For making HTTP requests to Calendly
+import requests # For making HTTP requests to OAuth
 import secrets # For generating secure state tokens for OAuth
-
-from datetime import datetime as dt
-from decimal import Decimal
-import time
-
-from api.calendar_utils import generate_icalendar_content
 
 
 
