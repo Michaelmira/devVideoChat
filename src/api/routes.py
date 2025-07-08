@@ -439,29 +439,42 @@ def create_subscription():
 @jwt_required()
 def confirm_subscription():
     """Confirm payment and create subscription - called after payment succeeds"""
+    print(f"🔍 DEBUG - Starting confirm_subscription")
+    
     user_id = get_jwt_identity()
+    print(f"🔍 DEBUG - User ID: {user_id}")
+    
     user = User.query.get(user_id)
+    print(f"🔍 DEBUG - User found: {user is not None}")
     
     if not user:
         return jsonify({"msg": "User not found"}), 404
     
+    print(f"🔍 DEBUG - User subscription status: {user.subscription_status}")
     if user.subscription_status == 'premium':
         return jsonify({"msg": "User already has premium subscription"}), 400
     
     try:
         data = request.get_json()
+        print(f"🔍 DEBUG - Request data: {data}")
+        
         payment_intent_id = data.get('payment_intent_id')
+        print(f"🔍 DEBUG - Payment intent ID: {payment_intent_id}")
         
         if not payment_intent_id:
             return jsonify({"msg": "Payment intent ID required"}), 400
         
         # Verify the payment intent was successful
+        print(f"🔍 DEBUG - Retrieving payment intent from Stripe")
         payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+        print(f"🔍 DEBUG - Payment intent status: {payment_intent.status}")
         
         if payment_intent.status != 'succeeded':
             return jsonify({"msg": "Payment not completed"}), 400
         
         # Verify this payment belongs to this user
+        print(f"🔍 DEBUG - Payment customer: {payment_intent.customer}")
+        print(f"🔍 DEBUG - User customer: {user.stripe_customer_id}")
         if payment_intent.customer != user.stripe_customer_id:
             return jsonify({"msg": "Payment verification failed"}), 400
         
@@ -470,6 +483,7 @@ def confirm_subscription():
         print(f"🔍 DEBUG - Payment method: {payment_method}")
         
         # Set the payment method as default for the customer (should already be attached)
+        print(f"🔍 DEBUG - Setting default payment method for customer")
         try:
             stripe.Customer.modify(
                 user.stripe_customer_id,
@@ -482,11 +496,19 @@ def confirm_subscription():
             print(f"🔍 DEBUG - Error setting default payment method: {str(pm_error)}")
             # Continue anyway - the subscription creation might still work
         
+        # Check STRIPE_PRICE_ID environment variable
+        price_id = os.getenv('STRIPE_PRICE_ID')
+        print(f"🔍 DEBUG - STRIPE_PRICE_ID: {price_id}")
+        
+        if not price_id:
+            raise Exception("STRIPE_PRICE_ID environment variable not set")
+        
         # Create the subscription with automatic payment behavior
+        print(f"🔍 DEBUG - Creating subscription with price ID: {price_id}")
         subscription = stripe.Subscription.create(
             customer=user.stripe_customer_id,
             items=[{
-                'price': os.getenv('STRIPE_PRICE_ID')  # $3/month price ID
+                'price': price_id  # $3/month price ID
             }],
             # Use existing payment method for future payments
             default_payment_method=payment_method,
@@ -496,13 +518,14 @@ def confirm_subscription():
         print(f"🔍 DEBUG - Created subscription: {subscription.id}, status: {subscription.status}")
         
         # Update user status immediately
+        print(f"🔍 DEBUG - Updating user status to premium")
         user.subscription_status = 'premium'
         user.subscription_id = subscription.id
         if subscription.current_period_end:
             user.current_period_end = datetime.fromtimestamp(subscription.current_period_end)
         db.session.commit()
         
-        print(f"🔍 DEBUG - Created subscription: {subscription.id} for user: {user_id}")
+        print(f"🔍 DEBUG - Successfully updated user {user_id} to premium status")
         
         return jsonify({
             "msg": "Subscription created successfully",
@@ -511,8 +534,15 @@ def confirm_subscription():
         }), 200
         
     except Exception as e:
-        print(f"Error confirming subscription: {str(e)}")
-        return jsonify({"msg": "Failed to confirm subscription"}), 500
+        print(f"❌ Error confirming subscription: {str(e)}")
+        print(f"❌ Error type: {type(e)}")
+        import traceback
+        print(f"❌ Full traceback:\n{traceback.format_exc()}")
+        return jsonify({
+            "msg": "Failed to confirm subscription",
+            "error": str(e),
+            "error_type": str(type(e))
+        }), 500
 
 
 @api.route('/cancel-subscription', methods=['POST'])
