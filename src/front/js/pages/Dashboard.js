@@ -25,9 +25,38 @@ export const Dashboard = () => {
             return;
         }
 
+        // Set user data from sessionStorage first (for faster UI)
         if (userData) {
             setUser(JSON.parse(userData));
         }
+
+        // Fetch fresh user data from backend to ensure subscription status is up-to-date
+        const fetchFreshUserData = async () => {
+            try {
+                const response = await fetch(`${process.env.BACKEND_URL}/api/current/user`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const freshUser = data.user_data;
+
+                    // Update both sessionStorage and state with fresh data
+                    sessionStorage.setItem('user_data', JSON.stringify(freshUser));
+                    setUser(freshUser);
+
+                    console.log('✅ Fresh user data loaded:', freshUser);
+                } else {
+                    console.error('Failed to fetch fresh user data');
+                }
+            } catch (error) {
+                console.error('Error fetching fresh user data:', error);
+            }
+        };
+
+        fetchFreshUserData();
 
         // Load user's sessions
         loadSessions();
@@ -99,9 +128,9 @@ export const Dashboard = () => {
         setUpgradeExpanded(true);
     };
 
-        const handlePaymentSuccess = async (paymentIntent) => {
+    const handlePaymentSuccess = async (paymentIntent) => {
         setUpgradeExpanded(false);
-        
+
         try {
             // Fetch fresh user data from backend to get updated subscription status
             const token = sessionStorage.getItem('token');
@@ -114,16 +143,16 @@ export const Dashboard = () => {
             if (response.ok) {
                 const data = await response.json();
                 const updatedUser = data.user_data;
-                
+
                 // Update both sessionStorage and local state with fresh data
                 sessionStorage.setItem('user_data', JSON.stringify(updatedUser));
                 setUser(updatedUser);
-                
+
                 console.log('✅ User data refreshed:', updatedUser);
-                
+
                 // Also refresh sessions
                 loadSessions();
-                
+
                 alert('🎉 Welcome to Premium! You now have 6-hour sessions!');
             } else {
                 console.error('Failed to fetch updated user data');
@@ -135,7 +164,7 @@ export const Dashboard = () => {
                     sessionStorage.setItem('user_data', JSON.stringify(updatedUser));
                     setUser(updatedUser);
                 }
-                
+
                 loadSessions();
                 alert('🎉 Welcome to Premium! You now have 6-hour sessions!');
             }
@@ -149,7 +178,7 @@ export const Dashboard = () => {
                 sessionStorage.setItem('user_data', JSON.stringify(updatedUser));
                 setUser(updatedUser);
             }
-            
+
             loadSessions();
             alert('🎉 Welcome to Premium! You now have 6-hour sessions!');
         }
@@ -160,6 +189,13 @@ export const Dashboard = () => {
     };
 
     const isPremium = user?.subscription_status === 'premium';
+
+    // Debug logging for subscription status
+    console.log('🔍 Dashboard Debug:', {
+        user: user,
+        subscription_status: user?.subscription_status,
+        isPremium: isPremium
+    });
 
     if (loading && sessions.length === 0) {
         return (
