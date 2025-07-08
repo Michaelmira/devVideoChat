@@ -99,22 +99,60 @@ export const Dashboard = () => {
         setUpgradeExpanded(true);
     };
 
-    const handlePaymentSuccess = async (paymentIntent) => {
+        const handlePaymentSuccess = async (paymentIntent) => {
         setUpgradeExpanded(false);
+        
+        try {
+            // Fetch fresh user data from backend to get updated subscription status
+            const token = sessionStorage.getItem('token');
+            const response = await fetch(`${process.env.BACKEND_URL}/api/current/user`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
 
-        // Refresh user data to show premium status
-        const userData = sessionStorage.getItem('user_data');
-        if (userData) {
-            const updatedUser = JSON.parse(userData);
-            updatedUser.subscription_status = 'premium';
-            sessionStorage.setItem('user_data', JSON.stringify(updatedUser));
-            setUser(updatedUser);
+            if (response.ok) {
+                const data = await response.json();
+                const updatedUser = data.user_data;
+                
+                // Update both sessionStorage and local state with fresh data
+                sessionStorage.setItem('user_data', JSON.stringify(updatedUser));
+                setUser(updatedUser);
+                
+                console.log('✅ User data refreshed:', updatedUser);
+                
+                // Also refresh sessions
+                loadSessions();
+                
+                alert('🎉 Welcome to Premium! You now have 6-hour sessions!');
+            } else {
+                console.error('Failed to fetch updated user data');
+                // Fallback to local update
+                const userData = sessionStorage.getItem('user_data');
+                if (userData) {
+                    const updatedUser = JSON.parse(userData);
+                    updatedUser.subscription_status = 'premium';
+                    sessionStorage.setItem('user_data', JSON.stringify(updatedUser));
+                    setUser(updatedUser);
+                }
+                
+                loadSessions();
+                alert('🎉 Welcome to Premium! You now have 6-hour sessions!');
+            }
+        } catch (error) {
+            console.error('Error refreshing user data:', error);
+            // Fallback to local update
+            const userData = sessionStorage.getItem('user_data');
+            if (userData) {
+                const updatedUser = JSON.parse(userData);
+                updatedUser.subscription_status = 'premium';
+                sessionStorage.setItem('user_data', JSON.stringify(updatedUser));
+                setUser(updatedUser);
+            }
+            
+            loadSessions();
+            alert('🎉 Welcome to Premium! You now have 6-hour sessions!');
         }
-
-        // Also refresh sessions
-        loadSessions();
-
-        alert('🎉 Welcome to Premium! You now have 6-hour sessions!');
     };
 
     const handlePaymentCancel = () => {
