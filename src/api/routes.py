@@ -1303,3 +1303,36 @@ def verify_mvp_signed_state(state_param):
     """Verify a signed state parameter for MVP OAuth"""
     # Same implementation as regular signed state
     return verify_signed_state(state_param)
+
+
+@api.route('/debug-user-subscription', methods=['GET'])
+@jwt_required()
+def debug_user_subscription():
+    """Debug endpoint to check current user's subscription status"""
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+    
+    # Also check Stripe subscription if exists
+    stripe_subscription = None
+    if user.subscription_id:
+        try:
+            stripe_subscription = stripe.Subscription.retrieve(user.subscription_id)
+        except Exception as e:
+            stripe_subscription = {"error": str(e)}
+    
+    return jsonify({
+        "user_id": user.id,
+        "email": user.email,
+        "subscription_status": user.subscription_status,
+        "subscription_id": user.subscription_id,
+        "stripe_customer_id": user.stripe_customer_id,
+        "current_period_end": user.current_period_end.isoformat() if user.current_period_end else None,
+        "stripe_subscription": {
+            "id": stripe_subscription.id if stripe_subscription and hasattr(stripe_subscription, 'id') else None,
+            "status": stripe_subscription.status if stripe_subscription and hasattr(stripe_subscription, 'status') else None,
+            "current_period_end": stripe_subscription.current_period_end if stripe_subscription and hasattr(stripe_subscription, 'current_period_end') else None,
+        } if stripe_subscription and not isinstance(stripe_subscription, dict) else stripe_subscription
+    }), 200
