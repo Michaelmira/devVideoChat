@@ -521,8 +521,21 @@ def confirm_subscription():
         print(f"🔍 DEBUG - Updating user status to premium")
         user.subscription_status = 'premium'
         user.subscription_id = subscription.id
-        if subscription.current_period_end:
-            user.current_period_end = datetime.fromtimestamp(subscription.current_period_end)
+        
+        # Get current_period_end from subscription items (safer approach)
+        try:
+            if hasattr(subscription, 'current_period_end') and subscription.current_period_end:
+                user.current_period_end = datetime.fromtimestamp(subscription.current_period_end)
+            elif subscription.items and subscription.items.data:
+                # Get from first subscription item
+                item = subscription.items.data[0]
+                if hasattr(item, 'current_period_end') and item.current_period_end:
+                    user.current_period_end = datetime.fromtimestamp(item.current_period_end)
+            print(f"🔍 DEBUG - Set current_period_end: {user.current_period_end}")
+        except Exception as period_error:
+            print(f"🔍 DEBUG - Could not set current_period_end: {str(period_error)}")
+            # Continue anyway - subscription is still active
+        
         db.session.commit()
         
         print(f"🔍 DEBUG - Successfully updated user {user_id} to premium status")
