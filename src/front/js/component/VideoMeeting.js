@@ -851,6 +851,31 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                         🔄 Refresh
                     </button>
                     <button
+                        className="btn btn-primary"
+                        onClick={(event) => {
+                            const meetingUrl = `${window.location.origin}/join/${meetingId}`;
+                            navigator.clipboard.writeText(meetingUrl).then(() => {
+                                // Show temporary feedback
+                                const button = event.currentTarget;
+                                const originalText = button.innerHTML;
+                                button.innerHTML = '✅ Copied!';
+                                button.classList.remove('btn-primary');
+                                button.classList.add('btn-success');
+                                setTimeout(() => {
+                                    button.innerHTML = originalText;
+                                    button.classList.remove('btn-success');
+                                    button.classList.add('btn-primary');
+                                }, 2000);
+                            }).catch(err => {
+                                console.error('Failed to copy meeting link:', err);
+                                alert('Failed to copy meeting link. Please try again.');
+                            });
+                        }}
+                        title="Copy Meeting Link"
+                    >
+                        🔗 Copy Link
+                    </button>
+                    <button
                         className="btn btn-danger"
                         onClick={() => leave()}
                         title="Leave Meeting"
