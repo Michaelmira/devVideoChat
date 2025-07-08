@@ -1,7 +1,43 @@
 import React, { useState, useContext, useEffect, useRef } from "react";
 import { Context } from "../store/appContext";
 import userIcon from "../../img/user-3296.png";
-import { compressImage } from "../services/mentorProfileServices";
+
+// Image compression function
+const compressImage = (file, quality = 0.8, maxWidth = 800, maxHeight = 600) => {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+
+    img.onload = () => {
+      // Calculate dimensions
+      let { width, height } = img;
+
+      // Resize if too large
+      if (width > maxWidth || height > maxHeight) {
+        const ratio = Math.min(maxWidth / width, maxHeight / height);
+        width = width * ratio;
+        height = height * ratio;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      // Draw and compress
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob((blob) => {
+        const compressedFile = new File([blob], file.name, {
+          type: file.type,
+          lastModified: Date.now(),
+        });
+        resolve(compressedFile);
+      }, file.type, quality);
+    };
+
+    img.src = URL.createObjectURL(file);
+  });
+};
 
 
 const ProfilePhoto = ({
@@ -178,9 +214,8 @@ const ProfilePhoto = ({
           <button
             type="button"
             onClick={toggleImageDeletion}
-            className={`profile-photo-delete-button ${
-              isMarkedForDeletion ? "undo" : ""
-            }`}
+            className={`profile-photo-delete-button ${isMarkedForDeletion ? "undo" : ""
+              }`}
           >
             {isMarkedForDeletion ? "↺" : "×"}
           </button>
@@ -195,15 +230,12 @@ const ProfilePhoto = ({
             ref={imageRef}
             src={isMarkedForDeletion ? userIcon : previewImg || url}
             alt="Profile Picture"
-            className={`profile-image ${editMode ? "editable" : ""} ${
-              isDragging ? "dragging" : ""
-            }`}
+            className={`profile-image ${editMode ? "editable" : ""} ${isDragging ? "dragging" : ""
+              }`}
             style={{
-              transform: `translate(calc(-50% + ${
-                editMode ? position.x : positionX
-              }px), calc(-50% + ${
-                editMode ? position.y : positionY
-              }px)) scale(${editMode ? scale : imageScale})`,
+              transform: `translate(calc(-50% + ${editMode ? position.x : positionX
+                }px), calc(-50% + ${editMode ? position.y : positionY
+                }px)) scale(${editMode ? scale : imageScale})`,
             }}
             onMouseDown={handleMouseDown}
             draggable={false}

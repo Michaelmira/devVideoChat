@@ -7,23 +7,12 @@ import { BackendURL } from "./component/backendURL";
 import { Home } from "./pages/home";
 import { Dashboard } from "./pages/Dashboard";
 import { JoinSession } from "./pages/JoinSession";
+import { VideoMeetingPage } from "./pages/VideoMeetingPage";
 
-import { Single } from "./pages/single";
 import injectContext from "./store/appContext";
 
 import { Navbar } from "./component/Navbar";
 import { Footer } from "./component/footer";
-
-// Keep existing components for backward compatibility
-import { MentorList } from "./pages/mentorList";
-import { MentorDashboard } from "./pages/MentorDashboard";
-import { MentorProfile } from "./pages/MentorProfile";
-import { MentorDetails } from "./pages/MentorDetails";
-import { BookingDetailsPage } from "./pages/BookingDetailsPage";
-import { BookingConfirmedPage } from "./pages/BookingConfirmedPage";
-import CustomerDashboard from "./pages/CustomerDashboard";
-import CustomerProfile from "./pages/CustomerProfile";
-import { VideoMeetingPage } from "./pages/VideoMeetingPage";
 
 
 //create your first component
@@ -74,25 +63,11 @@ const Layout = () => {
                 <ScrollToTop>
                     <Navbar />
                     <Routes>
-                        {/* NEW SIMPLIFIED ROUTES */}
+                        {/* SIMPLIFIED VIDEO CHAT ROUTES */}
                         <Route element={<Home />} path="/" />  {/* Landing page with MVP login */}
                         <Route element={<Dashboard />} path="/dashboard" />  {/* Logged-in users */}
                         <Route element={<JoinSession />} path="/join/:meetingId" />  {/* Public joining */}
-
-                        {/* KEEP EXISTING AUTH ROUTES */}
-                        <Route element={<CustomerProfile />} path="/customer-profile" />
-                        <Route element={<CustomerDashboard />} path="/customer-dashboard" />
-                        <Route element={<MentorProfile />} path="/mentor-profile" />
-                        <Route element={<MentorDashboard />} path="/mentor-dashboard" />
-
-                        {/* KEEP VIDEO MEETING (unchanged) */}
-                        <Route element={<VideoMeetingPage />} path="/video-meeting/:meetingId" />
-
-                        {/* DEPRECATED ROUTES (keep for backward compatibility) */}
-                        <Route element={<MentorList />} path="/mentor-list" />
-                        <Route element={<MentorDetails />} path="/mentor-details/:theid" />
-                        <Route element={<BookingDetailsPage />} path="/booking-details" />
-                        <Route element={<BookingConfirmedPage />} path="/booking-confirmed/:bookingId" />
+                        <Route element={<VideoMeetingPage />} path="/video-meeting/:meetingId" />  {/* Video meeting */}
 
                         <Route element={<h1>Not found!</h1>} path="*" />
                     </Routes>
