@@ -3,6 +3,7 @@ import { Context } from "../store/appContext";
 import { useNavigate } from "react-router-dom";
 import { ActiveSessionsList } from "../component/ActiveSessionsList";
 import { UpgradeSection } from "../component/UpgradeSection";
+import { PremiumStatusSection } from "../component/PremiumStatusSection";
 import "../../styles/upgrade-card.css";
 
 export const Dashboard = () => {
@@ -100,7 +101,7 @@ export const Dashboard = () => {
 
     const handlePaymentSuccess = async (paymentIntent) => {
         setUpgradeExpanded(false);
-        
+
         // Refresh user data to show premium status
         const userData = sessionStorage.getItem('user_data');
         if (userData) {
@@ -109,10 +110,10 @@ export const Dashboard = () => {
             sessionStorage.setItem('user_data', JSON.stringify(updatedUser));
             setUser(updatedUser);
         }
-        
+
         // Also refresh sessions
         loadSessions();
-        
+
         alert('🎉 Welcome to Premium! You now have 6-hour sessions!');
     };
 
@@ -187,8 +188,10 @@ export const Dashboard = () => {
                 onRefresh={loadSessions}
             />
 
-            {/* Upgrade CTA for Free Users */}
-            {!isPremium && (
+            {/* Premium Status or Upgrade CTA */}
+            {isPremium ? (
+                <PremiumStatusSection user={user} />
+            ) : (
                 <UpgradeSection
                     expanded={upgradeExpanded}
                     onStartUpgrade={handleStartUpgrade}
