@@ -17,7 +17,7 @@ class User(db.Model):
     is_active = db.Column(db.Boolean(), unique=False, default=True)
     last_active = db.Column(db.DateTime(timezone=True), unique=False)
     date_joined = db.Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
-    about_me = db.Column(db.Strin1g(2500), unique=False)
+    about_me = db.Column(db.String(2500), unique=False)
     is_verified = db.Column(db.Boolean(), default=False, nullable=False)
     verification_code = db.Column(db.String(6), nullable=True)
 
