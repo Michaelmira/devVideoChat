@@ -410,11 +410,12 @@ def create_subscription():
                 user.stripe_customer_id = stripe_customer.id
                 db.session.commit()
         
-        # Create a simple payment intent for $3 (not a subscription yet)
+        # Create a payment intent for $3 and save payment method for future use
         payment_intent = stripe.PaymentIntent.create(
             amount=300,  # $3.00 in cents
             currency='usd',
             customer=user.stripe_customer_id,
+            setup_future_usage='off_session',  # Save payment method for future use
             metadata={
                 'user_id': str(user_id),
                 'type': 'subscription_payment'
@@ -466,24 +467,20 @@ def confirm_subscription():
         
         # Get the payment method from the successful payment intent
         payment_method = payment_intent.payment_method
+        print(f"🔍 DEBUG - Payment method: {payment_method}")
         
-        # Attach payment method to customer (if not already attached)
+        # Set the payment method as default for the customer (should already be attached)
         try:
-            stripe.PaymentMethod.attach(
-                payment_method,
-                customer=user.stripe_customer_id
+            stripe.Customer.modify(
+                user.stripe_customer_id,
+                invoice_settings={
+                    'default_payment_method': payment_method
+                }
             )
-        except stripe.error.InvalidRequestError:
-            # Payment method already attached, that's fine
-            pass
-        
-        # Update customer's default payment method
-        stripe.Customer.modify(
-            user.stripe_customer_id,
-            invoice_settings={
-                'default_payment_method': payment_method
-            }
-        )
+            print(f"🔍 DEBUG - Set default payment method for customer: {user.stripe_customer_id}")
+        except Exception as pm_error:
+            print(f"🔍 DEBUG - Error setting default payment method: {str(pm_error)}")
+            # Continue anyway - the subscription creation might still work
         
         # Create the subscription with automatic payment behavior
         subscription = stripe.Subscription.create(
@@ -491,17 +488,12 @@ def confirm_subscription():
             items=[{
                 'price': os.getenv('STRIPE_PRICE_ID')  # $3/month price ID
             }],
-            # Start immediately with default payment method
-            payment_behavior='default_incomplete',
+            # Use existing payment method for future payments
+            default_payment_method=payment_method,
             expand=['latest_invoice.payment_intent']
         )
         
-        # Pay the first invoice immediately if it's not already paid
-        if subscription.latest_invoice and subscription.latest_invoice.status != 'paid':
-            stripe.Invoice.pay(
-                subscription.latest_invoice.id,
-                payment_method=payment_method
-            )
+        print(f"🔍 DEBUG - Created subscription: {subscription.id}, status: {subscription.status}")
         
         # Update user status immediately
         user.subscription_status = 'premium'
