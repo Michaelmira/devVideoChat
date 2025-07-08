@@ -85,6 +85,37 @@ def get_current_user():
     if user is None:
         return jsonify({"msg": "No user with this ID exists."}), 404
     
+    # Auto-fix missing billing date for premium users
+    if user.subscription_status == 'premium' and not user.current_period_end:
+        try:
+            if user.subscription_id:
+                # Fetch subscription from Stripe to get current_period_end
+                subscription = stripe.Subscription.retrieve(user.subscription_id)
+                print(f"🔍 DEBUG - Auto-fixing billing date for user {user_id}")
+                
+                # Try multiple methods to get the billing date
+                if hasattr(subscription, 'current_period_end') and subscription.current_period_end:
+                    user.current_period_end = datetime.fromtimestamp(subscription.current_period_end)
+                    print(f"🔍 DEBUG - Auto-fixed billing date: {user.current_period_end}")
+                elif 'current_period_end' in subscription:
+                    user.current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
+                    print(f"🔍 DEBUG - Auto-fixed billing date from dict: {user.current_period_end}")
+                else:
+                    # Fallback: Set to 30 days from now
+                    user.current_period_end = datetime.utcnow() + timedelta(days=30)
+                    print(f"🔍 DEBUG - Auto-fixed with fallback billing date: {user.current_period_end}")
+                
+                db.session.commit()
+            else:
+                # No subscription_id, set fallback date
+                user.current_period_end = datetime.utcnow() + timedelta(days=30)
+                db.session.commit()
+                print(f"🔍 DEBUG - Auto-fixed with fallback (no subscription_id): {user.current_period_end}")
+                
+        except Exception as e:
+            print(f"🔍 DEBUG - Error auto-fixing billing date: {str(e)}")
+            # Continue anyway
+    
     return jsonify(role="user", user_data=user.serialize())
 
 
@@ -522,19 +553,37 @@ def confirm_subscription():
         user.subscription_status = 'premium'
         user.subscription_id = subscription.id
         
-        # Get current_period_end from subscription items (safer approach)
+        # Get current_period_end from subscription (multiple approaches)
         try:
+            # Method 1: Try to get from subscription object directly
             if hasattr(subscription, 'current_period_end') and subscription.current_period_end:
                 user.current_period_end = datetime.fromtimestamp(subscription.current_period_end)
+                print(f"🔍 DEBUG - Got current_period_end from subscription: {user.current_period_end}")
+            
+            # Method 2: Get from subscription items
             elif subscription.items and subscription.items.data:
-                # Get from first subscription item
                 item = subscription.items.data[0]
                 if hasattr(item, 'current_period_end') and item.current_period_end:
                     user.current_period_end = datetime.fromtimestamp(item.current_period_end)
-            print(f"🔍 DEBUG - Set current_period_end: {user.current_period_end}")
+                    print(f"🔍 DEBUG - Got current_period_end from item: {user.current_period_end}")
+                    
+            # Method 3: Try to access as dictionary key
+            elif 'current_period_end' in subscription:
+                user.current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
+                print(f"🔍 DEBUG - Got current_period_end from dict: {user.current_period_end}")
+                
+            # Method 4: Use billing_cycle_anchor + 1 month as fallback
+            else:
+                print(f"🔍 DEBUG - Subscription object keys: {list(subscription.keys()) if hasattr(subscription, 'keys') else 'No keys method'}")
+                # Calculate next billing date (30 days from now)
+                user.current_period_end = datetime.utcnow() + timedelta(days=30)
+                print(f"🔍 DEBUG - Using fallback current_period_end: {user.current_period_end}")
+                
         except Exception as period_error:
-            print(f"🔍 DEBUG - Could not set current_period_end: {str(period_error)}")
-            # Continue anyway - subscription is still active
+            print(f"🔍 DEBUG - Error setting current_period_end: {str(period_error)}")
+            # Fallback: Set to 30 days from now
+            user.current_period_end = datetime.utcnow() + timedelta(days=30)
+            print(f"🔍 DEBUG - Using error fallback current_period_end: {user.current_period_end}")
         
         db.session.commit()
         
@@ -597,6 +646,64 @@ def get_subscription_status():
         "subscription_status": user.subscription_status,
         "current_period_end": user.current_period_end.isoformat() if user.current_period_end else None
     }), 200
+
+
+@api.route('/fix-billing-date', methods=['POST'])
+@jwt_required()
+def fix_billing_date():
+    """Fix billing date for premium users who don't have current_period_end set"""
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+    
+    if user.subscription_status != 'premium':
+        return jsonify({"msg": "User is not premium"}), 400
+    
+    if user.current_period_end:
+        return jsonify({
+            "msg": "Billing date already set",
+            "current_period_end": user.current_period_end.isoformat()
+        }), 200
+    
+    try:
+        if user.subscription_id:
+            # Fetch subscription from Stripe to get current_period_end
+            subscription = stripe.Subscription.retrieve(user.subscription_id)
+            print(f"🔍 DEBUG - Retrieved subscription: {subscription.id}")
+            
+            # Try multiple methods to get the billing date
+            if hasattr(subscription, 'current_period_end') and subscription.current_period_end:
+                user.current_period_end = datetime.fromtimestamp(subscription.current_period_end)
+                print(f"🔍 DEBUG - Got billing date from subscription: {user.current_period_end}")
+            elif 'current_period_end' in subscription:
+                user.current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
+                print(f"🔍 DEBUG - Got billing date from dict: {user.current_period_end}")
+            else:
+                # Fallback: Set to 30 days from now
+                user.current_period_end = datetime.utcnow() + timedelta(days=30)
+                print(f"🔍 DEBUG - Using fallback billing date: {user.current_period_end}")
+            
+            db.session.commit()
+            
+            return jsonify({
+                "msg": "Billing date updated successfully",
+                "current_period_end": user.current_period_end.isoformat()
+            }), 200
+        else:
+            # No subscription_id, set fallback date
+            user.current_period_end = datetime.utcnow() + timedelta(days=30)
+            db.session.commit()
+            
+            return jsonify({
+                "msg": "Billing date set with fallback",
+                "current_period_end": user.current_period_end.isoformat()
+            }), 200
+            
+    except Exception as e:
+        print(f"Error fixing billing date: {str(e)}")
+        return jsonify({"msg": "Failed to fix billing date"}), 500
 
 
 # ===========================================
