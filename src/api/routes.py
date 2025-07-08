@@ -378,7 +378,7 @@ def debug_stripe():
 @api.route('/create-subscription', methods=['POST'])
 @jwt_required()
 def create_subscription():
-    """Create a $3/month subscription"""
+    """Create a payment intent for subscription - payment first, then subscription"""
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
     
@@ -389,12 +389,6 @@ def create_subscription():
         return jsonify({"msg": "User already has premium subscription"}), 400
     
     try:
-        # DEBUG: Check environment variables
-        print(f"🔍 DEBUG - STRIPE_PRICE_ID loaded as: {os.getenv('STRIPE_PRICE_ID')}")
-        print(f"🔍 DEBUG - User subscription status: {user.subscription_status}")
-        
-        # Let Stripe handle price validation directly in subscription creation
-        
         # Create or get Stripe customer
         if not user.stripe_customer_id:
             stripe_customer = stripe.Customer.create(
@@ -416,86 +410,117 @@ def create_subscription():
                 user.stripe_customer_id = stripe_customer.id
                 db.session.commit()
         
-        # Create subscription
+        # Create a simple payment intent for $3 (not a subscription yet)
+        payment_intent = stripe.PaymentIntent.create(
+            amount=300,  # $3.00 in cents
+            currency='usd',
+            customer=user.stripe_customer_id,
+            metadata={
+                'user_id': str(user_id),
+                'type': 'subscription_payment'
+            },
+            description='Premium subscription payment'
+        )
+        
+        print(f"🔍 DEBUG - Created payment intent: {payment_intent.id}")
+        
+        return jsonify({
+            "client_secret": payment_intent.client_secret,
+            "status": "requires_payment_method"
+        }), 200
+        
+    except Exception as e:
+        print(f"Error creating payment intent: {str(e)}")
+        return jsonify({"msg": "Failed to create payment intent"}), 500
+
+
+@api.route('/confirm-subscription', methods=['POST'])
+@jwt_required()
+def confirm_subscription():
+    """Confirm payment and create subscription - called after payment succeeds"""
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+    
+    if user.subscription_status == 'premium':
+        return jsonify({"msg": "User already has premium subscription"}), 400
+    
+    try:
+        data = request.get_json()
+        payment_intent_id = data.get('payment_intent_id')
+        
+        if not payment_intent_id:
+            return jsonify({"msg": "Payment intent ID required"}), 400
+        
+        # Verify the payment intent was successful
+        payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+        
+        if payment_intent.status != 'succeeded':
+            return jsonify({"msg": "Payment not completed"}), 400
+        
+        # Verify this payment belongs to this user
+        if payment_intent.customer != user.stripe_customer_id:
+            return jsonify({"msg": "Payment verification failed"}), 400
+        
+        # Get the payment method from the successful payment intent
+        payment_method = payment_intent.payment_method
+        
+        # Attach payment method to customer (if not already attached)
+        try:
+            stripe.PaymentMethod.attach(
+                payment_method,
+                customer=user.stripe_customer_id
+            )
+        except stripe.error.InvalidRequestError:
+            # Payment method already attached, that's fine
+            pass
+        
+        # Update customer's default payment method
+        stripe.Customer.modify(
+            user.stripe_customer_id,
+            invoice_settings={
+                'default_payment_method': payment_method
+            }
+        )
+        
+        # Create the subscription with automatic payment behavior
         subscription = stripe.Subscription.create(
             customer=user.stripe_customer_id,
             items=[{
                 'price': os.getenv('STRIPE_PRICE_ID')  # $3/month price ID
             }],
+            # Start immediately with default payment method
             payment_behavior='default_incomplete',
             expand=['latest_invoice.payment_intent']
         )
         
+        # Pay the first invoice immediately if it's not already paid
+        if subscription.latest_invoice and subscription.latest_invoice.status != 'paid':
+            stripe.Invoice.pay(
+                subscription.latest_invoice.id,
+                payment_method=payment_method
+            )
+        
+        # Update user status immediately
+        user.subscription_status = 'premium'
         user.subscription_id = subscription.id
+        if subscription.current_period_end:
+            user.current_period_end = datetime.fromtimestamp(subscription.current_period_end)
         db.session.commit()
         
-        # Debug: Check what we got back
-        print(f"🔍 DEBUG - Subscription status: {subscription.status}")
-        print(f"🔍 DEBUG - Has latest_invoice: {hasattr(subscription, 'latest_invoice') and subscription.latest_invoice is not None}")
-        if subscription.latest_invoice:
-            print(f"🔍 DEBUG - Invoice status: {subscription.latest_invoice.status}")
-            print(f"🔍 DEBUG - Has payment_intent: {hasattr(subscription.latest_invoice, 'payment_intent') and subscription.latest_invoice.payment_intent is not None}")
-        
-        # Get client_secret for payment
-        client_secret = None
-        
-        # Check if we have a subscription with an invoice
-        if subscription.latest_invoice:
-            # Try to get payment_intent from the invoice
-            try:
-                if hasattr(subscription.latest_invoice, 'payment_intent') and subscription.latest_invoice.payment_intent:
-                    client_secret = subscription.latest_invoice.payment_intent.client_secret
-                    print(f"🔍 DEBUG - Got client_secret from invoice: {client_secret[:20]}...")
-                else:
-                    # No payment_intent exists, create one for the invoice
-                    print("🔍 DEBUG - Creating payment_intent for invoice")
-                    payment_intent = stripe.PaymentIntent.create(
-                        amount=subscription.latest_invoice.amount_due,
-                        currency=subscription.latest_invoice.currency,
-                        customer=user.stripe_customer_id,
-                        metadata={
-                            'subscription_id': subscription.id,
-                            'invoice_id': subscription.latest_invoice.id
-                        }
-                    )
-                    client_secret = payment_intent.client_secret
-                    print(f"🔍 DEBUG - Created payment_intent: {payment_intent.id}")
-            except Exception as pi_error:
-                print(f"🔍 DEBUG - Error with payment_intent: {str(pi_error)}")
-                # Fall back to creating a new payment_intent
-                try:
-                    payment_intent = stripe.PaymentIntent.create(
-                        amount=subscription.latest_invoice.amount_due,
-                        currency=subscription.latest_invoice.currency,
-                        customer=user.stripe_customer_id,
-                        metadata={
-                            'subscription_id': subscription.id,
-                            'invoice_id': subscription.latest_invoice.id
-                        }
-                    )
-                    client_secret = payment_intent.client_secret
-                    print(f"🔍 DEBUG - Fallback created payment_intent: {payment_intent.id}")
-                except Exception as fallback_error:
-                    print(f"🔍 DEBUG - Fallback error: {str(fallback_error)}")
-                    raise fallback_error
-        else:
-            print("🔍 DEBUG - No latest_invoice found")
-            raise Exception("No invoice found for subscription")
-        
-        print(f"🔍 DEBUG - Final client_secret: {client_secret[:20] if client_secret else None}...")
-        
-        if not client_secret:
-            raise Exception("Could not obtain client_secret for payment")
+        print(f"🔍 DEBUG - Created subscription: {subscription.id} for user: {user_id}")
         
         return jsonify({
+            "msg": "Subscription created successfully",
             "subscription_id": subscription.id,
-            "client_secret": client_secret,
-            "status": subscription.status
+            "status": "active"
         }), 200
         
     except Exception as e:
-        print(f"Error creating subscription: {str(e)}")
-        return jsonify({"msg": "Failed to create subscription"}), 500
+        print(f"Error confirming subscription: {str(e)}")
+        return jsonify({"msg": "Failed to confirm subscription"}), 500
 
 
 @api.route('/cancel-subscription', methods=['POST'])
@@ -1303,36 +1328,3 @@ def verify_mvp_signed_state(state_param):
     """Verify a signed state parameter for MVP OAuth"""
     # Same implementation as regular signed state
     return verify_signed_state(state_param)
-
-
-@api.route('/debug-user-subscription', methods=['GET'])
-@jwt_required()
-def debug_user_subscription():
-    """Debug endpoint to check current user's subscription status"""
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-    
-    if not user:
-        return jsonify({"msg": "User not found"}), 404
-    
-    # Also check Stripe subscription if exists
-    stripe_subscription = None
-    if user.subscription_id:
-        try:
-            stripe_subscription = stripe.Subscription.retrieve(user.subscription_id)
-        except Exception as e:
-            stripe_subscription = {"error": str(e)}
-    
-    return jsonify({
-        "user_id": user.id,
-        "email": user.email,
-        "subscription_status": user.subscription_status,
-        "subscription_id": user.subscription_id,
-        "stripe_customer_id": user.stripe_customer_id,
-        "current_period_end": user.current_period_end.isoformat() if user.current_period_end else None,
-        "stripe_subscription": {
-            "id": stripe_subscription.id if stripe_subscription and hasattr(stripe_subscription, 'id') else None,
-            "status": stripe_subscription.status if stripe_subscription and hasattr(stripe_subscription, 'status') else None,
-            "current_period_end": stripe_subscription.current_period_end if stripe_subscription and hasattr(stripe_subscription, 'current_period_end') else None,
-        } if stripe_subscription and not isinstance(stripe_subscription, dict) else stripe_subscription
-    }), 200

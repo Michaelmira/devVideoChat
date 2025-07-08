@@ -28,8 +28,9 @@ const PaymentForm = ({ onSuccess, onCancel }) => {
         setError(null);
 
         try {
-            // Step 1: Create subscription and get client secret
             const token = sessionStorage.getItem('token');
+            
+            // Step 1: Create payment intent (not subscription yet)
             const response = await fetch(`${process.env.BACKEND_URL}/api/create-subscription`, {
                 method: 'POST',
                 headers: {
@@ -42,11 +43,11 @@ const PaymentForm = ({ onSuccess, onCancel }) => {
                 const errorData = await response.json();
                 console.error('❌ Backend error:', errorData);
                 console.error('❌ Response status:', response.status);
-                throw new Error(errorData.msg || 'Failed to create subscription');
+                throw new Error(errorData.msg || 'Failed to create payment intent');
             }
 
-            const subscriptionData = await response.json();
-            const clientSecret = subscriptionData.client_secret;
+            const paymentData = await response.json();
+            const clientSecret = paymentData.client_secret;
 
             // Step 2: Confirm payment with Stripe
             const cardElement = elements.getElement(CardElement);
@@ -59,8 +60,28 @@ const PaymentForm = ({ onSuccess, onCancel }) => {
 
             if (error) {
                 setError(error.message);
-            } else {
-                // Payment succeeded
+            } else if (paymentIntent.status === 'succeeded') {
+                // Step 3: Create actual subscription after payment succeeds
+                const confirmResponse = await fetch(`${process.env.BACKEND_URL}/api/confirm-subscription`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        payment_intent_id: paymentIntent.id
+                    })
+                });
+
+                if (!confirmResponse.ok) {
+                    const errorData = await confirmResponse.json();
+                    throw new Error(errorData.msg || 'Failed to confirm subscription');
+                }
+
+                const subscriptionData = await confirmResponse.json();
+                console.log('✅ Subscription created successfully:', subscriptionData);
+                
+                // Payment and subscription both succeeded
                 onSuccess(paymentIntent);
             }
 
