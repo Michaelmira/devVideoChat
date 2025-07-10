@@ -341,7 +341,8 @@ def get_session_status(meeting_id):
         "status": session.status,
         "time_remaining_minutes": time_remaining,
         "max_duration_minutes": session.max_duration_minutes,
-        "creator_name": session.creator.first_name if session.creator else "Host"
+        "creator_name": session.creator.first_name if session.creator else "Host",
+        "creator_id": session.creator.id if session.creator else None
     }), 200
 
 
