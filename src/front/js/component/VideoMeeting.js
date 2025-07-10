@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { MeetingProvider, useMeeting, useParticipant, Constants, MeetingConsumer } from '@videosdk.live/react-sdk';
+import { backendURL } from "./backendURL";
 
 function ParticipantView({ participantId, viewMode = 'normal', isLocal = false }) {
     const micRef = React.useRef(null);
@@ -243,7 +244,7 @@ function ParticipantView({ participantId, viewMode = 'normal', isLocal = false }
     );
 }
 
-function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isModerator }) {
+function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isModerator, user }) {
     const [joined, setJoined] = useState(null);
     const [connectionStatus, setConnectionStatus] = useState('connected');
     const [tokenExpiryWarning, setTokenExpiryWarning] = useState(false);
@@ -856,7 +857,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                             const button = event.currentTarget;
                             const originalText = button.innerHTML;
                             const meetingUrl = `${window.location.origin}/join/${meetingId}`;
-                            
+
                             try {
                                 // Try modern clipboard API first
                                 if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -874,33 +875,33 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                                     document.body.removeChild(textArea);
                                     console.log('✅ Meeting link copied via fallback method:', meetingUrl);
                                 }
-                                
+
                                 // Show success feedback
                                 button.innerHTML = '✅ Copied!';
                                 button.classList.remove('btn-primary');
                                 button.classList.add('btn-success');
-                                
+
                                 setTimeout(() => {
                                     button.innerHTML = originalText;
                                     button.classList.remove('btn-success');
                                     button.classList.add('btn-primary');
                                 }, 2000);
-                                
+
                             } catch (err) {
                                 console.error('❌ Error copying meeting link:', err);
-                                
+
                                 // Even if there's an "error", the copy might have worked
                                 // So show success feedback but also log the error
                                 button.innerHTML = '✅ Link Copied';
                                 button.classList.remove('btn-primary');
                                 button.classList.add('btn-success');
-                                
+
                                 setTimeout(() => {
                                     button.innerHTML = originalText;
                                     button.classList.remove('btn-success');
                                     button.classList.add('btn-primary');
                                 }, 2000);
-                                
+
                                 // Only show error alert if we're really sure it failed
                                 // For now, we'll assume it worked since the user reported it's copying
                                 console.log('🔗 Meeting URL (manual copy if needed):', meetingUrl);
@@ -1138,6 +1139,22 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                     </div>
                 </div>
             </div>
+
+            {/* Recording Controls */}
+            <div className="position-fixed" style={{
+                top: '20px',
+                left: '20px',
+                right: '20px',
+                zIndex: 1045
+            }}>
+                <RecordingControls
+                    meetingId={meetingId}
+                    user={user}
+                    onRecordingStatusChange={(status) => {
+                        console.log(`Recording status changed: ${status}`);
+                    }}
+                />
+            </div>
         </div>
     );
 }
@@ -1224,10 +1241,196 @@ function MeetingTimer({ meetingId }) {
     );
 }
 
+// Recording Controls Component
+function RecordingControls({ meetingId, user, onRecordingStatusChange }) {
+    const [recordingStatus, setRecordingStatus] = useState('none');
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Check if user is premium
+    const isPremium = user?.subscription_status === 'premium';
+
+    // Fetch current recording status
+    const fetchRecordingStatus = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${backendURL}/api/sessions/${meetingId}/recordings`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setRecordingStatus(data.recording_status);
+                onRecordingStatusChange?.(data.recording_status);
+            }
+        } catch (error) {
+            console.error('Error fetching recording status:', error);
+        }
+    };
+
+    // Start recording
+    const startRecording = async () => {
+        setIsLoading(true);
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${backendURL}/api/sessions/${meetingId}/start-recording`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setRecordingStatus('starting');
+                onRecordingStatusChange?.('starting');
+                alert('Recording started successfully!');
+            } else {
+                const error = await response.json();
+                alert(`Failed to start recording: ${error.msg}`);
+            }
+        } catch (error) {
+            console.error('Error starting recording:', error);
+            alert('Error starting recording');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Stop recording
+    const stopRecording = async () => {
+        setIsLoading(true);
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${backendURL}/api/sessions/${meetingId}/stop-recording`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setRecordingStatus('stopping');
+                onRecordingStatusChange?.('stopping');
+                alert('Recording stopped successfully!');
+            } else {
+                const error = await response.json();
+                alert(`Failed to stop recording: ${error.msg}`);
+            }
+        } catch (error) {
+            console.error('Error stopping recording:', error);
+            alert('Error stopping recording');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Initial fetch
+    useEffect(() => {
+        if (isPremium && meetingId) {
+            fetchRecordingStatus();
+        }
+    }, [isPremium, meetingId]);
+
+    // Don't show controls for non-premium users
+    if (!isPremium) {
+        return (
+            <div className="recording-controls-premium-gate" style={{
+                padding: '10px',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '8px',
+                textAlign: 'center',
+                margin: '10px 0'
+            }}>
+                <p style={{ margin: '0 0 10px 0', color: '#6c757d' }}>
+                    🎥 Recording available for Premium users only
+                </p>
+                <button
+                    className="btn btn-warning btn-sm"
+                    onClick={() => window.location.href = '/dashboard'}
+                >
+                    Upgrade to Premium
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="recording-controls" style={{
+            padding: '10px',
+            backgroundColor: '#f8f9fa',
+            borderRadius: '8px',
+            textAlign: 'center',
+            margin: '10px 0'
+        }}>
+            <div className="recording-status" style={{ marginBottom: '10px' }}>
+                {recordingStatus === 'active' && (
+                    <span style={{ color: '#dc3545', fontWeight: 'bold' }}>
+                        🔴 Recording in progress...
+                    </span>
+                )}
+                {recordingStatus === 'starting' && (
+                    <span style={{ color: '#fd7e14', fontWeight: 'bold' }}>
+                        🟡 Starting recording...
+                    </span>
+                )}
+                {recordingStatus === 'stopping' && (
+                    <span style={{ color: '#fd7e14', fontWeight: 'bold' }}>
+                        🟡 Stopping recording...
+                    </span>
+                )}
+                {recordingStatus === 'completed' && (
+                    <span style={{ color: '#28a745', fontWeight: 'bold' }}>
+                        ✅ Recording completed
+                    </span>
+                )}
+                {recordingStatus === 'failed' && (
+                    <span style={{ color: '#dc3545', fontWeight: 'bold' }}>
+                        ❌ Recording failed
+                    </span>
+                )}
+                {recordingStatus === 'none' && (
+                    <span style={{ color: '#6c757d' }}>
+                        📹 Ready to record
+                    </span>
+                )}
+            </div>
+
+            <div className="recording-buttons">
+                {(recordingStatus === 'none' || recordingStatus === 'completed' || recordingStatus === 'failed') && (
+                    <button
+                        className="btn btn-danger btn-sm me-2"
+                        onClick={startRecording}
+                        disabled={isLoading}
+                    >
+                        {isLoading ? 'Starting...' : '⏺️ Start Recording'}
+                    </button>
+                )}
+
+                {(recordingStatus === 'active' || recordingStatus === 'starting') && (
+                    <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={stopRecording}
+                        disabled={isLoading}
+                    >
+                        {isLoading ? 'Stopping...' : '⏹️ Stop Recording'}
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+}
+
 const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
     const [meetingEnded, setMeetingEnded] = useState(false);
     const [currentToken, setCurrentToken] = useState(token);
     const [meetingConfig, setMeetingConfig] = useState(null);
+    const [user, setUser] = useState(null);
 
     useEffect(() => {
         console.log("🚀 VideoMeeting Props:", {
@@ -1237,6 +1440,32 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
             hasToken: !!token
         });
     }, [meetingId, token, userName, isModerator]);
+
+    // Fetch user data for recording capabilities
+    useEffect(() => {
+        const fetchUser = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                if (token) {
+                    const response = await fetch(`${backendURL}/api/current/user`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                    });
+
+                    if (response.ok) {
+                        const userData = await response.json();
+                        setUser(userData.user_data);
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching user data:', error);
+            }
+        };
+
+        fetchUser();
+    }, []);
 
     useEffect(() => {
         console.log("⚙️ Setting up meeting config");
@@ -1339,6 +1568,7 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
                                 onTokenRefresh={handleTokenRefresh}
                                 userName={userName}
                                 isModerator={isModerator}
+                                user={user}
                             />
                         );
                     }}

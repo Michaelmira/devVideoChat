@@ -17,6 +17,7 @@ from api.services.videosdk_service import VideoSDKService
 from api.models import db, User, UserImage, VideoSession
 from api.utils import generate_sitemap, APIException
 from api.send_email import send_email, send_verification_email_code
+from api.decorators import premium_required
 
 from urllib.parse import urlencode
 import json
@@ -789,6 +790,282 @@ def stripe_webhook():
                 pass
 
     return jsonify({"status": "success"}), 200
+
+
+# ===========================================
+# VIDEOSDK WEBHOOK ROUTES
+# ===========================================
+
+@api.route('/videosdk/webhook', methods=['POST'])
+def videosdk_webhook():
+    """Handle VideoSDK webhook events for recording lifecycle"""
+    try:
+        data = request.get_json()
+        event_type = data.get('event')
+        
+        print(f"🎬 VideoSDK Webhook received: {event_type}")
+        print(f"📊 Webhook data: {data}")
+        
+        if event_type == 'recording.started':
+            handle_recording_started(data)
+        elif event_type == 'recording.stopped':
+            handle_recording_stopped(data)
+        elif event_type == 'recording.failed':
+            handle_recording_failed(data)
+        else:
+            print(f"⚠️ Unknown VideoSDK event type: {event_type}")
+        
+        return jsonify({"status": "success"}), 200
+        
+    except Exception as e:
+        print(f"❌ Error processing VideoSDK webhook: {str(e)}")
+        return jsonify({"error": "Webhook processing failed"}), 400
+
+def handle_recording_started(data):
+    """Handle recording started event"""
+    try:
+        meeting_id = data.get('meetingId')
+        recording_id = data.get('recordingId')
+        
+        session = VideoSession.query.filter_by(meeting_id=meeting_id).first()
+        if session:
+            session.recording_id = recording_id
+            session.recording_status = 'active'
+            db.session.commit()
+            print(f"✅ Recording started for session {session.id}")
+        else:
+            print(f"⚠️ Session not found for meeting_id: {meeting_id}")
+            
+    except Exception as e:
+        print(f"❌ Error handling recording started: {str(e)}")
+
+def handle_recording_stopped(data):
+    """Handle recording stopped event"""
+    try:
+        meeting_id = data.get('meetingId')
+        recording_id = data.get('recordingId')
+        download_url = data.get('downloadUrl')
+        
+        session = VideoSession.query.filter_by(meeting_id=meeting_id).first()
+        if session:
+            session.recording_url = download_url
+            session.recording_status = 'completed'
+            db.session.commit()
+            print(f"✅ Recording completed for session {session.id}")
+        else:
+            print(f"⚠️ Session not found for meeting_id: {meeting_id}")
+            
+    except Exception as e:
+        print(f"❌ Error handling recording stopped: {str(e)}")
+
+def handle_recording_failed(data):
+    """Handle recording failed event"""
+    try:
+        meeting_id = data.get('meetingId')
+        recording_id = data.get('recordingId')
+        error_message = data.get('error', 'Unknown error')
+        
+        session = VideoSession.query.filter_by(meeting_id=meeting_id).first()
+        if session:
+            session.recording_status = 'failed'
+            db.session.commit()
+            print(f"❌ Recording failed for session {session.id}: {error_message}")
+        else:
+            print(f"⚠️ Session not found for meeting_id: {meeting_id}")
+            
+    except Exception as e:
+        print(f"❌ Error handling recording failed: {str(e)}")
+
+
+# ===========================================
+# RECORDING API ROUTES
+# ===========================================
+
+@api.route('/sessions/<meeting_id>/start-recording', methods=['POST'])
+@jwt_required()
+@premium_required
+def start_recording(meeting_id):
+    """Start recording for a video session - Premium only"""
+    try:
+        user_id = get_jwt_identity()
+        
+        # Get the session
+        session = VideoSession.query.filter_by(meeting_id=meeting_id).first()
+        if not session:
+            return jsonify({"msg": "Session not found"}), 404
+        
+        # Check if user is the creator
+        if session.creator_id != user_id:
+            return jsonify({"msg": "Only session creator can start recording"}), 403
+        
+        # Check if recording is already active
+        if session.recording_status in ['active', 'starting']:
+            return jsonify({"msg": "Recording already in progress"}), 400
+        
+        # Call VideoSDK API to start recording
+        from .services.videosdk_service import VideoSDKService
+        videosdk = VideoSDKService()
+        
+        # Generate token for recording operation
+        token = videosdk.generate_token(permissions=['allow_record'])
+        
+        # Start recording via VideoSDK API
+        headers = {
+            "Authorization": token,
+            "Content-Type": "application/json"
+        }
+        
+        recording_data = {
+            "webhookUrl": f"{os.getenv('BACKEND_URL')}/api/videosdk/webhook"
+        }
+        
+        response = requests.post(
+            f"{videosdk.api_endpoint}/rooms/{meeting_id}/recordings",
+            headers=headers,
+            json=recording_data
+        )
+        
+        if response.status_code == 200:
+            # Update session status
+            session.recording_status = 'starting'
+            db.session.commit()
+            
+            print(f"✅ Recording start initiated for session {session.id}")
+            return jsonify({
+                "success": True,
+                "message": "Recording started successfully",
+                "recording_status": session.recording_status
+            }), 200
+        else:
+            print(f"❌ Failed to start recording: {response.text}")
+            return jsonify({"msg": "Failed to start recording"}), 400
+            
+    except Exception as e:
+        print(f"❌ Error starting recording: {str(e)}")
+        return jsonify({"msg": "Error starting recording"}), 500
+
+@api.route('/sessions/<meeting_id>/stop-recording', methods=['POST'])
+@jwt_required()
+@premium_required
+def stop_recording(meeting_id):
+    """Stop recording for a video session - Premium only"""
+    try:
+        user_id = get_jwt_identity()
+        
+        # Get the session
+        session = VideoSession.query.filter_by(meeting_id=meeting_id).first()
+        if not session:
+            return jsonify({"msg": "Session not found"}), 404
+        
+        # Check if user is the creator
+        if session.creator_id != user_id:
+            return jsonify({"msg": "Only session creator can stop recording"}), 403
+        
+        # Check if recording is active
+        if session.recording_status not in ['active', 'starting']:
+            return jsonify({"msg": "No active recording to stop"}), 400
+        
+        # Call VideoSDK API to stop recording
+        from .services.videosdk_service import VideoSDKService
+        videosdk = VideoSDKService()
+        
+        # Generate token for recording operation
+        token = videosdk.generate_token(permissions=['allow_record'])
+        
+        # Stop recording via VideoSDK API
+        headers = {
+            "Authorization": token,
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.post(
+            f"{videosdk.api_endpoint}/rooms/{meeting_id}/recordings/stop",
+            headers=headers
+        )
+        
+        if response.status_code == 200:
+            # Update session status
+            session.recording_status = 'stopping'
+            db.session.commit()
+            
+            print(f"✅ Recording stop initiated for session {session.id}")
+            return jsonify({
+                "success": True,
+                "message": "Recording stopped successfully",
+                "recording_status": session.recording_status
+            }), 200
+        else:
+            print(f"❌ Failed to stop recording: {response.text}")
+            return jsonify({"msg": "Failed to stop recording"}), 400
+            
+    except Exception as e:
+        print(f"❌ Error stopping recording: {str(e)}")
+        return jsonify({"msg": "Error stopping recording"}), 500
+
+@api.route('/sessions/<meeting_id>/recordings', methods=['GET'])
+@jwt_required()
+@premium_required
+def get_session_recordings(meeting_id):
+    """Get recordings for a specific session - Premium only"""
+    try:
+        user_id = get_jwt_identity()
+        
+        # Get the session
+        session = VideoSession.query.filter_by(meeting_id=meeting_id).first()
+        if not session:
+            return jsonify({"msg": "Session not found"}), 404
+        
+        # Check if user is the creator
+        if session.creator_id != user_id:
+            return jsonify({"msg": "Only session creator can view recordings"}), 403
+        
+        return jsonify({
+            "success": True,
+            "session_id": session.id,
+            "meeting_id": meeting_id,
+            "recording_status": session.recording_status,
+            "recording_url": session.recording_url,
+            "recording_id": session.recording_id,
+            "has_recording": bool(session.recording_url)
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error getting recordings: {str(e)}")
+        return jsonify({"msg": "Error getting recordings"}), 500
+
+@api.route('/my-recordings', methods=['GET'])
+@jwt_required()
+@premium_required
+def get_my_recordings():
+    """Get all recordings for the current user - Premium only"""
+    try:
+        user_id = get_jwt_identity()
+        
+        # Get all sessions with recordings for this user
+        sessions = VideoSession.query.filter_by(creator_id=user_id).filter(
+            VideoSession.recording_url.isnot(None)
+        ).order_by(VideoSession.created_at.desc()).all()
+        
+        recordings = []
+        for session in sessions:
+            recordings.append({
+                "session_id": session.id,
+                "meeting_id": session.meeting_id,
+                "created_at": session.created_at.isoformat(),
+                "recording_url": session.recording_url,
+                "recording_status": session.recording_status,
+                "max_duration_minutes": session.max_duration_minutes
+            })
+        
+        return jsonify({
+            "success": True,
+            "recordings": recordings,
+            "total_count": len(recordings)
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error getting user recordings: {str(e)}")
+        return jsonify({"msg": "Error getting recordings"}), 500
 
 
 # ===========================================
