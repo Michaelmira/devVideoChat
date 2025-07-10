@@ -810,19 +810,38 @@ def videosdk_webhook():
             return jsonify({"status": "webhook endpoint accessible", "method": "GET"}), 200
         
         data = request.get_json()
+        
+        # VideoSDK uses 'webhookType' field instead of 'event'
+        webhook_type = data.get('webhookType') if data else None
         event_type = data.get('event') if data else None
         
-        print(f"🎬 VideoSDK Webhook received: {event_type}")
+        print(f"🎬 VideoSDK Webhook received - webhookType: {webhook_type}, event: {event_type}")
         print(f"📊 Webhook data: {data}")
         
-        # Handle HLS events (for recording)
-        if event_type == 'hls.started':
+        # Handle new VideoSDK webhook format (webhookType)
+        if webhook_type == 'hls-starting':
+            print("🔄 HLS Recording starting...")
+            # Handle starting event - could update status if needed
+            handle_hls_starting(data.get('data', {}))
+        elif webhook_type == 'hls-started':
+            print("✅ HLS Recording started!")
+            handle_hls_started(data.get('data', {}))
+        elif webhook_type == 'hls-playable':
+            print("🎬 HLS Stream is playable!")
+            # Stream is ready for playback - could be useful for live streaming
+        elif webhook_type == 'hls-stopped':
+            print("🛑 HLS Recording stopped!")
+            handle_hls_stopped(data.get('data', {}))
+        elif webhook_type == 'hls-failed':
+            print("❌ HLS Recording failed!")
+            handle_hls_failed(data.get('data', {}))
+        # Handle legacy event format as fallback
+        elif event_type == 'hls.started':
             handle_hls_started(data)
         elif event_type == 'hls.stopped':
             handle_hls_stopped(data)
         elif event_type == 'hls.failed':
             handle_hls_failed(data)
-        # Handle legacy recording events as fallback
         elif event_type == 'recording.started':
             handle_recording_started(data)
         elif event_type == 'recording.stopped':
@@ -830,7 +849,7 @@ def videosdk_webhook():
         elif event_type == 'recording.failed':
             handle_recording_failed(data)
         else:
-            print(f"⚠️ Unknown VideoSDK event type: {event_type}")
+            print(f"⚠️ Unknown VideoSDK webhook type: {webhook_type} or event: {event_type}")
         
         return jsonify({"status": "success"}), 200
         
@@ -893,20 +912,39 @@ def handle_recording_failed(data):
     except Exception as e:
         print(f"❌ Error handling recording failed: {str(e)}")
 
+def handle_hls_starting(data):
+    """Handle HLS starting event (for recording)"""
+    try:
+        meeting_id = data.get('meetingId')
+        session_id = data.get('sessionId')
+        
+        session = VideoSession.query.filter_by(meeting_id=meeting_id).first()
+        if session:
+            # Recording is starting - keep status as 'starting'
+            if not session.recording_id:
+                session.recording_id = session_id
+            db.session.commit()
+            print(f"🔄 HLS Recording starting for session {session.id}")
+        else:
+            print(f"⚠️ Session not found for meeting_id: {meeting_id}")
+            
+    except Exception as e:
+        print(f"❌ Error handling HLS starting: {str(e)}")
+
 def handle_hls_started(data):
     """Handle HLS started event (for recording)"""
     try:
-        room_id = data.get('roomId')
+        meeting_id = data.get('meetingId')
         session_id = data.get('sessionId')
         
-        session = VideoSession.query.filter_by(meeting_id=room_id).first()
+        session = VideoSession.query.filter_by(meeting_id=meeting_id).first()
         if session:
             session.recording_id = session_id
             session.recording_status = 'active'
             db.session.commit()
             print(f"✅ HLS Recording started for session {session.id}")
         else:
-            print(f"⚠️ Session not found for room_id: {room_id}")
+            print(f"⚠️ Session not found for meeting_id: {meeting_id}")
             
     except Exception as e:
         print(f"❌ Error handling HLS started: {str(e)}")
@@ -914,20 +952,21 @@ def handle_hls_started(data):
 def handle_hls_stopped(data):
     """Handle HLS stopped event (for recording)"""
     try:
-        room_id = data.get('roomId')
+        meeting_id = data.get('meetingId')
         session_id = data.get('sessionId')
         download_url = data.get('downloadUrl')
         playback_url = data.get('playbackHlsUrl')
+        downstream_url = data.get('downstreamUrl')
         
-        session = VideoSession.query.filter_by(meeting_id=room_id).first()
+        session = VideoSession.query.filter_by(meeting_id=meeting_id).first()
         if session:
-            # Use playback URL if available, otherwise use download URL
-            session.recording_url = playback_url or download_url
+            # Use playback URL if available, otherwise downstream URL, otherwise download URL
+            session.recording_url = playback_url or downstream_url or download_url
             session.recording_status = 'completed'
             db.session.commit()
             print(f"✅ HLS Recording completed for session {session.id}")
         else:
-            print(f"⚠️ Session not found for room_id: {room_id}")
+            print(f"⚠️ Session not found for meeting_id: {meeting_id}")
             
     except Exception as e:
         print(f"❌ Error handling HLS stopped: {str(e)}")
@@ -935,17 +974,17 @@ def handle_hls_stopped(data):
 def handle_hls_failed(data):
     """Handle HLS failed event (for recording)"""
     try:
-        room_id = data.get('roomId')
+        meeting_id = data.get('meetingId')
         session_id = data.get('sessionId')
         error_message = data.get('error', 'Unknown error')
         
-        session = VideoSession.query.filter_by(meeting_id=room_id).first()
+        session = VideoSession.query.filter_by(meeting_id=meeting_id).first()
         if session:
             session.recording_status = 'failed'
             db.session.commit()
             print(f"❌ HLS Recording failed for session {session.id}: {error_message}")
         else:
-            print(f"⚠️ Session not found for room_id: {room_id}")
+            print(f"⚠️ Session not found for meeting_id: {meeting_id}")
             
     except Exception as e:
         print(f"❌ Error handling HLS failed: {str(e)}")
