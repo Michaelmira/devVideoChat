@@ -1148,26 +1148,53 @@ def stop_recording(meeting_id):
             "roomId": meeting_id
         }
         
-        response = requests.post(
-            f"{videosdk.api_endpoint}/hls/stop",
-            headers=headers,
-            json=stop_data
-        )
+        print(f"🔄 Stopping HLS recording for meeting {meeting_id}")
+        print(f"📊 VideoSDK API URL: {videosdk.api_endpoint}/hls/stop")
+        print(f"📊 Stop data: {stop_data}")
         
-        if response.status_code == 200:
-            # Update session status
+        try:
+            print("🔄 Making POST request to VideoSDK API to stop recording...")
+            response = requests.post(
+                f"{videosdk.api_endpoint}/hls/stop",
+                headers=headers,
+                json=stop_data,
+                timeout=10  # Add timeout
+            )
+            
+            print(f"📊 VideoSDK Response Status: {response.status_code}")
+            print(f"📊 VideoSDK Response Text: {response.text}")
+            
+            if response.status_code == 200:
+                # Update session status
+                session.recording_status = 'stopping'
+                db.session.commit()
+                
+                print(f"✅ HLS Recording stop initiated for session {session.id}")
+                return jsonify({
+                    "success": True,
+                    "message": "Recording stopped successfully",
+                    "recording_status": session.recording_status
+                }), 200
+            else:
+                error_msg = f"VideoSDK API Error: Status {response.status_code}, Response: {response.text}"
+                print(f"❌ {error_msg}")
+                return jsonify({"msg": f"Failed to stop recording: {error_msg}"}), 400
+                
+        except requests.exceptions.Timeout:
+            print("⏰ VideoSDK API request timed out")
+            # Still update session status as stopping since the webhook might come later
             session.recording_status = 'stopping'
             db.session.commit()
-            
-            print(f"✅ HLS Recording stop initiated for session {session.id}")
+            print(f"✅ Recording stop initiated (timeout occurred) for session {session.id}")
             return jsonify({
                 "success": True,
-                "message": "Recording stopped successfully",
+                "message": "Recording stop initiated (processing)",
                 "recording_status": session.recording_status
             }), 200
-        else:
-            print(f"❌ Failed to stop recording: {response.text}")
-            return jsonify({"msg": "Failed to stop recording"}), 400
+            
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Network error: {str(e)}")
+            return jsonify({"msg": f"Network error stopping recording: {str(e)}"}), 500
             
     except Exception as e:
         print(f"❌ Error stopping recording: {str(e)}")
