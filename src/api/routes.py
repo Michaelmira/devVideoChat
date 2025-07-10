@@ -829,6 +829,9 @@ def videosdk_webhook():
         elif webhook_type == 'hls-playable':
             print("🎬 HLS Stream is playable!")
             # Stream is ready for playback - could be useful for live streaming
+        elif webhook_type == 'hls-stopping':
+            print("🔄 HLS Recording stopping...")
+            handle_hls_stopping(data.get('data', {}))
         elif webhook_type == 'hls-stopped':
             print("🛑 HLS Recording stopped!")
             handle_hls_stopped(data.get('data', {}))
@@ -948,6 +951,23 @@ def handle_hls_started(data):
             
     except Exception as e:
         print(f"❌ Error handling HLS started: {str(e)}")
+
+def handle_hls_stopping(data):
+    """Handle HLS stopping event (for recording)"""
+    try:
+        meeting_id = data.get('meetingId')
+        session_id = data.get('sessionId')
+        
+        session = VideoSession.query.filter_by(meeting_id=meeting_id).first()
+        if session:
+            session.recording_status = 'stopping'
+            db.session.commit()
+            print(f"⏹️ HLS Recording stopping for session {session.id}")
+        else:
+            print(f"⚠️ Session not found for meeting_id: {meeting_id}")
+            
+    except Exception as e:
+        print(f"❌ Error handling HLS stopping: {str(e)}")
 
 def handle_hls_stopped(data):
     """Handle HLS stopped event (for recording)"""

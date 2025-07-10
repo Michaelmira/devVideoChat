@@ -1,9 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import videojs from 'video.js';
+import 'video.js/dist/video-js.css';
 
 const RecordingsManager = ({ user }) => {
     const [recordings, setRecordings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [selectedRecording, setSelectedRecording] = useState(null);
+    const [showPlayer, setShowPlayer] = useState(false);
+    const videoRef = useRef(null);
+    const playerRef = useRef(null);
 
     // Check if user is premium
     const isPremium = user?.subscription_status === 'premium';
@@ -43,6 +49,40 @@ const RecordingsManager = ({ user }) => {
         }
     }, [isPremium]);
 
+    // Initialize video player
+    useEffect(() => {
+        if (showPlayer && selectedRecording && videoRef.current && !playerRef.current) {
+            const player = videojs(videoRef.current, {
+                controls: true,
+                responsive: true,
+                fluid: true,
+                sources: [{
+                    src: selectedRecording.recording_url,
+                    type: 'application/x-mpegURL'
+                }],
+                html5: {
+                    hls: {
+                        enableLowInitialPlaylist: true,
+                        smoothQualityChange: true,
+                        overrideNative: true
+                    }
+                }
+            });
+
+            playerRef.current = player;
+        }
+    }, [showPlayer, selectedRecording]);
+
+    // Cleanup video player
+    useEffect(() => {
+        return () => {
+            if (playerRef.current && !playerRef.current.isDisposed()) {
+                playerRef.current.dispose();
+                playerRef.current = null;
+            }
+        };
+    }, []);
+
     // Format date for display
     const formatDate = (dateString) => {
         return new Date(dateString).toLocaleDateString('en-US', {
@@ -54,10 +94,27 @@ const RecordingsManager = ({ user }) => {
         });
     };
 
-    // Play recording
-    const playRecording = (recordingUrl) => {
+    // Play recording in modal
+    const playRecording = (recording) => {
+        setSelectedRecording(recording);
+        setShowPlayer(true);
+    };
+
+    // Close player modal
+    const closePlayer = () => {
+        if (playerRef.current && !playerRef.current.isDisposed()) {
+            playerRef.current.dispose();
+            playerRef.current = null;
+        }
+        setShowPlayer(false);
+        setSelectedRecording(null);
+    };
+
+    // Copy URL to clipboard
+    const copyRecordingUrl = (recordingUrl) => {
         if (recordingUrl) {
-            window.open(recordingUrl, '_blank');
+            navigator.clipboard.writeText(recordingUrl);
+            alert('Recording URL copied to clipboard!');
         }
     };
 
@@ -187,8 +244,8 @@ const RecordingsManager = ({ user }) => {
                                                     </p>
                                                     <div className="mb-2">
                                                         <span className={`badge ${recording.recording_status === 'completed' ? 'bg-success' :
-                                                                recording.recording_status === 'failed' ? 'bg-danger' :
-                                                                    'bg-warning'
+                                                            recording.recording_status === 'failed' ? 'bg-danger' :
+                                                                'bg-warning'
                                                             }`}>
                                                             {recording.recording_status === 'completed' ? 'Ready' :
                                                                 recording.recording_status === 'failed' ? 'Failed' :
@@ -200,7 +257,7 @@ const RecordingsManager = ({ user }) => {
                                                     {recording.recording_url && recording.recording_status === 'completed' && (
                                                         <button
                                                             className="btn btn-primary btn-sm"
-                                                            onClick={() => playRecording(recording.recording_url)}
+                                                            onClick={() => playRecording(recording)}
                                                             title="Play recording"
                                                         >
                                                             <i className="fas fa-play"></i> Play
@@ -208,10 +265,7 @@ const RecordingsManager = ({ user }) => {
                                                     )}
                                                     <button
                                                         className="btn btn-outline-secondary btn-sm"
-                                                        onClick={() => {
-                                                            navigator.clipboard.writeText(recording.recording_url || 'Processing...');
-                                                            alert('Recording URL copied to clipboard!');
-                                                        }}
+                                                        onClick={() => copyRecordingUrl(recording.recording_url)}
                                                         title="Copy recording URL"
                                                         disabled={!recording.recording_url}
                                                     >
@@ -240,6 +294,70 @@ const RecordingsManager = ({ user }) => {
                     </small>
                 </div>
             </div>
+
+            {/* Video Player Modal */}
+            {showPlayer && selectedRecording && (
+                <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.8)' }}>
+                    <div className="modal-dialog modal-lg">
+                        <div className="modal-content">
+                            <div className="modal-header">
+                                <h5 className="modal-title">
+                                    <i className="fas fa-play-circle me-2"></i>
+                                    Recording: Session #{selectedRecording.session_id}
+                                </h5>
+                                <button
+                                    type="button"
+                                    className="btn-close"
+                                    onClick={closePlayer}
+                                ></button>
+                            </div>
+                            <div className="modal-body p-0">
+                                <div data-vjs-player>
+                                    <video
+                                        ref={videoRef}
+                                        className="video-js vjs-default-skin"
+                                        controls
+                                        preload="auto"
+                                        width="100%"
+                                        height="400"
+                                        data-setup="{}"
+                                    >
+                                        <p className="vjs-no-js">
+                                            To view this video please enable JavaScript, and consider upgrading to a web browser that
+                                            <a href="https://videojs.com/html5-video-support/" target="_blank" rel="noopener noreferrer">
+                                                supports HTML5 video
+                                            </a>.
+                                        </p>
+                                    </video>
+                                </div>
+                            </div>
+                            <div className="modal-footer">
+                                <div className="d-flex justify-content-between w-100">
+                                    <div className="text-muted small">
+                                        <i className="fas fa-calendar me-1"></i>
+                                        {formatDate(selectedRecording.created_at)}
+                                    </div>
+                                    <div>
+                                        <button
+                                            className="btn btn-outline-secondary btn-sm me-2"
+                                            onClick={() => copyRecordingUrl(selectedRecording.recording_url)}
+                                            title="Copy URL"
+                                        >
+                                            <i className="fas fa-copy"></i> Copy URL
+                                        </button>
+                                        <button
+                                            className="btn btn-secondary"
+                                            onClick={closePlayer}
+                                        >
+                                            Close
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
