@@ -254,6 +254,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
     const [zoomLevel, setZoomLevel] = useState(1);
     const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
+    const [sessionData, setSessionData] = useState(null);
     const dragStartPos = useRef({ x: 0, y: 0 });
     const panStartPos = useRef({ x: 0, y: 0 });
     const mainContentRef = useRef(null);
@@ -337,6 +338,25 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             setPanOffset({ x: 0, y: 0 });
         }
     }, [presenterId]);
+
+    // Fetch session data to check if user is creator
+    useEffect(() => {
+        const fetchSessionData = async () => {
+            try {
+                const response = await fetch(`${process.env.BACKEND_URL}/api/session-status/${meetingId}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setSessionData(data);
+                }
+            } catch (error) {
+                console.error('Error fetching session data:', error);
+            }
+        };
+
+        if (meetingId) {
+            fetchSessionData();
+        }
+    }, [meetingId]);
     const handlePresenterDoubleClick = useCallback((e) => {
         // Prevent double-click from interfering with pan
         if (isPanning) return;
@@ -910,6 +930,14 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                     >
                         🔗 Copy Link
                     </button>
+
+                    {/* Recording Button - Only for premium creators */}
+                    <CompactRecordingButton
+                        meetingId={meetingId}
+                        user={user}
+                        isCreator={sessionData && user && sessionData.creator_id === user.id}
+                    />
+
                     <button
                         className="btn btn-danger"
                         onClick={() => leave()}
@@ -1139,21 +1167,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                 </div>
             </div>
 
-            {/* Recording Controls */}
-            <div className="position-fixed" style={{
-                top: '20px',
-                left: '20px',
-                right: '20px',
-                zIndex: 1045
-            }}>
-                <RecordingControls
-                    meetingId={meetingId}
-                    user={user}
-                    onRecordingStatusChange={(status) => {
-                        console.log(`Recording status changed: ${status}`);
-                    }}
-                />
-            </div>
+
         </div>
     );
 }
@@ -1240,13 +1254,16 @@ function MeetingTimer({ meetingId }) {
     );
 }
 
-// Recording Controls Component
-function RecordingControls({ meetingId, user, onRecordingStatusChange }) {
+// Compact Recording Button Component
+function CompactRecordingButton({ meetingId, user, isCreator }) {
     const [recordingStatus, setRecordingStatus] = useState('none');
     const [isLoading, setIsLoading] = useState(false);
 
     // Check if user is premium
     const isPremium = user?.subscription_status === 'premium';
+
+    // Only show for premium users who are creators
+    const shouldShow = isPremium && isCreator;
 
     // Fetch current recording status
     const fetchRecordingStatus = async () => {
@@ -1262,7 +1279,6 @@ function RecordingControls({ meetingId, user, onRecordingStatusChange }) {
             if (response.ok) {
                 const data = await response.json();
                 setRecordingStatus(data.recording_status);
-                onRecordingStatusChange?.(data.recording_status);
             }
         } catch (error) {
             console.error('Error fetching recording status:', error);
@@ -1285,15 +1301,13 @@ function RecordingControls({ meetingId, user, onRecordingStatusChange }) {
             if (response.ok) {
                 const data = await response.json();
                 setRecordingStatus('starting');
-                onRecordingStatusChange?.('starting');
-                alert('Recording started successfully!');
+                // Optional: Show success notification
             } else {
                 const error = await response.json();
-                alert(`Failed to start recording: ${error.msg}`);
+                console.error('Failed to start recording:', error.msg);
             }
         } catch (error) {
             console.error('Error starting recording:', error);
-            alert('Error starting recording');
         } finally {
             setIsLoading(false);
         }
@@ -1315,15 +1329,12 @@ function RecordingControls({ meetingId, user, onRecordingStatusChange }) {
             if (response.ok) {
                 const data = await response.json();
                 setRecordingStatus('stopping');
-                onRecordingStatusChange?.('stopping');
-                alert('Recording stopped successfully!');
             } else {
                 const error = await response.json();
-                alert(`Failed to stop recording: ${error.msg}`);
+                console.error('Failed to stop recording:', error.msg);
             }
         } catch (error) {
             console.error('Error stopping recording:', error);
-            alert('Error stopping recording');
         } finally {
             setIsLoading(false);
         }
@@ -1331,97 +1342,84 @@ function RecordingControls({ meetingId, user, onRecordingStatusChange }) {
 
     // Initial fetch
     useEffect(() => {
-        if (isPremium && meetingId) {
+        if (shouldShow && meetingId) {
             fetchRecordingStatus();
+            // Refresh status every 10 seconds
+            const interval = setInterval(fetchRecordingStatus, 10000);
+            return () => clearInterval(interval);
         }
-    }, [isPremium, meetingId]);
+    }, [shouldShow, meetingId]);
 
-    // Don't show controls for non-premium users
-    if (!isPremium) {
-        return (
-            <div className="recording-controls-premium-gate" style={{
-                padding: '10px',
-                backgroundColor: '#f8f9fa',
-                borderRadius: '8px',
-                textAlign: 'center',
-                margin: '10px 0'
-            }}>
-                <p style={{ margin: '0 0 10px 0', color: '#6c757d' }}>
-                    🎥 Recording available for Premium users only
-                </p>
-                <button
-                    className="btn btn-warning btn-sm"
-                    onClick={() => window.location.href = '/dashboard'}
-                >
-                    Upgrade to Premium
-                </button>
-            </div>
-        );
+    // Don't render if user shouldn't see recording controls
+    if (!shouldShow) {
+        return null;
     }
 
+    // Get button appearance based on status
+    const getButtonConfig = () => {
+        switch (recordingStatus) {
+            case 'active':
+                return {
+                    className: 'btn btn-danger btn-sm',
+                    onClick: stopRecording,
+                    disabled: isLoading,
+                    text: isLoading ? 'Stopping...' : '⏹️ Stop',
+                    title: 'Stop recording'
+                };
+            case 'starting':
+                return {
+                    className: 'btn btn-warning btn-sm',
+                    onClick: null,
+                    disabled: true,
+                    text: '🟡 Starting...',
+                    title: 'Recording is starting'
+                };
+            case 'stopping':
+                return {
+                    className: 'btn btn-warning btn-sm',
+                    onClick: null,
+                    disabled: true,
+                    text: '🟡 Stopping...',
+                    title: 'Recording is stopping'
+                };
+            case 'completed':
+                return {
+                    className: 'btn btn-success btn-sm',
+                    onClick: startRecording,
+                    disabled: isLoading,
+                    text: isLoading ? 'Starting...' : '⏺️ Record',
+                    title: 'Previous recording completed - start new recording'
+                };
+            case 'failed':
+                return {
+                    className: 'btn btn-outline-danger btn-sm',
+                    onClick: startRecording,
+                    disabled: isLoading,
+                    text: isLoading ? 'Starting...' : '⏺️ Retry',
+                    title: 'Previous recording failed - try again'
+                };
+            default: // 'none'
+                return {
+                    className: 'btn btn-outline-danger btn-sm',
+                    onClick: startRecording,
+                    disabled: isLoading,
+                    text: isLoading ? 'Starting...' : '⏺️ Record',
+                    title: 'Start recording'
+                };
+        }
+    };
+
+    const buttonConfig = getButtonConfig();
+
     return (
-        <div className="recording-controls" style={{
-            padding: '10px',
-            backgroundColor: '#f8f9fa',
-            borderRadius: '8px',
-            textAlign: 'center',
-            margin: '10px 0'
-        }}>
-            <div className="recording-status" style={{ marginBottom: '10px' }}>
-                {recordingStatus === 'active' && (
-                    <span style={{ color: '#dc3545', fontWeight: 'bold' }}>
-                        🔴 Recording in progress...
-                    </span>
-                )}
-                {recordingStatus === 'starting' && (
-                    <span style={{ color: '#fd7e14', fontWeight: 'bold' }}>
-                        🟡 Starting recording...
-                    </span>
-                )}
-                {recordingStatus === 'stopping' && (
-                    <span style={{ color: '#fd7e14', fontWeight: 'bold' }}>
-                        🟡 Stopping recording...
-                    </span>
-                )}
-                {recordingStatus === 'completed' && (
-                    <span style={{ color: '#28a745', fontWeight: 'bold' }}>
-                        ✅ Recording completed
-                    </span>
-                )}
-                {recordingStatus === 'failed' && (
-                    <span style={{ color: '#dc3545', fontWeight: 'bold' }}>
-                        ❌ Recording failed
-                    </span>
-                )}
-                {recordingStatus === 'none' && (
-                    <span style={{ color: '#6c757d' }}>
-                        📹 Ready to record
-                    </span>
-                )}
-            </div>
-
-            <div className="recording-buttons">
-                {(recordingStatus === 'none' || recordingStatus === 'completed' || recordingStatus === 'failed') && (
-                    <button
-                        className="btn btn-danger btn-sm me-2"
-                        onClick={startRecording}
-                        disabled={isLoading}
-                    >
-                        {isLoading ? 'Starting...' : '⏺️ Start Recording'}
-                    </button>
-                )}
-
-                {(recordingStatus === 'active' || recordingStatus === 'starting') && (
-                    <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={stopRecording}
-                        disabled={isLoading}
-                    >
-                        {isLoading ? 'Stopping...' : '⏹️ Stop Recording'}
-                    </button>
-                )}
-            </div>
-        </div>
+        <button
+            className={buttonConfig.className}
+            onClick={buttonConfig.onClick}
+            disabled={buttonConfig.disabled}
+            title={buttonConfig.title}
+        >
+            {buttonConfig.text}
+        </button>
     );
 }
 

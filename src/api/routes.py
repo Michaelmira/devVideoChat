@@ -919,11 +919,19 @@ def start_recording(meeting_id):
             "webhookUrl": f"{os.getenv('BACKEND_URL')}/api/videosdk/webhook"
         }
         
+        print(f"🔄 Starting recording for meeting {meeting_id}")
+        print(f"📊 VideoSDK API URL: {videosdk.api_endpoint}/rooms/{meeting_id}/recordings")
+        print(f"📊 Recording data: {recording_data}")
+        
         response = requests.post(
             f"{videosdk.api_endpoint}/rooms/{meeting_id}/recordings",
             headers=headers,
-            json=recording_data
+            json=recording_data,
+            timeout=30
         )
+        
+        print(f"📊 VideoSDK Response Status: {response.status_code}")
+        print(f"📊 VideoSDK Response Text: {response.text}")
         
         if response.status_code == 200:
             # Update session status
@@ -937,8 +945,9 @@ def start_recording(meeting_id):
                 "recording_status": session.recording_status
             }), 200
         else:
-            print(f"❌ Failed to start recording: {response.text}")
-            return jsonify({"msg": "Failed to start recording"}), 400
+            error_msg = f"VideoSDK API Error: Status {response.status_code}, Response: {response.text}"
+            print(f"❌ {error_msg}")
+            return jsonify({"msg": f"Failed to start recording: {error_msg}"}), 400
             
     except Exception as e:
         print(f"❌ Error starting recording: {str(e)}")
