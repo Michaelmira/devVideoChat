@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { backendURL } from "./backendURL";
 
 const RecordingsManager = ({ user }) => {
     const [recordings, setRecordings] = useState([]);
@@ -13,8 +12,8 @@ const RecordingsManager = ({ user }) => {
     const fetchRecordings = async () => {
         try {
             setLoading(true);
-            const token = localStorage.getItem('token');
-            const response = await fetch(`${backendURL}/api/my-recordings`, {
+            const token = sessionStorage.getItem('token');
+            const response = await fetch(`${process.env.BACKEND_URL}/api/my-recordings`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',

@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { MeetingProvider, useMeeting, useParticipant, Constants, MeetingConsumer } from '@videosdk.live/react-sdk';
-import { backendURL } from "./backendURL";
 
 function ParticipantView({ participantId, viewMode = 'normal', isLocal = false }) {
     const micRef = React.useRef(null);
@@ -1252,8 +1251,8 @@ function RecordingControls({ meetingId, user, onRecordingStatusChange }) {
     // Fetch current recording status
     const fetchRecordingStatus = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const response = await fetch(`${backendURL}/api/sessions/${meetingId}/recordings`, {
+            const token = sessionStorage.getItem('token');
+            const response = await fetch(`${process.env.BACKEND_URL}/api/sessions/${meetingId}/recordings`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -1274,8 +1273,8 @@ function RecordingControls({ meetingId, user, onRecordingStatusChange }) {
     const startRecording = async () => {
         setIsLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            const response = await fetch(`${backendURL}/api/sessions/${meetingId}/start-recording`, {
+            const token = sessionStorage.getItem('token');
+            const response = await fetch(`${process.env.BACKEND_URL}/api/sessions/${meetingId}/start-recording`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -1304,8 +1303,8 @@ function RecordingControls({ meetingId, user, onRecordingStatusChange }) {
     const stopRecording = async () => {
         setIsLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            const response = await fetch(`${backendURL}/api/sessions/${meetingId}/stop-recording`, {
+            const token = sessionStorage.getItem('token');
+            const response = await fetch(`${process.env.BACKEND_URL}/api/sessions/${meetingId}/stop-recording`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -1445,9 +1444,9 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
     useEffect(() => {
         const fetchUser = async () => {
             try {
-                const token = localStorage.getItem('token');
+                const token = sessionStorage.getItem('token');
                 if (token) {
-                    const response = await fetch(`${backendURL}/api/current/user`, {
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/current/user`, {
                         headers: {
                             'Authorization': `Bearer ${token}`,
                             'Content-Type': 'application/json',
