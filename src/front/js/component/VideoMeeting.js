@@ -938,6 +938,28 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                         isCreator={sessionData && user && sessionData.creator_id === user.id}
                     />
 
+                    {/* DEBUG: Show recording button debug info */}
+                    {process.env.NODE_ENV === 'development' && (
+                        <div style={{
+                            position: 'fixed',
+                            top: '10px',
+                            left: '10px',
+                            background: 'rgba(0,0,0,0.8)',
+                            color: 'white',
+                            padding: '10px',
+                            fontSize: '12px',
+                            zIndex: 9999,
+                            borderRadius: '4px'
+                        }}>
+                            <div>Recording Debug:</div>
+                            <div>User ID: {user?.id}</div>
+                            <div>Premium: {user?.subscription_status}</div>
+                            <div>Session Creator ID: {sessionData?.creator_id}</div>
+                            <div>Is Creator: {sessionData && user && sessionData.creator_id === user.id ? 'YES' : 'NO'}</div>
+                            <div>Session Data: {sessionData ? 'Loaded' : 'Loading...'}</div>
+                        </div>
+                    )}
+
                     <button
                         className="btn btn-danger"
                         onClick={() => leave()}
@@ -1264,6 +1286,15 @@ function CompactRecordingButton({ meetingId, user, isCreator }) {
 
     // Only show for premium users who are creators
     const shouldShow = isPremium && isCreator;
+
+    // Debug logging
+    console.log('🎥 CompactRecordingButton Debug:', {
+        meetingId,
+        user: user ? { id: user.id, subscription_status: user.subscription_status } : null,
+        isCreator,
+        isPremium,
+        shouldShow
+    });
 
     // Fetch current recording status
     const fetchRecordingStatus = async () => {
