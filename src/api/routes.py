@@ -797,12 +797,20 @@ def stripe_webhook():
 # VIDEOSDK WEBHOOK ROUTES
 # ===========================================
 
-@api.route('/videosdk/webhook', methods=['POST'])
+@api.route('/videosdk/webhook', methods=['POST', 'GET'])
 def videosdk_webhook():
     """Handle VideoSDK webhook events for recording lifecycle"""
     try:
+        print(f"🎬 VideoSDK Webhook endpoint called - Method: {request.method}")
+        print(f"📊 Request headers: {dict(request.headers)}")
+        
+        # Handle GET requests for webhook testing
+        if request.method == 'GET':
+            print("🔍 GET request to webhook endpoint - endpoint is accessible")
+            return jsonify({"status": "webhook endpoint accessible", "method": "GET"}), 200
+        
         data = request.get_json()
-        event_type = data.get('event')
+        event_type = data.get('event') if data else None
         
         print(f"🎬 VideoSDK Webhook received: {event_type}")
         print(f"📊 Webhook data: {data}")
@@ -1002,6 +1010,7 @@ def start_recording(meeting_id):
         
         print(f"🔄 Starting HLS recording for meeting {meeting_id}")
         print(f"📊 VideoSDK API URL: {videosdk.api_endpoint}/hls/start")
+        print(f"📊 Webhook URL: {recording_data['webhookUrl']}")
         print(f"📊 Recording data: {recording_data}")
         
         response = requests.post(
@@ -1019,7 +1028,14 @@ def start_recording(meeting_id):
             # Update session status and store HLS session ID
             session.recording_status = 'starting'
             session.recording_id = response_data.get('sessionId', response_data.get('id'))
+            
+            print(f"🔄 Before DB commit - Session {session.id}: status='{session.recording_status}', recording_id='{session.recording_id}'")
+            
             db.session.commit()
+            
+            # Verify the update was saved
+            db.session.refresh(session)
+            print(f"✅ After DB commit - Session {session.id}: status='{session.recording_status}', recording_id='{session.recording_id}'")
             
             print(f"✅ HLS Recording start initiated for session {session.id}")
             return jsonify({
@@ -1117,6 +1133,8 @@ def get_session_recordings(meeting_id):
         if session.creator_id != user_id:
             return jsonify({"msg": "Only session creator can view recordings"}), 403
         
+        print(f"📊 get_session_recordings - Session {session.id}: status='{session.recording_status}', recording_id='{session.recording_id}', url='{session.recording_url}'")
+        
         return jsonify({
             "success": True,
             "session_id": session.id,
@@ -1164,6 +1182,42 @@ def get_my_recordings():
     except Exception as e:
         print(f"❌ Error getting user recordings: {str(e)}")
         return jsonify({"msg": "Error getting recordings"}), 500
+
+# DEBUG ROUTE - Remove after testing
+@api.route('/debug/sessions/<meeting_id>/force-active', methods=['POST'])
+@jwt_required()
+@premium_required
+def debug_force_recording_active(meeting_id):
+    """DEBUG: Force recording status to active for testing"""
+    try:
+        user_id = get_jwt_identity()
+        
+        # Get the session
+        session = VideoSession.query.filter_by(meeting_id=meeting_id).first()
+        if not session:
+            return jsonify({"msg": "Session not found"}), 404
+        
+        # Check if user is the creator
+        if session.creator_id != user_id:
+            return jsonify({"msg": "Only session creator can debug"}), 403
+        
+        # Force update status to active
+        session.recording_status = 'active'
+        session.recording_id = session.recording_id or 'debug-recording-id'
+        db.session.commit()
+        
+        print(f"🔧 DEBUG: Forced recording status to active for session {session.id}")
+        
+        return jsonify({
+            "success": True,
+            "message": "Recording status forced to active",
+            "recording_status": session.recording_status,
+            "recording_id": session.recording_id
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error forcing recording active: {str(e)}")
+        return jsonify({"msg": "Error forcing recording active"}), 500
 
 
 # ===========================================
