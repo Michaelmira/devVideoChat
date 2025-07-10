@@ -807,7 +807,15 @@ def videosdk_webhook():
         print(f"🎬 VideoSDK Webhook received: {event_type}")
         print(f"📊 Webhook data: {data}")
         
-        if event_type == 'recording.started':
+        # Handle HLS events (for recording)
+        if event_type == 'hls.started':
+            handle_hls_started(data)
+        elif event_type == 'hls.stopped':
+            handle_hls_stopped(data)
+        elif event_type == 'hls.failed':
+            handle_hls_failed(data)
+        # Handle legacy recording events as fallback
+        elif event_type == 'recording.started':
             handle_recording_started(data)
         elif event_type == 'recording.stopped':
             handle_recording_stopped(data)
@@ -877,6 +885,63 @@ def handle_recording_failed(data):
     except Exception as e:
         print(f"❌ Error handling recording failed: {str(e)}")
 
+def handle_hls_started(data):
+    """Handle HLS started event (for recording)"""
+    try:
+        room_id = data.get('roomId')
+        session_id = data.get('sessionId')
+        
+        session = VideoSession.query.filter_by(meeting_id=room_id).first()
+        if session:
+            session.recording_id = session_id
+            session.recording_status = 'active'
+            db.session.commit()
+            print(f"✅ HLS Recording started for session {session.id}")
+        else:
+            print(f"⚠️ Session not found for room_id: {room_id}")
+            
+    except Exception as e:
+        print(f"❌ Error handling HLS started: {str(e)}")
+
+def handle_hls_stopped(data):
+    """Handle HLS stopped event (for recording)"""
+    try:
+        room_id = data.get('roomId')
+        session_id = data.get('sessionId')
+        download_url = data.get('downloadUrl')
+        playback_url = data.get('playbackHlsUrl')
+        
+        session = VideoSession.query.filter_by(meeting_id=room_id).first()
+        if session:
+            # Use playback URL if available, otherwise use download URL
+            session.recording_url = playback_url or download_url
+            session.recording_status = 'completed'
+            db.session.commit()
+            print(f"✅ HLS Recording completed for session {session.id}")
+        else:
+            print(f"⚠️ Session not found for room_id: {room_id}")
+            
+    except Exception as e:
+        print(f"❌ Error handling HLS stopped: {str(e)}")
+
+def handle_hls_failed(data):
+    """Handle HLS failed event (for recording)"""
+    try:
+        room_id = data.get('roomId')
+        session_id = data.get('sessionId')
+        error_message = data.get('error', 'Unknown error')
+        
+        session = VideoSession.query.filter_by(meeting_id=room_id).first()
+        if session:
+            session.recording_status = 'failed'
+            db.session.commit()
+            print(f"❌ HLS Recording failed for session {session.id}: {error_message}")
+        else:
+            print(f"⚠️ Session not found for room_id: {room_id}")
+            
+    except Exception as e:
+        print(f"❌ Error handling HLS failed: {str(e)}")
+
 
 # ===========================================
 # RECORDING API ROUTES
@@ -903,29 +968,44 @@ def start_recording(meeting_id):
         if session.recording_status in ['active', 'starting']:
             return jsonify({"msg": "Recording already in progress"}), 400
         
-        # Call VideoSDK API to start recording
+        # Call VideoSDK HLS API to start recording
         from .services.videosdk_service import VideoSDKService
         videosdk = VideoSDKService()
         
         # Generate token for recording operation
         token = videosdk.generate_token(permissions=['allow_record'])
         
-        # Start recording via VideoSDK API
+        # Start HLS streaming with recording enabled via VideoSDK API
         headers = {
             "Authorization": token,
             "Content-Type": "application/json"
         }
         
         recording_data = {
+            "roomId": meeting_id,
+            "config": {
+                "layout": {
+                    "type": "GRID",
+                    "priority": "SPEAKER",
+                    "gridSize": 25
+                },
+                "orientation": "landscape",
+                "theme": "DARK",
+                "mode": "video-and-audio",
+                "quality": "high",
+                "recording": {
+                    "enabled": True
+                }
+            },
             "webhookUrl": f"{os.getenv('BACKEND_URL')}/api/videosdk/webhook"
         }
         
-        print(f"🔄 Starting recording for meeting {meeting_id}")
-        print(f"📊 VideoSDK API URL: {videosdk.api_endpoint}/rooms/{meeting_id}/recordings")
+        print(f"🔄 Starting HLS recording for meeting {meeting_id}")
+        print(f"📊 VideoSDK API URL: {videosdk.api_endpoint}/hls/start")
         print(f"📊 Recording data: {recording_data}")
         
         response = requests.post(
-            f"{videosdk.api_endpoint}/rooms/{meeting_id}/recordings",
+            f"{videosdk.api_endpoint}/hls/start",
             headers=headers,
             json=recording_data,
             timeout=30
@@ -935,15 +1015,18 @@ def start_recording(meeting_id):
         print(f"📊 VideoSDK Response Text: {response.text}")
         
         if response.status_code == 200:
-            # Update session status
+            response_data = response.json()
+            # Update session status and store HLS session ID
             session.recording_status = 'starting'
+            session.recording_id = response_data.get('sessionId', response_data.get('id'))
             db.session.commit()
             
-            print(f"✅ Recording start initiated for session {session.id}")
+            print(f"✅ HLS Recording start initiated for session {session.id}")
             return jsonify({
                 "success": True,
                 "message": "Recording started successfully",
-                "recording_status": session.recording_status
+                "recording_status": session.recording_status,
+                "hls_session_id": session.recording_id
             }), 200
         else:
             error_msg = f"VideoSDK API Error: Status {response.status_code}, Response: {response.text}"
@@ -975,22 +1058,27 @@ def stop_recording(meeting_id):
         if session.recording_status not in ['active', 'starting']:
             return jsonify({"msg": "No active recording to stop"}), 400
         
-        # Call VideoSDK API to stop recording
+        # Call VideoSDK HLS API to stop recording
         from .services.videosdk_service import VideoSDKService
         videosdk = VideoSDKService()
         
         # Generate token for recording operation
         token = videosdk.generate_token(permissions=['allow_record'])
         
-        # Stop recording via VideoSDK API
+        # Stop HLS streaming/recording via VideoSDK API
         headers = {
             "Authorization": token,
             "Content-Type": "application/json"
         }
         
+        stop_data = {
+            "roomId": meeting_id
+        }
+        
         response = requests.post(
-            f"{videosdk.api_endpoint}/rooms/{meeting_id}/recordings/stop",
-            headers=headers
+            f"{videosdk.api_endpoint}/hls/stop",
+            headers=headers,
+            json=stop_data
         )
         
         if response.status_code == 200:
@@ -998,7 +1086,7 @@ def stop_recording(meeting_id):
             session.recording_status = 'stopping'
             db.session.commit()
             
-            print(f"✅ Recording stop initiated for session {session.id}")
+            print(f"✅ HLS Recording stop initiated for session {session.id}")
             return jsonify({
                 "success": True,
                 "message": "Recording stopped successfully",
