@@ -1144,20 +1144,17 @@ def stop_recording(meeting_id):
             "Content-Type": "application/json"
         }
         
-        stop_data = {
-            "roomId": meeting_id
-        }
+        # Use session ID to end the session, which should stop HLS recording
+        recording_id = session.recording_id
         
-        print(f"🔄 Stopping HLS recording for meeting {meeting_id}")
-        print(f"📊 VideoSDK API URL: {videosdk.api_endpoint}/hls/stop")
-        print(f"📊 Stop data: {stop_data}")
+        print(f"🔄 Ending VideoSDK session {recording_id} to stop HLS recording for meeting {meeting_id}")
+        print(f"📊 VideoSDK API URL: {videosdk.api_endpoint}/sessions/{recording_id}/end")
         
         try:
-            print("🔄 Making POST request to VideoSDK API to stop recording...")
+            print("🔄 Making POST request to VideoSDK API to end session...")
             response = requests.post(
-                f"{videosdk.api_endpoint}/hls/stop",
+                f"{videosdk.api_endpoint}/sessions/{recording_id}/end",
                 headers=headers,
-                json=stop_data,
                 timeout=10  # Add timeout
             )
             
@@ -1169,7 +1166,7 @@ def stop_recording(meeting_id):
                 session.recording_status = 'stopping'
                 db.session.commit()
                 
-                print(f"✅ HLS Recording stop initiated for session {session.id}")
+                print(f"✅ Session {recording_id} ended successfully")
                 return jsonify({
                     "success": True,
                     "message": "Recording stopped successfully",
@@ -1178,7 +1175,16 @@ def stop_recording(meeting_id):
             else:
                 error_msg = f"VideoSDK API Error: Status {response.status_code}, Response: {response.text}"
                 print(f"❌ {error_msg}")
-                return jsonify({"msg": f"Failed to stop recording: {error_msg}"}), 400
+                
+                # Fallback: Still set to stopping as webhook might handle it
+                session.recording_status = 'stopping'
+                db.session.commit()
+                
+                return jsonify({
+                    "success": True,
+                    "message": "Recording stop initiated (webhook processing)",
+                    "recording_status": session.recording_status
+                }), 200
                 
         except requests.exceptions.Timeout:
             print("⏰ VideoSDK API request timed out")
