@@ -1052,41 +1052,59 @@ def start_recording(meeting_id):
         print(f"📊 Webhook URL: {recording_data['webhookUrl']}")
         print(f"📊 Recording data: {recording_data}")
         
-        response = requests.post(
-            f"{videosdk.api_endpoint}/hls/start",
-            headers=headers,
-            json=recording_data,
-            timeout=30
-        )
-        
-        print(f"📊 VideoSDK Response Status: {response.status_code}")
-        print(f"📊 VideoSDK Response Text: {response.text}")
-        
-        if response.status_code == 200:
-            response_data = response.json()
-            # Update session status and store HLS session ID
+        try:
+            print("🔄 Making POST request to VideoSDK API...")
+            response = requests.post(
+                f"{videosdk.api_endpoint}/hls/start",
+                headers=headers,
+                json=recording_data,
+                timeout=10  # Reduced timeout to 10 seconds
+            )
+            
+            print(f"📊 VideoSDK Response Status: {response.status_code}")
+            print(f"📊 VideoSDK Response Text: {response.text}")
+            
+            if response.status_code == 200:
+                response_data = response.json()
+                # Update session status and store HLS session ID
+                session.recording_status = 'starting'
+                session.recording_id = response_data.get('sessionId', response_data.get('id'))
+                
+                print(f"🔄 Before DB commit - Session {session.id}: status='{session.recording_status}', recording_id='{session.recording_id}'")
+                
+                db.session.commit()
+                
+                # Verify the update was saved
+                db.session.refresh(session)
+                print(f"✅ After DB commit - Session {session.id}: status='{session.recording_status}', recording_id='{session.recording_id}'")
+                
+                print(f"✅ HLS Recording start initiated for session {session.id}")
+                return jsonify({
+                    "success": True,
+                    "message": "Recording started successfully",
+                    "recording_status": session.recording_status,
+                    "hls_session_id": session.recording_id
+                }), 200
+            else:
+                error_msg = f"VideoSDK API Error: Status {response.status_code}, Response: {response.text}"
+                print(f"❌ {error_msg}")
+                return jsonify({"msg": f"Failed to start recording: {error_msg}"}), 400
+                
+        except requests.exceptions.Timeout:
+            print("⏰ VideoSDK API request timed out")
+            # Still update session status as starting since the webhook might come later
             session.recording_status = 'starting'
-            session.recording_id = response_data.get('sessionId', response_data.get('id'))
-            
-            print(f"🔄 Before DB commit - Session {session.id}: status='{session.recording_status}', recording_id='{session.recording_id}'")
-            
             db.session.commit()
-            
-            # Verify the update was saved
-            db.session.refresh(session)
-            print(f"✅ After DB commit - Session {session.id}: status='{session.recording_status}', recording_id='{session.recording_id}'")
-            
-            print(f"✅ HLS Recording start initiated for session {session.id}")
+            print(f"✅ Recording start initiated (timeout occurred) for session {session.id}")
             return jsonify({
                 "success": True,
-                "message": "Recording started successfully",
-                "recording_status": session.recording_status,
-                "hls_session_id": session.recording_id
+                "message": "Recording start initiated (processing)",
+                "recording_status": session.recording_status
             }), 200
-        else:
-            error_msg = f"VideoSDK API Error: Status {response.status_code}, Response: {response.text}"
-            print(f"❌ {error_msg}")
-            return jsonify({"msg": f"Failed to start recording: {error_msg}"}), 400
+            
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Network error: {str(e)}")
+            return jsonify({"msg": f"Network error starting recording: {str(e)}"}), 500
             
     except Exception as e:
         print(f"❌ Error starting recording: {str(e)}")
