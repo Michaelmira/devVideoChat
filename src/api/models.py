@@ -82,6 +82,11 @@ class VideoSession(db.Model):
     
     # VideoSDK fields
     meeting_token = db.Column(db.Text, nullable=True)
+    
+    # NEW: Store multiple recordings as JSON array
+    recordings = db.Column(db.JSON, default=list)
+    
+    # DEPRECATED: Keep for backward compatibility during migration
     recording_url = db.Column(db.String(500), nullable=True)
     recording_id = db.Column(db.String(255), nullable=True)  # VideoSDK recording ID
     recording_status = db.Column(db.String(50), default='none')  # none, starting, active, stopping, completed, failed
@@ -90,6 +95,66 @@ class VideoSession(db.Model):
 
     def __repr__(self):
         return f'<VideoSession {self.meeting_id} - Creator: {self.creator_id} Status: {self.status}>'
+
+    # Helper methods for managing recordings
+    def add_recording(self, recording_data):
+        """Add a new recording to the session"""
+        if not self.recordings:
+            self.recordings = []
+        
+        recording = {
+            "id": len(self.recordings) + 1,  # Simple incrementing ID
+            "recording_id": recording_data.get("recording_id"),
+            "recording_url": recording_data.get("recording_url"),
+            "recording_status": recording_data.get("recording_status", "starting"),
+            "created_at": datetime.datetime.utcnow().isoformat(),
+            "started_at": recording_data.get("started_at"),
+            "completed_at": recording_data.get("completed_at"),
+            "duration_seconds": recording_data.get("duration_seconds"),
+            "quality": recording_data.get("quality", "high")
+        }
+        
+        self.recordings.append(recording)
+        # Mark as modified for SQLAlchemy to detect changes
+        db.session.merge(self)
+        return recording
+
+    def update_recording(self, recording_id, update_data):
+        """Update an existing recording"""
+        if not self.recordings:
+            return None
+            
+        for i, recording in enumerate(self.recordings):
+            if recording.get("recording_id") == recording_id:
+                # Update the recording with new data
+                recording.update(update_data)
+                self.recordings[i] = recording
+                # Mark as modified for SQLAlchemy to detect changes
+                db.session.merge(self)
+                return recording
+        return None
+
+    def get_recording(self, recording_id):
+        """Get a specific recording by recording_id"""
+        if not self.recordings:
+            return None
+        
+        for recording in self.recordings:
+            if recording.get("recording_id") == recording_id:
+                return recording
+        return None
+
+    def get_latest_recording(self):
+        """Get the most recent recording"""
+        if not self.recordings:
+            return None
+        return max(self.recordings, key=lambda x: x.get("created_at", ""))
+
+    def get_active_recordings(self):
+        """Get all currently active recordings"""
+        if not self.recordings:
+            return []
+        return [r for r in self.recordings if r.get("recording_status") in ["starting", "active"]]
 
     def serialize(self):
         return {
@@ -102,6 +167,10 @@ class VideoSession(db.Model):
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "status": self.status,
             "creator_name": f"{self.creator.first_name} {self.creator.last_name}" if self.creator else "Unknown",
+            "recordings": self.recordings or [],
+            "total_recordings": len(self.recordings) if self.recordings else 0,
+            "has_recordings": bool(self.recordings),
+            # Backward compatibility
             "has_recording": bool(self.recording_url),
             "recording_status": self.recording_status,
             "recording_id": self.recording_id

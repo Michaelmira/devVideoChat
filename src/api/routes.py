@@ -868,8 +868,16 @@ def handle_recording_started(data):
         
         session = VideoSession.query.filter_by(meeting_id=meeting_id).first()
         if session:
+            # NEW: Update recording in JSON array
+            session.update_recording(recording_id, {
+                "recording_status": "active",
+                "started_at": datetime.utcnow().isoformat()
+            })
+            
+            # Also update old fields for backward compatibility
             session.recording_id = recording_id
             session.recording_status = 'active'
+            
             db.session.commit()
             print(f"✅ Recording started for session {session.id}")
         else:
@@ -887,8 +895,17 @@ def handle_recording_stopped(data):
         
         session = VideoSession.query.filter_by(meeting_id=meeting_id).first()
         if session:
+            # NEW: Update recording in JSON array
+            session.update_recording(recording_id, {
+                "recording_status": "completed",
+                "recording_url": download_url,
+                "completed_at": datetime.utcnow().isoformat()
+            })
+            
+            # Also update old fields for backward compatibility
             session.recording_url = download_url
             session.recording_status = 'completed'
+            
             db.session.commit()
             print(f"✅ Recording completed for session {session.id}")
         else:
@@ -1031,8 +1048,9 @@ def start_recording(meeting_id):
         if session.creator_id != user_id:
             return jsonify({"msg": "Only session creator can start recording"}), 403
         
-        # Check if recording is already active
-        if session.recording_status in ['active', 'starting']:
+        # Check if any recording is already active (NEW: check JSON array)
+        active_recordings = session.get_active_recordings()
+        if active_recordings:
             return jsonify({"msg": "Recording already in progress"}), 400
         
         # Call VideoSDK HLS API to start recording
@@ -1086,22 +1104,35 @@ def start_recording(meeting_id):
             
             if response.status_code == 200:
                 response_data = response.json()
-                # Update session status and store HLS session ID
-                session.recording_status = 'starting'
-                session.recording_id = response_data.get('sessionId', response_data.get('id'))
                 
-                print(f"🔄 Before DB commit - Session {session.id}: status='{session.recording_status}', recording_id='{session.recording_id}'")
+                # NEW: Add recording to JSON array
+                recording_data = {
+                    "recording_id": response_data.get('sessionId', response_data.get('id')),
+                    "recording_status": "starting",
+                    "started_at": datetime.utcnow().isoformat()
+                }
+                
+                new_recording = session.add_recording(recording_data)
+                
+                # Also update old fields for backward compatibility
+                session.recording_status = 'starting'
+                session.recording_id = recording_data["recording_id"]
+                
+                print(f"🔄 Before DB commit - Session {session.id}: Added recording {new_recording['id']}")
                 
                 db.session.commit()
                 
                 # Verify the update was saved
                 db.session.refresh(session)
-                print(f"✅ After DB commit - Session {session.id}: status='{session.recording_status}', recording_id='{session.recording_id}'")
+                print(f"✅ After DB commit - Session {session.id}: Total recordings: {len(session.recordings)}")
                 
                 print(f"✅ HLS Recording start initiated for session {session.id}")
                 return jsonify({
                     "success": True,
                     "message": "Recording started successfully",
+                    "recording": new_recording,
+                    "total_recordings": len(session.recordings),
+                    # Backward compatibility
                     "recording_status": session.recording_status,
                     "hls_session_id": session.recording_id
                 }), 200
@@ -1243,12 +1274,19 @@ def get_session_recordings(meeting_id):
         if session.creator_id != user_id:
             return jsonify({"msg": "Only session creator can view recordings"}), 403
         
-        print(f"📊 get_session_recordings - Session {session.id}: status='{session.recording_status}', recording_id='{session.recording_id}', url='{session.recording_url}'")
+        # NEW: Return all recordings from JSON array
+        recordings = session.recordings or []
+        
+        print(f"📊 get_session_recordings - Session {session.id}: {len(recordings)} recordings")
         
         return jsonify({
             "success": True,
             "session_id": session.id,
             "meeting_id": meeting_id,
+            "recordings": recordings,
+            "total_recordings": len(recordings),
+            "has_recordings": bool(recordings),
+            # Backward compatibility
             "recording_status": session.recording_status,
             "recording_url": session.recording_url,
             "recording_id": session.recording_id,
@@ -1267,26 +1305,39 @@ def get_my_recordings():
     try:
         user_id = get_jwt_identity()
         
-        # Get all sessions with recordings for this user
-        sessions = VideoSession.query.filter_by(creator_id=user_id).filter(
-            VideoSession.recording_url.isnot(None)
-        ).order_by(VideoSession.created_at.desc()).all()
+        # Get all sessions for this user
+        sessions = VideoSession.query.filter_by(creator_id=user_id).order_by(VideoSession.created_at.desc()).all()
         
-        recordings = []
+        all_recordings = []
         for session in sessions:
-            recordings.append({
-                "session_id": session.id,
-                "meeting_id": session.meeting_id,
-                "created_at": session.created_at.isoformat(),
-                "recording_url": session.recording_url,
-                "recording_status": session.recording_status,
-                "max_duration_minutes": session.max_duration_minutes
-            })
+            # NEW: Get recordings from JSON array
+            session_recordings = session.recordings or []
+            
+            for recording in session_recordings:
+                all_recordings.append({
+                    "session_id": session.id,
+                    "meeting_id": session.meeting_id,
+                    "session_created_at": session.created_at.isoformat(),
+                    "max_duration_minutes": session.max_duration_minutes,
+                    # Recording specific data
+                    "recording_id": recording.get("id"),
+                    "videosdk_recording_id": recording.get("recording_id"),
+                    "recording_url": recording.get("recording_url"),
+                    "recording_status": recording.get("recording_status"),
+                    "recording_created_at": recording.get("created_at"),
+                    "recording_completed_at": recording.get("completed_at"),
+                    "duration_seconds": recording.get("duration_seconds"),
+                    "quality": recording.get("quality")
+                })
+        
+        # Sort by recording creation date (newest first)
+        all_recordings.sort(key=lambda x: x.get("recording_created_at", ""), reverse=True)
         
         return jsonify({
             "success": True,
-            "recordings": recordings,
-            "total_count": len(recordings)
+            "recordings": all_recordings,
+            "total_count": len(all_recordings),
+            "sessions_count": len(sessions)
         }), 200
         
     except Exception as e:
