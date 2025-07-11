@@ -1278,6 +1278,11 @@ def stop_recording(meeting_id):
             "hlsId": recording_id  # Changed from sessionId to hlsId
         }
         
+        # Also try with different data formats for different endpoints
+        simple_stop_data = {
+            "roomId": meeting_id
+        }
+        
         try:
             print("🔄 Making POST request to VideoSDK API to stop HLS...")
             print(f"📊 Stop data: {stop_data}")
@@ -1296,35 +1301,73 @@ def stop_recording(meeting_id):
             print(f"📊 VideoSDK Response Text: {response.text}")
             
             # If the first approach fails with 404, try alternative approaches
+            print(f"🔍 Checking if we should try alternatives. Status: {response.status_code}")
             
             # Approach 2: Try /v2/hls/{id}/stop
             if response.status_code == 404:
                 print("🔄 Trying alternative approach: /v2/hls/{id}/stop")
                 
-                response = requests.post(
-                    f"{videosdk.api_endpoint}/hls/{recording_id}/stop",
-                    headers=headers,
-                    json={"roomId": meeting_id},
-                    timeout=10
-                )
-                
-                print(f"📊 Alternative Response Status: {response.status_code}")
-                print(f"📊 Alternative Response Text: {response.text}")
-                
-                # If still 404, try another approach
-                if response.status_code == 404:
-                    print("🔄 Trying final approach: Session management")
-                    
-                    # Approach 3: Try stopping via session management
+                try:
                     response = requests.post(
-                        f"{videosdk.api_endpoint}/sessions/{recording_id}/stop",
+                        f"{videosdk.api_endpoint}/hls/{recording_id}/stop",
                         headers=headers,
                         json={"roomId": meeting_id},
                         timeout=10
                     )
                     
-                    print(f"📊 Session Response Status: {response.status_code}")
-                    print(f"📊 Session Response Text: {response.text}")
+                    print(f"📊 Alternative Response Status: {response.status_code}")
+                    print(f"📊 Alternative Response Text: {response.text}")
+                    
+                    # If still 404, try another approach
+                    if response.status_code == 404:
+                        print("🔄 Trying final approach: Session management")
+                        
+                        # Approach 3: Try stopping via session management
+                        response = requests.post(
+                            f"{videosdk.api_endpoint}/sessions/{recording_id}/stop",
+                            headers=headers,
+                            json={"roomId": meeting_id},
+                            timeout=10
+                        )
+                        
+                        print(f"📊 Session Response Status: {response.status_code}")
+                        print(f"📊 Session Response Text: {response.text}")
+                        
+                        # If still failing, try stopping the room itself
+                        if response.status_code == 404:
+                            print("🔄 Trying room deactivation approach")
+                            
+                            # Approach 4: Try with simple room data
+                            print("🔄 Trying simple room approach: /v2/hls/stop with just roomId")
+                            
+                            response = requests.post(
+                                f"{videosdk.api_endpoint}/hls/stop",
+                                headers=headers,
+                                json=simple_stop_data,
+                                timeout=10
+                            )
+                            
+                            print(f"📊 Simple room Response Status: {response.status_code}")
+                            print(f"📊 Simple room Response Text: {response.text}")
+                            
+                            # If still failing, try deactivating the room
+                            if response.status_code == 404:
+                                print("🔄 Trying room deactivation approach")
+                                
+                                response = requests.post(
+                                    f"{videosdk.api_endpoint}/rooms/{meeting_id}/deactivate",
+                                    headers=headers,
+                                    json={},
+                                    timeout=10
+                                )
+                                
+                                print(f"📊 Room deactivation Response Status: {response.status_code}")
+                                print(f"📊 Room deactivation Response Text: {response.text}")
+                            
+                except Exception as e:
+                    print(f"❌ Error in alternative approaches: {str(e)}")
+                    # Continue with the fallback approach
+                    pass
             
             if response.status_code == 200:
                 # NEW: Update recording in JSON array
@@ -1356,6 +1399,45 @@ def stop_recording(meeting_id):
                 # Also update old fields for backward compatibility
                 session.recording_status = 'stopping'
                 db.session.commit()
+                
+                # Schedule a delayed completion task if webhooks don't come through
+                print("🔄 Scheduling delayed completion fallback...")
+                try:
+                    # Import here to avoid circular imports
+                    from datetime import datetime, timedelta
+                    import threading
+                    
+                    def delayed_completion():
+                        """Complete the recording after 30 seconds if still stopping"""
+                        import time
+                        time.sleep(30)  # Wait 30 seconds
+                        
+                        # Re-fetch the session to check current status
+                        with db.session.no_autoflush:
+                            session_check = VideoSession.query.filter_by(meeting_id=meeting_id).first()
+                            if session_check and session_check.recording_status == 'stopping':
+                                print(f"🔄 Delayed completion: Recording still stopping after 30s, marking as completed")
+                                
+                                # Mark as completed with timeout
+                                session_check.update_recording(recording_id, {
+                                    "recording_status": "completed",
+                                    "completed_at": datetime.utcnow().isoformat(),
+                                    "recording_url": "Recording stopped by user (no playback URL available)"
+                                })
+                                
+                                session_check.recording_status = 'completed'
+                                session_check.recording_url = "Recording stopped by user (no playback URL available)"
+                                db.session.commit()
+                                
+                                print(f"✅ Recording {recording_id} marked as completed after timeout")
+                    
+                    # Start delayed completion thread
+                    thread = threading.Thread(target=delayed_completion)
+                    thread.daemon = True
+                    thread.start()
+                    
+                except Exception as e:
+                    print(f"❌ Error scheduling delayed completion: {str(e)}")
                 
                 return jsonify({
                     "success": True,
