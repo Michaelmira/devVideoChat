@@ -1122,7 +1122,8 @@ def start_recording(meeting_id):
                 session.update_recording(recording_id, {
                     "recording_status": "completed",
                     "completed_at": datetime.utcnow().isoformat(),
-                    "recording_url": "Recording auto-completed (stuck state cleanup)"
+                    # Don't set recording_url to error message - leave it as None
+                    "error_message": "Recording auto-completed (stuck state cleanup)"
                 })
                 stuck_count += 1
             
@@ -1526,11 +1527,12 @@ def stop_recording(meeting_id):
                 session.update_recording(recording_id, {
                     "recording_status": "completed",
                     "completed_at": datetime.utcnow().isoformat(),
-                    "recording_url": "Recording stopped by user (VideoSDK API unavailable)"
+                    # Don't set recording_url to error message - leave it as None
+                    "error_message": "Recording stopped by user (VideoSDK API unavailable)"
                 })
                 
                 session.recording_status = 'completed'
-                session.recording_url = "Recording stopped by user (VideoSDK API unavailable)"
+                # Don't set recording_url to error message - leave it as None
                 db.session.commit()
                 
                 print(f"✅ Recording {recording_id} marked as completed immediately due to API failure")
@@ -1658,7 +1660,9 @@ def get_my_recordings():
                     "recording_created_at": recording.get("created_at"),
                     "recording_completed_at": recording.get("completed_at"),
                     "duration_seconds": recording.get("duration_seconds"),
-                    "quality": recording.get("quality")
+                    "quality": recording.get("quality"),
+                    "error_message": recording.get("error_message"),
+                    "name": recording.get("name")
                 })
         
         # Sort by recording creation date (newest first)

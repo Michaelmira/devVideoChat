@@ -136,6 +136,10 @@ const RecordingsManager = ({ user }) => {
 
     // Play recording in modal
     const playRecording = (recording) => {
+        if (!recording.recording_url || !recording.recording_url.startsWith('http')) {
+            alert('Recording is not available for playback.');
+            return;
+        }
         setSelectedRecording(recording);
         setShowPlayer(true);
     };
@@ -152,9 +156,11 @@ const RecordingsManager = ({ user }) => {
 
     // Copy URL to clipboard
     const copyRecordingUrl = (recordingUrl) => {
-        if (recordingUrl) {
+        if (recordingUrl && recordingUrl.startsWith('http')) {
             navigator.clipboard.writeText(recordingUrl);
             alert('Recording URL copied to clipboard!');
+        } else {
+            alert('Recording URL is not available or invalid.');
         }
     };
 
@@ -282,6 +288,12 @@ const RecordingsManager = ({ user }) => {
                                                         <i className="fas fa-clock me-1"></i>
                                                         Duration: {recording.duration_seconds ? formatDuration(recording.duration_seconds) : 'Processing...'}
                                                     </p>
+                                                    {recording.error_message && (
+                                                        <p className="text-warning small mb-2">
+                                                            <i className="fas fa-exclamation-triangle me-1"></i>
+                                                            {recording.error_message}
+                                                        </p>
+                                                    )}
                                                     <div className="mb-2">
                                                         <span className={`badge ${recording.recording_status === 'completed' ? 'bg-success' :
                                                             recording.recording_status === 'failed' ? 'bg-danger' :
@@ -301,6 +313,15 @@ const RecordingsManager = ({ user }) => {
                                                             title="Play recording"
                                                         >
                                                             <i className="fas fa-play"></i> Play
+                                                        </button>
+                                                    )}
+                                                    {recording.recording_status === 'completed' && !recording.recording_url && (
+                                                        <button
+                                                            className="btn btn-outline-secondary btn-sm"
+                                                            disabled
+                                                            title="Recording not available"
+                                                        >
+                                                            <i className="fas fa-exclamation-triangle"></i> Not Available
                                                         </button>
                                                     )}
                                                     <button
