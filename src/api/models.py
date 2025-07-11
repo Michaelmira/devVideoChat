@@ -84,7 +84,7 @@ class VideoSession(db.Model):
     meeting_token = db.Column(db.Text, nullable=True)
     
     # NEW: Store multiple recordings as JSON array
-    recordings = db.Column(db.JSON, default=list)
+    recordings = db.Column(db.JSON, nullable=True, default=list)
     
     # DEPRECATED: Keep for backward compatibility during migration
     recording_url = db.Column(db.String(500), nullable=True)
@@ -99,7 +99,7 @@ class VideoSession(db.Model):
     # Helper methods for managing recordings
     def add_recording(self, recording_data):
         """Add a new recording to the session"""
-        if not self.recordings:
+        if self.recordings is None:
             self.recordings = []
         
         recording = {
@@ -117,26 +117,34 @@ class VideoSession(db.Model):
         self.recordings.append(recording)
         # Mark as modified for SQLAlchemy to detect changes
         db.session.merge(self)
+        
+        print(f"🔍 DEBUG add_recording: Added recording {recording['id']} to session {self.id}")
+        print(f"🔍 DEBUG add_recording: Total recordings now: {len(self.recordings)}")
         return recording
 
     def update_recording(self, recording_id, update_data):
         """Update an existing recording"""
-        if not self.recordings:
+        if self.recordings is None or len(self.recordings) == 0:
+            print(f"🔍 DEBUG update_recording: No recordings array for session {self.id}")
             return None
             
+        print(f"🔍 DEBUG update_recording: Looking for recording_id '{recording_id}' in {len(self.recordings)} recordings")
         for i, recording in enumerate(self.recordings):
+            print(f"🔍 DEBUG update_recording: Checking recording {i}: {recording.get('recording_id')}")
             if recording.get("recording_id") == recording_id:
                 # Update the recording with new data
                 recording.update(update_data)
                 self.recordings[i] = recording
                 # Mark as modified for SQLAlchemy to detect changes
                 db.session.merge(self)
+                print(f"🔍 DEBUG update_recording: Updated recording {recording_id}")
                 return recording
+        print(f"🔍 DEBUG update_recording: Recording {recording_id} not found!")
         return None
 
     def get_recording(self, recording_id):
         """Get a specific recording by recording_id"""
-        if not self.recordings:
+        if self.recordings is None or len(self.recordings) == 0:
             return None
         
         for recording in self.recordings:
@@ -146,13 +154,13 @@ class VideoSession(db.Model):
 
     def get_latest_recording(self):
         """Get the most recent recording"""
-        if not self.recordings:
+        if self.recordings is None or len(self.recordings) == 0:
             return None
         return max(self.recordings, key=lambda x: x.get("created_at", ""))
 
     def get_active_recordings(self):
         """Get all currently active recordings"""
-        if not self.recordings:
+        if self.recordings is None or len(self.recordings) == 0:
             return []
         return [r for r in self.recordings if r.get("recording_status") in ["starting", "active"]]
 
@@ -169,7 +177,7 @@ class VideoSession(db.Model):
             "creator_name": f"{self.creator.first_name} {self.creator.last_name}" if self.creator else "Unknown",
             "recordings": self.recordings or [],
             "total_recordings": len(self.recordings) if self.recordings else 0,
-            "has_recordings": bool(self.recordings),
+            "has_recordings": bool(self.recordings and len(self.recordings) > 0),
             # Backward compatibility
             "has_recording": bool(self.recording_url),
             "recording_status": self.recording_status,

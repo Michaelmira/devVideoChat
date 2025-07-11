@@ -937,12 +937,34 @@ def handle_hls_starting(data):
     try:
         meeting_id = data.get('meetingId')
         session_id = data.get('sessionId')
+        recording_id = data.get('id')  # This is the actual recording ID
         
         session = VideoSession.query.filter_by(meeting_id=meeting_id).first()
         if session:
-            # Recording is starting - keep status as 'starting'
+            # NEW: Check if recording exists in JSON array, if not create it
+            existing_recording = session.get_recording(recording_id) if recording_id else None
+            if not existing_recording and recording_id:
+                # Create new recording in JSON array
+                recording_data = {
+                    "recording_id": recording_id,
+                    "recording_status": "starting",
+                    "started_at": datetime.utcnow().isoformat()
+                }
+                session.add_recording(recording_data)
+                print(f"📝 Created new recording in JSON array: {recording_id}")
+            elif existing_recording:
+                # Update existing recording
+                session.update_recording(recording_id, {
+                    "recording_status": "starting",
+                    "started_at": datetime.utcnow().isoformat()
+                })
+                print(f"📝 Updated existing recording: {recording_id}")
+            
+            # Also update old fields for backward compatibility
             if not session.recording_id:
-                session.recording_id = session_id
+                session.recording_id = recording_id or session_id
+            session.recording_status = 'starting'
+            
             db.session.commit()
             print(f"🔄 HLS Recording starting for session {session.id}")
         else:
@@ -956,10 +978,20 @@ def handle_hls_started(data):
     try:
         meeting_id = data.get('meetingId')
         session_id = data.get('sessionId')
+        recording_id = data.get('id')
         
         session = VideoSession.query.filter_by(meeting_id=meeting_id).first()
         if session:
-            session.recording_id = session_id
+            # NEW: Update recording in JSON array
+            if recording_id:
+                session.update_recording(recording_id, {
+                    "recording_status": "active",
+                    "started_at": datetime.utcnow().isoformat()
+                })
+                print(f"📝 Updated recording in JSON array to active: {recording_id}")
+            
+            # Also update old fields for backward compatibility
+            session.recording_id = recording_id or session_id
             session.recording_status = 'active'
             db.session.commit()
             print(f"✅ HLS Recording started for session {session.id}")
@@ -991,6 +1023,7 @@ def handle_hls_stopped(data):
     try:
         meeting_id = data.get('meetingId')
         session_id = data.get('sessionId')
+        recording_id = data.get('id')
         download_url = data.get('downloadUrl')
         playback_url = data.get('playbackHlsUrl')
         downstream_url = data.get('downstreamUrl')
@@ -998,7 +1031,19 @@ def handle_hls_stopped(data):
         session = VideoSession.query.filter_by(meeting_id=meeting_id).first()
         if session:
             # Use playback URL if available, otherwise downstream URL, otherwise download URL
-            session.recording_url = playback_url or downstream_url or download_url
+            final_url = playback_url or downstream_url or download_url
+            
+            # NEW: Update recording in JSON array
+            if recording_id:
+                session.update_recording(recording_id, {
+                    "recording_status": "completed",
+                    "recording_url": final_url,
+                    "completed_at": datetime.utcnow().isoformat()
+                })
+                print(f"📝 Updated recording in JSON array to completed: {recording_id}")
+            
+            # Also update old fields for backward compatibility
+            session.recording_url = final_url
             session.recording_status = 'completed'
             db.session.commit()
             print(f"✅ HLS Recording completed for session {session.id}")
