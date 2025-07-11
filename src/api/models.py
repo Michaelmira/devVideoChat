@@ -1,6 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import DateTime, ForeignKey
 from sqlalchemy.orm import relationship
+from sqlalchemy.orm.attributes import flag_modified
 import datetime
 
 
@@ -115,8 +116,9 @@ class VideoSession(db.Model):
         }
         
         self.recordings.append(recording)
-        # Mark as modified for SQLAlchemy to detect changes
-        db.session.merge(self)
+        
+        # Mark the JSON column as modified for SQLAlchemy to detect changes
+        flag_modified(self, 'recordings')
         
         print(f"🔍 DEBUG add_recording: Added recording {recording['id']} to session {self.id}")
         print(f"🔍 DEBUG add_recording: Total recordings now: {len(self.recordings)}")
@@ -135,8 +137,10 @@ class VideoSession(db.Model):
                 # Update the recording with new data
                 recording.update(update_data)
                 self.recordings[i] = recording
-                # Mark as modified for SQLAlchemy to detect changes
-                db.session.merge(self)
+                
+                # Mark the JSON column as modified for SQLAlchemy to detect changes
+                flag_modified(self, 'recordings')
+                
                 print(f"🔍 DEBUG update_recording: Updated recording {recording_id}")
                 return recording
         print(f"🔍 DEBUG update_recording: Recording {recording_id} not found!")

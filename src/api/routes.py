@@ -966,7 +966,9 @@ def handle_hls_starting(data):
             session.recording_status = 'starting'
             
             db.session.commit()
+            db.session.refresh(session)
             print(f"🔄 HLS Recording starting for session {session.id}")
+            print(f"🔍 DEBUG: After commit, session has {len(session.recordings or [])} recordings")
         else:
             print(f"⚠️ Session not found for meeting_id: {meeting_id}")
             
@@ -994,7 +996,9 @@ def handle_hls_started(data):
             session.recording_id = recording_id or session_id
             session.recording_status = 'active'
             db.session.commit()
+            db.session.refresh(session)
             print(f"✅ HLS Recording started for session {session.id}")
+            print(f"🔍 DEBUG: After started commit, session has {len(session.recordings or [])} recordings")
         else:
             print(f"⚠️ Session not found for meeting_id: {meeting_id}")
             
@@ -1006,9 +1010,18 @@ def handle_hls_stopping(data):
     try:
         meeting_id = data.get('meetingId')
         session_id = data.get('sessionId')
+        recording_id = data.get('id')
         
         session = VideoSession.query.filter_by(meeting_id=meeting_id).first()
         if session:
+            # NEW: Update recording in JSON array
+            if recording_id:
+                session.update_recording(recording_id, {
+                    "recording_status": "stopping"
+                })
+                print(f"📝 Updated recording in JSON array to stopping: {recording_id}")
+            
+            # Also update old fields for backward compatibility
             session.recording_status = 'stopping'
             db.session.commit()
             print(f"⏹️ HLS Recording stopping for session {session.id}")
@@ -1243,14 +1256,20 @@ def stop_recording(meeting_id):
         # Use session ID to end the session, which should stop HLS recording
         recording_id = session.recording_id
         
-        print(f"🔄 Ending VideoSDK session {recording_id} to stop HLS recording for meeting {meeting_id}")
-        print(f"📊 VideoSDK API URL: {videosdk.api_endpoint}/sessions/{recording_id}/end")
+        print(f"🔄 Stopping HLS recording {recording_id} for meeting {meeting_id}")
+        print(f"📊 VideoSDK API URL: {videosdk.api_endpoint}/hls/stop")
+        
+        stop_data = {
+            "roomId": meeting_id,
+            "sessionId": recording_id
+        }
         
         try:
-            print("🔄 Making POST request to VideoSDK API to end session...")
+            print("🔄 Making POST request to VideoSDK API to stop HLS...")
             response = requests.post(
-                f"{videosdk.api_endpoint}/sessions/{recording_id}/end",
+                f"{videosdk.api_endpoint}/hls/stop",
                 headers=headers,
+                json=stop_data,
                 timeout=10  # Add timeout
             )
             
@@ -1258,11 +1277,16 @@ def stop_recording(meeting_id):
             print(f"📊 VideoSDK Response Text: {response.text}")
             
             if response.status_code == 200:
-                # Update session status
+                # NEW: Update recording in JSON array
+                session.update_recording(recording_id, {
+                    "recording_status": "stopping"
+                })
+                
+                # Also update old fields for backward compatibility
                 session.recording_status = 'stopping'
                 db.session.commit()
                 
-                print(f"✅ Session {recording_id} ended successfully")
+                print(f"✅ HLS stop request successful for {recording_id}")
                 return jsonify({
                     "success": True,
                     "message": "Recording stopped successfully",
@@ -1273,6 +1297,12 @@ def stop_recording(meeting_id):
                 print(f"❌ {error_msg}")
                 
                 # Fallback: Still set to stopping as webhook might handle it
+                # NEW: Update recording in JSON array
+                session.update_recording(recording_id, {
+                    "recording_status": "stopping"
+                })
+                
+                # Also update old fields for backward compatibility
                 session.recording_status = 'stopping'
                 db.session.commit()
                 
@@ -1285,6 +1315,12 @@ def stop_recording(meeting_id):
         except requests.exceptions.Timeout:
             print("⏰ VideoSDK API request timed out")
             # Still update session status as stopping since the webhook might come later
+            # NEW: Update recording in JSON array
+            session.update_recording(recording_id, {
+                "recording_status": "stopping"
+            })
+            
+            # Also update old fields for backward compatibility
             session.recording_status = 'stopping'
             db.session.commit()
             print(f"✅ Recording stop initiated (timeout occurred) for session {session.id}")
@@ -1319,10 +1355,14 @@ def get_session_recordings(meeting_id):
         if session.creator_id != user_id:
             return jsonify({"msg": "Only session creator can view recordings"}), 403
         
+        # Refresh session to get latest data from database
+        db.session.refresh(session)
+        
         # NEW: Return all recordings from JSON array
         recordings = session.recordings or []
         
         print(f"📊 get_session_recordings - Session {session.id}: {len(recordings)} recordings")
+        print(f"🔍 DEBUG get_session_recordings: Raw recordings data: {recordings}")
         
         return jsonify({
             "success": True,
