@@ -85,13 +85,53 @@ const RecordingsManager = ({ user }) => {
 
     // Format date for display
     const formatDate = (dateString) => {
-        return new Date(dateString).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
+        if (!dateString) return 'Invalid Date';
+        try {
+            return new Date(dateString).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } catch (error) {
+            return 'Invalid Date';
+        }
+    };
+
+    // Format duration from seconds to human readable
+    const formatDuration = (seconds) => {
+        if (!seconds || seconds === 0) return 'Unknown';
+
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const remainingSeconds = seconds % 60;
+
+        if (hours > 0) {
+            return `${hours}h ${minutes}m ${remainingSeconds}s`;
+        } else if (minutes > 0) {
+            return `${minutes}m ${remainingSeconds}s`;
+        } else {
+            return `${remainingSeconds}s`;
+        }
+    };
+
+    // Generate recording display name
+    const getRecordingName = (recording, index) => {
+        // First check if backend provided a name
+        if (recording.name) {
+            return recording.name;
+        }
+
+        // Group recordings by session_id to count them
+        const sessionRecordings = recordings.filter(r => r.session_id === recording.session_id);
+        const recordingIndex = sessionRecordings.findIndex(r => r.videosdk_recording_id === recording.videosdk_recording_id) + 1;
+
+        if (sessionRecordings.length === 1) {
+            return `Meeting Session #${recording.session_id}`;
+        } else {
+            return `Meeting Session #${recording.session_id} Recording #${recordingIndex}`;
+        }
     };
 
     // Play recording in modal
@@ -226,21 +266,21 @@ const RecordingsManager = ({ user }) => {
                     ) : (
                         <div className="recordings-grid">
                             {recordings.map((recording, index) => (
-                                <div key={recording.session_id} className="recording-item mb-3">
+                                <div key={`${recording.session_id}-${recording.videosdk_recording_id || index}`} className="recording-item mb-3">
                                     <div className="card">
                                         <div className="card-body">
                                             <div className="d-flex justify-content-between align-items-start">
                                                 <div className="flex-grow-1">
                                                     <h6 className="card-title mb-1">
-                                                        Meeting Session #{recording.session_id}
+                                                        {getRecordingName(recording, index)}
                                                     </h6>
                                                     <p className="text-muted small mb-2">
                                                         <i className="fas fa-calendar me-1"></i>
-                                                        {formatDate(recording.created_at)}
+                                                        {formatDate(recording.recording_created_at || recording.session_created_at)}
                                                     </p>
                                                     <p className="text-muted small mb-2">
                                                         <i className="fas fa-clock me-1"></i>
-                                                        Duration: {recording.max_duration_minutes === 360 ? 'Premium (6h)' : 'Free (50min)'}
+                                                        Duration: {recording.duration_seconds ? formatDuration(recording.duration_seconds) : 'Processing...'}
                                                     </p>
                                                     <div className="mb-2">
                                                         <span className={`badge ${recording.recording_status === 'completed' ? 'bg-success' :
@@ -303,7 +343,7 @@ const RecordingsManager = ({ user }) => {
                             <div className="modal-header">
                                 <h5 className="modal-title">
                                     <i className="fas fa-play-circle me-2"></i>
-                                    Recording: Session #{selectedRecording.session_id}
+                                    {getRecordingName(selectedRecording, recordings.findIndex(r => r.videosdk_recording_id === selectedRecording.videosdk_recording_id))}
                                 </h5>
                                 <button
                                     type="button"
@@ -335,7 +375,13 @@ const RecordingsManager = ({ user }) => {
                                 <div className="d-flex justify-content-between w-100">
                                     <div className="text-muted small">
                                         <i className="fas fa-calendar me-1"></i>
-                                        {formatDate(selectedRecording.created_at)}
+                                        {formatDate(selectedRecording.recording_created_at || selectedRecording.session_created_at)}
+                                        {selectedRecording.duration_seconds && (
+                                            <span className="ms-3">
+                                                <i className="fas fa-clock me-1"></i>
+                                                {formatDuration(selectedRecording.duration_seconds)}
+                                            </span>
+                                        )}
                                     </div>
                                     <div>
                                         <button
