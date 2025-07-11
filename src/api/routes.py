@@ -1416,51 +1416,7 @@ def stop_recording(meeting_id):
                 
                 print(f"✅ Recording {recording_id} marked as completed immediately due to API failure")
                 
-                # Also schedule a delayed completion task as backup
-                print("🔄 Scheduling delayed completion fallback...")
-                try:
-                    # Import here to avoid circular imports
-                    from datetime import datetime, timedelta
-                    import threading
-                    
-                    def delayed_completion():
-                        """Complete the recording after 30 seconds if still stopping"""
-                        import time
-                        time.sleep(30)  # Wait 30 seconds
-                        
-                        # Create Flask application context for this thread
-                        from flask import current_app
-                        from src.app import app  # Import the app instance
-                        
-                        try:
-                            with app.app_context():
-                                # Re-fetch the session to check current status
-                                session_check = VideoSession.query.filter_by(meeting_id=meeting_id).first()
-                                if session_check and session_check.recording_status == 'stopping':
-                                    print(f"🔄 Delayed completion: Recording still stopping after 30s, marking as completed")
-                                    
-                                    # Mark as completed with timeout
-                                    session_check.update_recording(recording_id, {
-                                        "recording_status": "completed",
-                                        "completed_at": datetime.utcnow().isoformat(),
-                                        "recording_url": "Recording stopped by user (no playback URL available)"
-                                    })
-                                    
-                                    session_check.recording_status = 'completed'
-                                    session_check.recording_url = "Recording stopped by user (no playback URL available)"
-                                    db.session.commit()
-                                    
-                                    print(f"✅ Recording {recording_id} marked as completed after timeout")
-                        except Exception as e:
-                            print(f"❌ Error in delayed completion thread: {str(e)}")
-                    
-                    # Start delayed completion thread
-                    thread = threading.Thread(target=delayed_completion)
-                    thread.daemon = True
-                    thread.start()
-                    
-                except Exception as e:
-                    print(f"❌ Error scheduling delayed completion: {str(e)}")
+                print("✅ Recording marked as completed immediately (no threading delays needed)")
                 
                 return jsonify({
                     "success": True,
@@ -2297,3 +2253,58 @@ def verify_mvp_signed_state(state_param):
     """Verify a signed state parameter for MVP OAuth"""
     # Same implementation as regular signed state
     return verify_signed_state(state_param)
+
+
+@api.route('/debug/sessions/<meeting_id>/force-completed', methods=['POST'])
+@jwt_required()
+@premium_required
+def debug_force_recording_completed(meeting_id):
+    """Debug endpoint to force any stuck recordings to completed status"""
+    try:
+        user_id = get_jwt_identity()
+        
+        # Get the session
+        session = VideoSession.query.filter_by(meeting_id=meeting_id).first()
+        if not session:
+            return jsonify({"msg": "Session not found"}), 404
+        
+        # Check if user is the creator
+        if session.creator_id != user_id:
+            return jsonify({"msg": "Only session creator can manage recordings"}), 403
+        
+        # Find any stuck recordings (stopping, starting, active)
+        stuck_recordings = []
+        recordings = session.recordings or []
+        
+        for recording in recordings:
+            status = recording.get("recording_status", "")
+            if status in ["stopping", "starting", "active"]:
+                stuck_recordings.append(recording)
+        
+        # Force all stuck recordings to completed
+        for recording in stuck_recordings:
+            recording_id = recording.get("recording_id")
+            session.update_recording(recording_id, {
+                "recording_status": "completed",
+                "completed_at": datetime.utcnow().isoformat(),
+                "recording_url": "Recording completed via manual intervention"
+            })
+        
+        # Also update old fields for backward compatibility
+        if session.recording_status in ["stopping", "starting", "active"]:
+            session.recording_status = 'completed'
+            session.recording_url = "Recording completed via manual intervention"
+        
+        db.session.commit()
+        
+        return jsonify({
+            "success": True,
+            "message": f"Forced {len(stuck_recordings)} recordings to completed status",
+            "stuck_recordings_fixed": len(stuck_recordings),
+            "recordings": session.recordings,
+            "recording_status": session.recording_status
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error forcing recording completed: {str(e)}")
+        return jsonify({"msg": "Error forcing recording completed"}), 500
