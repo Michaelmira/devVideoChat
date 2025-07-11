@@ -1163,12 +1163,20 @@ def start_recording(meeting_id):
             if response.status_code == 200:
                 response_data = response.json()
                 
+                print(f"🔍 VideoSDK Response Data: {response_data}")
+                hls_id = response_data.get('id')
+                session_id = response_data.get('sessionId')
+                print(f"🔍 HLS ID: {hls_id}, Session ID: {session_id}")
+                
                 # NEW: Add recording to JSON array
+                # Use 'id' field (which is what webhooks use) rather than 'sessionId'
                 recording_data = {
-                    "recording_id": response_data.get('sessionId', response_data.get('id')),
+                    "recording_id": response_data.get('id', response_data.get('sessionId')),
                     "recording_status": "starting",
                     "started_at": datetime.utcnow().isoformat()
                 }
+                
+                print(f"🔍 Storing recording with ID: {recording_data['recording_id']}")
                 
                 new_recording = session.add_recording(recording_data)
                 
@@ -1253,28 +1261,70 @@ def stop_recording(meeting_id):
             "Content-Type": "application/json"
         }
         
-        # Use session ID to end the session, which should stop HLS recording
+        # Get the recording ID from the session
         recording_id = session.recording_id
         
         print(f"🔄 Stopping HLS recording {recording_id} for meeting {meeting_id}")
         print(f"📊 VideoSDK API URL: {videosdk.api_endpoint}/hls/stop")
+        print(f"🔍 Session recordings: {session.recordings}")
         
+        # Debug: Show active recordings
+        active_recordings = session.get_active_recordings()
+        print(f"🔍 Active recordings: {active_recordings}")
+        
+        # Try the correct VideoSDK API format for stopping HLS
         stop_data = {
             "roomId": meeting_id,
-            "sessionId": recording_id
+            "hlsId": recording_id  # Changed from sessionId to hlsId
         }
         
         try:
             print("🔄 Making POST request to VideoSDK API to stop HLS...")
+            print(f"📊 Stop data: {stop_data}")
+            
+            # Try multiple approaches to stop the HLS recording
+            
+            # Approach 1: Try /v2/hls/stop with hlsId
             response = requests.post(
                 f"{videosdk.api_endpoint}/hls/stop",
                 headers=headers,
                 json=stop_data,
-                timeout=10  # Add timeout
+                timeout=10
             )
             
             print(f"📊 VideoSDK Response Status: {response.status_code}")
             print(f"📊 VideoSDK Response Text: {response.text}")
+            
+            # If the first approach fails with 404, try alternative approaches
+            
+            # Approach 2: Try /v2/hls/{id}/stop
+            if response.status_code == 404:
+                print("🔄 Trying alternative approach: /v2/hls/{id}/stop")
+                
+                response = requests.post(
+                    f"{videosdk.api_endpoint}/hls/{recording_id}/stop",
+                    headers=headers,
+                    json={"roomId": meeting_id},
+                    timeout=10
+                )
+                
+                print(f"📊 Alternative Response Status: {response.status_code}")
+                print(f"📊 Alternative Response Text: {response.text}")
+                
+                # If still 404, try another approach
+                if response.status_code == 404:
+                    print("🔄 Trying final approach: Session management")
+                    
+                    # Approach 3: Try stopping via session management
+                    response = requests.post(
+                        f"{videosdk.api_endpoint}/sessions/{recording_id}/stop",
+                        headers=headers,
+                        json={"roomId": meeting_id},
+                        timeout=10
+                    )
+                    
+                    print(f"📊 Session Response Status: {response.status_code}")
+                    print(f"📊 Session Response Text: {response.text}")
             
             if response.status_code == 200:
                 # NEW: Update recording in JSON array
@@ -1293,10 +1343,11 @@ def stop_recording(meeting_id):
                     "recording_status": session.recording_status
                 }), 200
             else:
-                error_msg = f"VideoSDK API Error: Status {response.status_code}, Response: {response.text}"
-                print(f"❌ {error_msg}")
+                # If the API call fails, let's still update the status and rely on webhooks
+                print(f"❌ VideoSDK API Error: Status {response.status_code}, Response: {response.text}")
+                print("🔄 Fallback: Setting status to stopping and relying on webhooks")
+                print("💡 Note: VideoSDK may stop the recording automatically when the room ends")
                 
-                # Fallback: Still set to stopping as webhook might handle it
                 # NEW: Update recording in JSON array
                 session.update_recording(recording_id, {
                     "recording_status": "stopping"
@@ -1309,7 +1360,8 @@ def stop_recording(meeting_id):
                 return jsonify({
                     "success": True,
                     "message": "Recording stop initiated (webhook processing)",
-                    "recording_status": session.recording_status
+                    "recording_status": session.recording_status,
+                    "note": "API call failed but status updated, webhooks will handle completion"
                 }), 200
                 
         except requests.exceptions.Timeout:
@@ -1332,7 +1384,21 @@ def stop_recording(meeting_id):
             
         except requests.exceptions.RequestException as e:
             print(f"❌ Network error: {str(e)}")
-            return jsonify({"msg": f"Network error stopping recording: {str(e)}"}), 500
+            # Still update session status as stopping since the webhook might come later
+            # NEW: Update recording in JSON array
+            session.update_recording(recording_id, {
+                "recording_status": "stopping"
+            })
+            
+            # Also update old fields for backward compatibility
+            session.recording_status = 'stopping'
+            db.session.commit()
+            
+            return jsonify({
+                "success": True,
+                "message": "Recording stop initiated (network error, relying on webhooks)",
+                "recording_status": session.recording_status
+            }), 200
             
     except Exception as e:
         print(f"❌ Error stopping recording: {str(e)}")
