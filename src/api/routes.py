@@ -1404,6 +1404,7 @@ def stop_recording(meeting_id):
                 print("🔄 All API calls failed, marking recording as completed immediately...")
                 
                 # Mark as completed since VideoSDK API is not working
+                from datetime import datetime
                 session.update_recording(recording_id, {
                     "recording_status": "completed",
                     "completed_at": datetime.utcnow().isoformat(),
@@ -2282,6 +2283,7 @@ def debug_force_recording_completed(meeting_id):
                 stuck_recordings.append(recording)
         
         # Force all stuck recordings to completed
+        from datetime import datetime
         for recording in stuck_recordings:
             recording_id = recording.get("recording_id")
             session.update_recording(recording_id, {

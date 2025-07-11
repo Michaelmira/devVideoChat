@@ -876,7 +876,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                             const button = event.currentTarget;
                             const originalText = button.innerHTML;
                             const meetingUrl = `${window.location.origin}/join/${meetingId}`;
-
+                            
                             try {
                                 // Try modern clipboard API first
                                 if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -894,33 +894,33 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                                     document.body.removeChild(textArea);
                                     console.log('✅ Meeting link copied via fallback method:', meetingUrl);
                                 }
-
+                                
                                 // Show success feedback
                                 button.innerHTML = '✅ Copied!';
                                 button.classList.remove('btn-primary');
                                 button.classList.add('btn-success');
-
+                                
                                 setTimeout(() => {
                                     button.innerHTML = originalText;
                                     button.classList.remove('btn-success');
                                     button.classList.add('btn-primary');
                                 }, 2000);
-
+                                
                             } catch (err) {
                                 console.error('❌ Error copying meeting link:', err);
-
+                                
                                 // Even if there's an "error", the copy might have worked
                                 // So show success feedback but also log the error
                                 button.innerHTML = '✅ Link Copied';
                                 button.classList.remove('btn-primary');
                                 button.classList.add('btn-success');
-
+                                
                                 setTimeout(() => {
                                     button.innerHTML = originalText;
                                     button.classList.remove('btn-success');
                                     button.classList.add('btn-primary');
                                 }, 2000);
-
+                                
                                 // Only show error alert if we're really sure it failed
                                 // For now, we'll assume it worked since the user reported it's copying
                                 console.log('🔗 Meeting URL (manual copy if needed):', meetingUrl);
