@@ -103,8 +103,17 @@ class VideoSession(db.Model):
         if self.recordings is None:
             self.recordings = []
         
+        recording_number = len(self.recordings) + 1
+        
+        # Generate a proper name for the recording
+        if recording_number == 1:
+            recording_name = f"Meeting Session #{self.id}"
+        else:
+            recording_name = f"Meeting Session #{self.id} Recording #{recording_number}"
+        
         recording = {
-            "id": len(self.recordings) + 1,  # Simple incrementing ID
+            "id": recording_number,  # Simple incrementing ID
+            "name": recording_name,  # Human-readable name
             "recording_id": recording_data.get("recording_id"),
             "recording_url": recording_data.get("recording_url"),
             "recording_status": recording_data.get("recording_status", "starting"),
@@ -120,7 +129,7 @@ class VideoSession(db.Model):
         # Mark the JSON column as modified for SQLAlchemy to detect changes
         flag_modified(self, 'recordings')
         
-        print(f"🔍 DEBUG add_recording: Added recording {recording['id']} to session {self.id}")
+        print(f"🔍 DEBUG add_recording: Added recording {recording['id']} ({recording_name}) to session {self.id}")
         print(f"🔍 DEBUG add_recording: Total recordings now: {len(self.recordings)}")
         return recording
 

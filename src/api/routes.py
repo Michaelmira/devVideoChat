@@ -1400,7 +1400,23 @@ def stop_recording(meeting_id):
                 session.recording_status = 'stopping'
                 db.session.commit()
                 
-                # Schedule a delayed completion task if webhooks don't come through
+                # Since all API calls failed, immediately mark as completed
+                print("🔄 All API calls failed, marking recording as completed immediately...")
+                
+                # Mark as completed since VideoSDK API is not working
+                session.update_recording(recording_id, {
+                    "recording_status": "completed",
+                    "completed_at": datetime.utcnow().isoformat(),
+                    "recording_url": "Recording stopped by user (VideoSDK API unavailable)"
+                })
+                
+                session.recording_status = 'completed'
+                session.recording_url = "Recording stopped by user (VideoSDK API unavailable)"
+                db.session.commit()
+                
+                print(f"✅ Recording {recording_id} marked as completed immediately due to API failure")
+                
+                # Also schedule a delayed completion task as backup
                 print("🔄 Scheduling delayed completion fallback...")
                 try:
                     # Import here to avoid circular imports
@@ -1412,24 +1428,31 @@ def stop_recording(meeting_id):
                         import time
                         time.sleep(30)  # Wait 30 seconds
                         
-                        # Re-fetch the session to check current status
-                        with db.session.no_autoflush:
-                            session_check = VideoSession.query.filter_by(meeting_id=meeting_id).first()
-                            if session_check and session_check.recording_status == 'stopping':
-                                print(f"🔄 Delayed completion: Recording still stopping after 30s, marking as completed")
-                                
-                                # Mark as completed with timeout
-                                session_check.update_recording(recording_id, {
-                                    "recording_status": "completed",
-                                    "completed_at": datetime.utcnow().isoformat(),
-                                    "recording_url": "Recording stopped by user (no playback URL available)"
-                                })
-                                
-                                session_check.recording_status = 'completed'
-                                session_check.recording_url = "Recording stopped by user (no playback URL available)"
-                                db.session.commit()
-                                
-                                print(f"✅ Recording {recording_id} marked as completed after timeout")
+                        # Create Flask application context for this thread
+                        from flask import current_app
+                        from src.app import app  # Import the app instance
+                        
+                        try:
+                            with app.app_context():
+                                # Re-fetch the session to check current status
+                                session_check = VideoSession.query.filter_by(meeting_id=meeting_id).first()
+                                if session_check and session_check.recording_status == 'stopping':
+                                    print(f"🔄 Delayed completion: Recording still stopping after 30s, marking as completed")
+                                    
+                                    # Mark as completed with timeout
+                                    session_check.update_recording(recording_id, {
+                                        "recording_status": "completed",
+                                        "completed_at": datetime.utcnow().isoformat(),
+                                        "recording_url": "Recording stopped by user (no playback URL available)"
+                                    })
+                                    
+                                    session_check.recording_status = 'completed'
+                                    session_check.recording_url = "Recording stopped by user (no playback URL available)"
+                                    db.session.commit()
+                                    
+                                    print(f"✅ Recording {recording_id} marked as completed after timeout")
+                        except Exception as e:
+                            print(f"❌ Error in delayed completion thread: {str(e)}")
                     
                     # Start delayed completion thread
                     thread = threading.Thread(target=delayed_completion)
