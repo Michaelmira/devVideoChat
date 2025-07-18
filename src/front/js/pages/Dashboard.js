@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { ActiveSessionsList } from "../component/ActiveSessionsList";
 import { UpgradeSection } from "../component/UpgradeSection";
 import { PremiumStatusSection } from "../component/PremiumStatusSection";
+import RecordingsManager from "../component/RecordingsManager";
 import "../../styles/upgrade-card.css";
 
 export const Dashboard = () => {
@@ -261,6 +262,11 @@ export const Dashboard = () => {
                 onCopy={copyLink}
                 onRefresh={loadSessions}
             />
+
+            {/* Recordings Manager */}
+            <div className="mb-4">
+                <RecordingsManager user={user} />
+            </div>
 
             {/* Premium Status or Upgrade CTA */}
             {isPremium ? (

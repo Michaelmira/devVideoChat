@@ -243,22 +243,22 @@ function ParticipantView({ participantId, viewMode = 'normal', isLocal = false }
     );
 }
 
-function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isModerator }) {
+function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isModerator, user }) {
     const [joined, setJoined] = useState(null);
     const [connectionStatus, setConnectionStatus] = useState('connected');
     const [tokenExpiryWarning, setTokenExpiryWarning] = useState(false);
     const [screenShareError, setScreenShareError] = useState(null);
-    const [viewMode, setViewMode] = useState('default'); // 'default', 'expanded', 'fullscreen'
+    const [viewMode, setViewMode] = useState('default');
     const [overlayPosition, setOverlayPosition] = useState({ x: window.innerWidth - 250, y: 20 });
     const [isDragging, setIsDragging] = useState(false);
     const [zoomLevel, setZoomLevel] = useState(1);
     const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
+    const [sessionData, setSessionData] = useState(null);
+    const [participantJoinOrder, setParticipantJoinOrder] = useState([]); // New state for join order
     const dragStartPos = useRef({ x: 0, y: 0 });
     const panStartPos = useRef({ x: 0, y: 0 });
     const mainContentRef = useRef(null);
-
-    // Refs for intervals
     const tokenRefreshInterval = useRef(null);
     const connectionCheckInterval = useRef(null);
 
@@ -289,8 +289,6 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         },
         onPresenterChanged: (_presenterId) => {
             console.log("🖥️ PRESENTER CHANGED:", _presenterId);
-
-            // Reset view mode and zoom when screen sharing stops
             if (!_presenterId) {
                 console.log("🔄 Screen sharing stopped, resetting view mode and zoom");
                 setViewMode('default');
@@ -300,8 +298,6 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         },
         onError: (error) => {
             console.error("❌ MEETING ERROR:", error);
-
-            // Only show connection error for actual connection issues
             if (error.message && (
                 error.message.includes('token') ||
                 error.message.includes('connection') ||
@@ -309,22 +305,22 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                 error.message.includes('disconnected')
             )) {
                 setConnectionStatus('error');
-
                 if (error.message.includes('token')) {
                     console.log("🔑 Token-related error detected, refreshing...");
                     setTokenExpiryWarning(true);
                     handleTokenRefresh();
                 }
             } else {
-                // For other errors (like permission denied, etc.), don't show connection error
                 console.log("ℹ️ Non-connection error, not changing connection status:", error.message);
             }
         },
         onParticipantJoined: (participant) => {
             console.log("👥 PARTICIPANT JOINED:", participant.displayName || participant.id);
+            setParticipantJoinOrder(prev => [...prev, participant.id]); // Add to join order
         },
         onParticipantLeft: (participant) => {
             console.log("👥 PARTICIPANT LEFT:", participant.displayName || participant.id);
+            setParticipantJoinOrder(prev => prev.filter(id => id !== participant.id)); // Remove from join order
         }
     });
 
@@ -337,6 +333,25 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
             setPanOffset({ x: 0, y: 0 });
         }
     }, [presenterId]);
+
+    // Fetch session data to check if user is creator
+    useEffect(() => {
+        const fetchSessionData = async () => {
+            try {
+                const response = await fetch(`${process.env.BACKEND_URL}/api/session-status/${meetingId}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setSessionData(data);
+                }
+            } catch (error) {
+                console.error('Error fetching session data:', error);
+            }
+        };
+
+        if (meetingId) {
+            fetchSessionData();
+        }
+    }, [meetingId]);
     const handlePresenterDoubleClick = useCallback((e) => {
         // Prevent double-click from interfering with pan
         if (isPanning) return;
@@ -666,49 +681,67 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         console.log("🎨 LAYOUT CALCULATION:", {
             isScreenShareActive,
             presenterId: presenterId,
-            participantCount: participantArray.length
+            participantCount: participantArray.length,
+            participantJoinOrder,
+            localParticipantId: localParticipant ? localParticipant.id : null
+        });
+
+        // Initialize sidebar participants
+        const sidebarParticipants = [];
+
+        // Add local participant first, if available
+        if (localParticipant) {
+            sidebarParticipants.push({
+                ...localParticipant,
+                displayName: userName + " (You)"
+            });
+        }
+
+        // Add remote participants, ensuring no duplicates
+        participantArray.forEach(participant => {
+            if (!localParticipant || participant.id !== localParticipant.id) {
+                sidebarParticipants.push(participant);
+            }
         });
 
         if (isScreenShareActive) {
             // Find the presenter
             let presenter = participantArray.find(p => p.id === presenterId);
-
-            // If presenter is local participant
             if (!presenter && localParticipant && localParticipant.id === presenterId) {
                 presenter = localParticipant;
-            }
-
-            // Create sidebar list including all participants
-            const sidebarParticipants = [...participantArray];
-
-            // Add local participant if not in the list
-            if (localParticipant && !participantArray.find(p => p.id === localParticipant.id)) {
-                sidebarParticipants.unshift({
-                    ...localParticipant,
-                    displayName: userName + " (You)"
-                });
             }
 
             return {
                 type: 'screenShare',
                 pinnedParticipant: presenter,
-                sidebarParticipants: sidebarParticipants
+                sidebarParticipants
             };
         } else {
-            // Regular layout
-            const pinnedParticipant = participantArray[0];
-            const sidebarParticipants = [];
+            // Regular layout: Prioritize a remote participant
+            let pinnedParticipant = null;
 
-            // Add local participant to sidebar
-            if (localParticipant) {
-                sidebarParticipants.push({
-                    ...localParticipant,
-                    displayName: userName + " (You)"
-                });
+            // If there are remote participants, select the most recently joined one
+            if (participantArray.length > 0) {
+                // Filter out local participant from join order to avoid selecting self
+                const remoteJoinOrder = participantJoinOrder.filter(id => !localParticipant || id !== localParticipant.id);
+                if (remoteJoinOrder.length > 0) {
+                    const latestParticipantId = remoteJoinOrder[remoteJoinOrder.length - 1];
+                    pinnedParticipant = participantArray.find(p => p.id === latestParticipantId);
+                }
+                // If no match found in join order, pick the first remote participant
+                if (!pinnedParticipant) {
+                    pinnedParticipant = participantArray[0];
+                }
+            } else if (localParticipant) {
+                // Fallback to local participant only if no remote participants exist
+                pinnedParticipant = localParticipant;
             }
 
-            // Add other participants
-            sidebarParticipants.push(...participantArray.slice(1));
+            console.log("📺 Pinned Participant:", pinnedParticipant ? {
+                id: pinnedParticipant.id,
+                displayName: pinnedParticipant.displayName,
+                isLocal: localParticipant && pinnedParticipant.id === localParticipant.id
+            } : null);
 
             return {
                 type: 'regular',
@@ -856,7 +889,7 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                             const button = event.currentTarget;
                             const originalText = button.innerHTML;
                             const meetingUrl = `${window.location.origin}/join/${meetingId}`;
-                            
+
                             try {
                                 // Try modern clipboard API first
                                 if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -874,33 +907,33 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                                     document.body.removeChild(textArea);
                                     console.log('✅ Meeting link copied via fallback method:', meetingUrl);
                                 }
-                                
+
                                 // Show success feedback
                                 button.innerHTML = '✅ Copied!';
                                 button.classList.remove('btn-primary');
                                 button.classList.add('btn-success');
-                                
+
                                 setTimeout(() => {
                                     button.innerHTML = originalText;
                                     button.classList.remove('btn-success');
                                     button.classList.add('btn-primary');
                                 }, 2000);
-                                
+
                             } catch (err) {
                                 console.error('❌ Error copying meeting link:', err);
-                                
+
                                 // Even if there's an "error", the copy might have worked
                                 // So show success feedback but also log the error
                                 button.innerHTML = '✅ Link Copied';
                                 button.classList.remove('btn-primary');
                                 button.classList.add('btn-success');
-                                
+
                                 setTimeout(() => {
                                     button.innerHTML = originalText;
                                     button.classList.remove('btn-success');
                                     button.classList.add('btn-primary');
                                 }, 2000);
-                                
+
                                 // Only show error alert if we're really sure it failed
                                 // For now, we'll assume it worked since the user reported it's copying
                                 console.log('🔗 Meeting URL (manual copy if needed):', meetingUrl);
@@ -910,6 +943,36 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                     >
                         🔗 Copy Link
                     </button>
+
+                    {/* Recording Button - Only for premium creators */}
+                    <CompactRecordingButton
+                        meetingId={meetingId}
+                        user={user}
+                        isCreator={sessionData && user && sessionData.creator_id === user.id}
+                    />
+
+                    {/* DEBUG: Show recording button debug info */}
+                    {process.env.NODE_ENV === 'development' && (
+                        <div style={{
+                            position: 'fixed',
+                            top: '10px',
+                            left: '10px',
+                            background: 'rgba(0,0,0,0.8)',
+                            color: 'white',
+                            padding: '10px',
+                            fontSize: '12px',
+                            zIndex: 9999,
+                            borderRadius: '4px'
+                        }}>
+                            <div>Recording Debug:</div>
+                            <div>User ID: {user?.id}</div>
+                            <div>Premium: {user?.subscription_status}</div>
+                            <div>Session Creator ID: {sessionData?.creator_id}</div>
+                            <div>Is Creator: {sessionData && user && sessionData.creator_id === user.id ? 'YES' : 'NO'}</div>
+                            <div>Session Data: {sessionData ? 'Loaded' : 'Loading...'}</div>
+                        </div>
+                    )}
+
                     <button
                         className="btn btn-danger"
                         onClick={() => leave()}
@@ -1138,6 +1201,8 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                     </div>
                 </div>
             </div>
+
+
         </div>
     );
 }
@@ -1224,10 +1289,189 @@ function MeetingTimer({ meetingId }) {
     );
 }
 
+// Compact Recording Button Component
+function CompactRecordingButton({ meetingId, user, isCreator }) {
+    const [recordingStatus, setRecordingStatus] = useState('none');
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Check if user is premium
+    const isPremium = user?.subscription_status === 'premium';
+
+    // Only show for premium users who are creators
+    const shouldShow = isPremium && isCreator;
+
+    // Debug logging
+    console.log('🎥 CompactRecordingButton Debug:', {
+        meetingId,
+        user: user ? { id: user.id, subscription_status: user.subscription_status } : null,
+        isCreator,
+        isPremium,
+        shouldShow
+    });
+
+    // Fetch current recording status
+    const fetchRecordingStatus = async () => {
+        try {
+            const token = sessionStorage.getItem('token');
+            const response = await fetch(`${process.env.BACKEND_URL}/api/sessions/${meetingId}/recordings`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setRecordingStatus(data.recording_status);
+            }
+        } catch (error) {
+            console.error('Error fetching recording status:', error);
+        }
+    };
+
+    // Start recording
+    const startRecording = async () => {
+        setIsLoading(true);
+        try {
+            const token = sessionStorage.getItem('token');
+            const response = await fetch(`${process.env.BACKEND_URL}/api/sessions/${meetingId}/start-recording`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setRecordingStatus('starting');
+                // Optional: Show success notification
+            } else {
+                const error = await response.json();
+                console.error('Failed to start recording:', error.msg);
+            }
+        } catch (error) {
+            console.error('Error starting recording:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Stop recording
+    const stopRecording = async () => {
+        setIsLoading(true);
+        try {
+            const token = sessionStorage.getItem('token');
+            const response = await fetch(`${process.env.BACKEND_URL}/api/sessions/${meetingId}/stop-recording`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setRecordingStatus('stopping');
+            } else {
+                const error = await response.json();
+                console.error('Failed to stop recording:', error.msg);
+            }
+        } catch (error) {
+            console.error('Error stopping recording:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Initial fetch
+    useEffect(() => {
+        if (shouldShow && meetingId) {
+            fetchRecordingStatus();
+            // Refresh status every 10 seconds
+            const interval = setInterval(fetchRecordingStatus, 10000);
+            return () => clearInterval(interval);
+        }
+    }, [shouldShow, meetingId]);
+
+    // Don't render if user shouldn't see recording controls
+    if (!shouldShow) {
+        return null;
+    }
+
+    // Get button appearance based on status
+    const getButtonConfig = () => {
+        switch (recordingStatus) {
+            case 'active':
+                return {
+                    className: 'btn btn-danger btn-sm',
+                    onClick: stopRecording,
+                    disabled: isLoading,
+                    text: isLoading ? 'Stopping...' : '⏹️ Stop',
+                    title: 'Stop recording'
+                };
+            case 'starting':
+                return {
+                    className: 'btn btn-warning btn-sm',
+                    onClick: null,
+                    disabled: true,
+                    text: '🟡 Starting...',
+                    title: 'Recording is starting'
+                };
+            case 'stopping':
+                return {
+                    className: 'btn btn-warning btn-sm',
+                    onClick: null,
+                    disabled: true,
+                    text: '🟡 Stopping...',
+                    title: 'Recording is stopping'
+                };
+            case 'completed':
+                return {
+                    className: 'btn btn-success btn-sm',
+                    onClick: startRecording,
+                    disabled: isLoading,
+                    text: isLoading ? 'Starting...' : '⏺️ Record',
+                    title: 'Previous recording completed - start new recording'
+                };
+            case 'failed':
+                return {
+                    className: 'btn btn-outline-danger btn-sm',
+                    onClick: startRecording,
+                    disabled: isLoading,
+                    text: isLoading ? 'Starting...' : '⏺️ Retry',
+                    title: 'Previous recording failed - try again'
+                };
+            default: // 'none'
+                return {
+                    className: 'btn btn-outline-danger btn-sm',
+                    onClick: startRecording,
+                    disabled: isLoading,
+                    text: isLoading ? 'Starting...' : '⏺️ Record',
+                    title: 'Start recording'
+                };
+        }
+    };
+
+    const buttonConfig = getButtonConfig();
+
+    return (
+        <button
+            className={buttonConfig.className}
+            onClick={buttonConfig.onClick}
+            disabled={buttonConfig.disabled}
+            title={buttonConfig.title}
+        >
+            {buttonConfig.text}
+        </button>
+    );
+}
+
 const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
     const [meetingEnded, setMeetingEnded] = useState(false);
     const [currentToken, setCurrentToken] = useState(token);
     const [meetingConfig, setMeetingConfig] = useState(null);
+    const [user, setUser] = useState(null);
 
     useEffect(() => {
         console.log("🚀 VideoMeeting Props:", {
@@ -1237,6 +1481,32 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
             hasToken: !!token
         });
     }, [meetingId, token, userName, isModerator]);
+
+    // Fetch user data for recording capabilities
+    useEffect(() => {
+        const fetchUser = async () => {
+            try {
+                const token = sessionStorage.getItem('token');
+                if (token) {
+                    const response = await fetch(`${process.env.BACKEND_URL}/api/current/user`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                    });
+
+                    if (response.ok) {
+                        const userData = await response.json();
+                        setUser(userData.user_data);
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching user data:', error);
+            }
+        };
+
+        fetchUser();
+    }, []);
 
     useEffect(() => {
         console.log("⚙️ Setting up meeting config");
@@ -1339,6 +1609,7 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
                                 onTokenRefresh={handleTokenRefresh}
                                 userName={userName}
                                 isModerator={isModerator}
+                                user={user}
                             />
                         );
                     }}

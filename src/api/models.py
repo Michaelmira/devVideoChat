@@ -83,6 +83,8 @@ class VideoSession(db.Model):
     # VideoSDK fields
     meeting_token = db.Column(db.Text, nullable=True)
     recording_url = db.Column(db.String(500), nullable=True)
+    recording_id = db.Column(db.String(255), nullable=True)  # VideoSDK recording ID
+    recording_status = db.Column(db.String(50), default='none')  # none, starting, active, stopping, completed, failed
 
     creator = relationship("User", backref=db.backref("video_sessions", lazy=True))
 
@@ -100,7 +102,9 @@ class VideoSession(db.Model):
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "status": self.status,
             "creator_name": f"{self.creator.first_name} {self.creator.last_name}" if self.creator else "Unknown",
-            "has_recording": bool(self.recording_url)
+            "has_recording": bool(self.recording_url),
+            "recording_status": self.recording_status,
+            "recording_id": self.recording_id
         }
 
 
