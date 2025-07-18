@@ -248,18 +248,17 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
     const [connectionStatus, setConnectionStatus] = useState('connected');
     const [tokenExpiryWarning, setTokenExpiryWarning] = useState(false);
     const [screenShareError, setScreenShareError] = useState(null);
-    const [viewMode, setViewMode] = useState('default'); // 'default', 'expanded', 'fullscreen'
+    const [viewMode, setViewMode] = useState('default');
     const [overlayPosition, setOverlayPosition] = useState({ x: window.innerWidth - 250, y: 20 });
     const [isDragging, setIsDragging] = useState(false);
     const [zoomLevel, setZoomLevel] = useState(1);
     const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
     const [sessionData, setSessionData] = useState(null);
+    const [participantJoinOrder, setParticipantJoinOrder] = useState([]); // New state for join order
     const dragStartPos = useRef({ x: 0, y: 0 });
     const panStartPos = useRef({ x: 0, y: 0 });
     const mainContentRef = useRef(null);
-
-    // Refs for intervals
     const tokenRefreshInterval = useRef(null);
     const connectionCheckInterval = useRef(null);
 
@@ -290,8 +289,6 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         },
         onPresenterChanged: (_presenterId) => {
             console.log("🖥️ PRESENTER CHANGED:", _presenterId);
-
-            // Reset view mode and zoom when screen sharing stops
             if (!_presenterId) {
                 console.log("🔄 Screen sharing stopped, resetting view mode and zoom");
                 setViewMode('default');
@@ -301,8 +298,6 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         },
         onError: (error) => {
             console.error("❌ MEETING ERROR:", error);
-
-            // Only show connection error for actual connection issues
             if (error.message && (
                 error.message.includes('token') ||
                 error.message.includes('connection') ||
@@ -310,22 +305,22 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                 error.message.includes('disconnected')
             )) {
                 setConnectionStatus('error');
-
                 if (error.message.includes('token')) {
                     console.log("🔑 Token-related error detected, refreshing...");
                     setTokenExpiryWarning(true);
                     handleTokenRefresh();
                 }
             } else {
-                // For other errors (like permission denied, etc.), don't show connection error
                 console.log("ℹ️ Non-connection error, not changing connection status:", error.message);
             }
         },
         onParticipantJoined: (participant) => {
             console.log("👥 PARTICIPANT JOINED:", participant.displayName || participant.id);
+            setParticipantJoinOrder(prev => [...prev, participant.id]); // Add to join order
         },
         onParticipantLeft: (participant) => {
             console.log("👥 PARTICIPANT LEFT:", participant.displayName || participant.id);
+            setParticipantJoinOrder(prev => prev.filter(id => id !== participant.id)); // Remove from join order
         }
     });
 
@@ -686,49 +681,67 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
         console.log("🎨 LAYOUT CALCULATION:", {
             isScreenShareActive,
             presenterId: presenterId,
-            participantCount: participantArray.length
+            participantCount: participantArray.length,
+            participantJoinOrder,
+            localParticipantId: localParticipant ? localParticipant.id : null
+        });
+
+        // Initialize sidebar participants
+        const sidebarParticipants = [];
+
+        // Add local participant first, if available
+        if (localParticipant) {
+            sidebarParticipants.push({
+                ...localParticipant,
+                displayName: userName + " (You)"
+            });
+        }
+
+        // Add remote participants, ensuring no duplicates
+        participantArray.forEach(participant => {
+            if (!localParticipant || participant.id !== localParticipant.id) {
+                sidebarParticipants.push(participant);
+            }
         });
 
         if (isScreenShareActive) {
             // Find the presenter
             let presenter = participantArray.find(p => p.id === presenterId);
-
-            // If presenter is local participant
             if (!presenter && localParticipant && localParticipant.id === presenterId) {
                 presenter = localParticipant;
-            }
-
-            // Create sidebar list including all participants
-            const sidebarParticipants = [...participantArray];
-
-            // Add local participant if not in the list
-            if (localParticipant && !participantArray.find(p => p.id === localParticipant.id)) {
-                sidebarParticipants.unshift({
-                    ...localParticipant,
-                    displayName: userName + " (You)"
-                });
             }
 
             return {
                 type: 'screenShare',
                 pinnedParticipant: presenter,
-                sidebarParticipants: sidebarParticipants
+                sidebarParticipants
             };
         } else {
-            // Regular layout
-            const pinnedParticipant = participantArray[0];
-            const sidebarParticipants = [];
+            // Regular layout: Prioritize a remote participant
+            let pinnedParticipant = null;
 
-            // Add local participant to sidebar
-            if (localParticipant) {
-                sidebarParticipants.push({
-                    ...localParticipant,
-                    displayName: userName + " (You)"
-                });
+            // If there are remote participants, select the most recently joined one
+            if (participantArray.length > 0) {
+                // Filter out local participant from join order to avoid selecting self
+                const remoteJoinOrder = participantJoinOrder.filter(id => !localParticipant || id !== localParticipant.id);
+                if (remoteJoinOrder.length > 0) {
+                    const latestParticipantId = remoteJoinOrder[remoteJoinOrder.length - 1];
+                    pinnedParticipant = participantArray.find(p => p.id === latestParticipantId);
+                }
+                // If no match found in join order, pick the first remote participant
+                if (!pinnedParticipant) {
+                    pinnedParticipant = participantArray[0];
+                }
+            } else if (localParticipant) {
+                // Fallback to local participant only if no remote participants exist
+                pinnedParticipant = localParticipant;
             }
 
-            // Add other participants
-            sidebarParticipants.push(...participantArray.slice(1));
+            console.log("📺 Pinned Participant:", pinnedParticipant ? {
+                id: pinnedParticipant.id,
+                displayName: pinnedParticipant.displayName,
+                isLocal: localParticipant && pinnedParticipant.id === localParticipant.id
+            } : null);
 
             return {
                 type: 'regular',
