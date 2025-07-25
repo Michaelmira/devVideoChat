@@ -1,7 +1,7 @@
 import React, { useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Context } from "../store/appContext";
-import "../../styles/navbar.css";
+// import "../../styles/navbar.css";
 
 export const Navbar = () => {
 	const { store, actions } = useContext(Context);
@@ -13,14 +13,14 @@ export const Navbar = () => {
 	};
 
 	return (
-		<nav className="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+		<nav className="navbar navbar-expand-lg navbar-light bg-black shadow-sm">
 			<div className="container">
 				{/* Brand */}
 				<Link to="/" className="navbar-brand d-flex align-items-center text-decoration-none">
 					<div className="brand-icon me-2">
-						<i className="fas fa-video text-primary" style={{ fontSize: '1.5rem' }}></i>
+						<i className="fas fa-video" style={{ color: "#ec4432", fontSize: '1.5rem' }}></i>
 					</div>
-					<span className="brand-text fw-bold text-dark">GuildMeet</span>
+					<span className="brand-text fw-bold text-white">GuildMeet</span>
 				</Link>
 
 				{/* Right side content */}
@@ -30,7 +30,7 @@ export const Navbar = () => {
 						<div className="d-flex align-items-center gap-3">
 							<div className="d-flex align-items-center">
 								<div className="user-avatar me-2">
-									<i className="fas fa-user-circle text-secondary" style={{ fontSize: '1.5rem' }}></i>
+									<i className="fas fa-user-circle navbar__icon_red" style={{ fontSize: "1.5rem" }}></i>
 								</div>
 								<div className="user-info">
 									<small className="text-muted">
@@ -40,6 +40,7 @@ export const Navbar = () => {
 							</div>
 							<button
 								className="btn btn-outline-secondary btn-sm"
+								style={{ backgroundColor: "#EC4432"}}
 								onClick={handleLogout}
 							>
 								<i className="fas fa-sign-out-alt me-1"></i>
@@ -48,7 +49,7 @@ export const Navbar = () => {
 						</div>
 					) : (
 						// When not logged in - show login link
-						<Link to="/" className="btn btn-primary btn-sm">
+						<Link to="/" className="btn btn-primary btn-sm" style={{ backgroundColor: "#EC4432", border: "none"}}>
 							<i className="fas fa-sign-in-alt me-1"></i>
 							Get Started
 						</Link>

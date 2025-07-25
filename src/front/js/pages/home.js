@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext } from "react";
 import { Context } from "../store/appContext";
 import { useNavigate } from "react-router-dom";
 import { MVPLoginForm } from "../component/MVPLoginForm";
-import "../../styles/home.css";
+// import "../../styles/home.css";
 
 export const Home = () => {
 	const { store, actions } = useContext(Context);
@@ -98,26 +98,36 @@ export const Home = () => {
 	}, [navigate, actions]);
 
 	return (
-		<div className="container-fluid">
+		<div className="container-fluid" style={{
+				width: "100vw",
+				background: `
+				radial-gradient(circle at 20% 28%, rgba(255, 0, 0, 0.8), transparent 20%),
+				radial-gradient(circle at 50% 24%, rgba(255, 50, 50, 0.7), transparent 29%),
+				radial-gradient(circle at 90% 15%, rgba(200, 0, 0, 0.6), transparent 18%),
+				black
+				`,
+				backgroundRepeat: 'no-repeat',
+				backgroundSize: 'cover',
+			}}>
 			{/* Hero Section */}
 			<div className="row min-vh-100 align-items-center">
 				<div className="col-lg-6">
 					<div className="px-4">
-						<h1 className="display-4 fw-bold mb-4">
+						<h1 className="display-4 fw-bold mb-4 text-white">
 							GuildMeet
 						</h1>
-						<p className="lead mb-4">
+						<p className="lead mb-4 text-white">
 							Create instant video chat links. Share with anyone.
 							No accounts needed for guests.
 						</p>
 						<div className="d-flex gap-3 mb-4">
 							<div className="text-center">
-								<div className="badge bg-success mb-2 fs-6">FREE</div>
-								<div className="small">50-minute sessions</div>
+								<div className="badge mb-2 fs-6" style={{ backgroundColor: "#C03728"}}>FREE</div>
+								<div className="small fw-bold text-white">50-minute sessions</div>
 							</div>
 							<div className="text-center">
-								<div className="badge bg-primary mb-2 fs-6">$3/MONTH</div>
-								<div className="small">6-hour sessions</div>
+								<div className="badge mb-2 fs-6" style={{ backgroundColor: "#C03728"}}>$3/MONTH</div>
+								<div className="small fw-bold text-white">6-hour sessions</div>
 							</div>
 						</div>
 					</div>
@@ -125,15 +135,15 @@ export const Home = () => {
 
 				{/* MVP Login Card */}
 				<div className="col-lg-6">
-					<div className="card shadow-lg mx-auto" style={{ maxWidth: '400px' }}>
+					<div className="card shadow-lg mx-auto" style={{ maxWidth: '400px', backgroundColor: "#18181B" }}>
 						<div className="card-body p-4">
-							<h3 className="text-center mb-4">Get Started</h3>
+							<h3 className="text-center text-white mb-4">Get Started</h3>
 
 							{/* Quick Login Form */}
 							<MVPLoginForm />
 
 							<div className="text-center mt-3">
-								<small className="text-muted">
+								<small className="text-white">
 									Start with 50 free minutes
 								</small>
 							</div>
@@ -143,69 +153,129 @@ export const Home = () => {
 			</div>
 
 			{/* Features Section */}
-			<div className="row py-5 bg-light">
+			<div 
+				className="row py-5" 
+				style={{ backgroundColor: "#000", background: `
+				radial-gradient(ellipse 100% 80% at 120% 60%, rgba(255, 0, 0, 0.8), transparent 70%) 
+				black` }}
+			>
 				<div className="col-12">
 					<div className="text-center mb-5">
-						<h2>How It Works</h2>
+					<h2 className="text-white">How It Works</h2>
 					</div>
-					<div className="row text-center">
-						<div className="col-md-4">
-							<div className="mb-3" style={{ fontSize: '3rem' }}>🔗</div>
-							<h5>1. Create Link</h5>
-							<p>Generate instant video chat link</p>
+
+					<div className="row justify-content-center text-center g-4">
+					{[
+						{ icon: "🔗", title: "1. Create Link", desc: "Generate instant video chat link" },
+						{ icon: "📋", title: "2. Copy & Share", desc: "Share with anyone, anywhere" },
+						{ icon: "🎥", title: "3. Start Chatting", desc: "Video + screen sharing instantly" },
+					].map((item, i) => (
+						<div className="col-md-4 d-flex justify-content-center" key={i}>
+						<div
+							className="p-4 text-white"
+							style={{
+							backgroundColor: "#18181B",
+							borderRadius: "12px",
+							boxShadow: "0 0 10px rgba(255, 255, 255, 0.05)",
+							maxWidth: "280px",
+							width: "100%",
+							transition: "box-shadow 0.3s ease, transform 0.3s ease"
+							}}
+							onMouseEnter={e => {
+								e.currentTarget.style.boxShadow = "0 0 15px 5px #C03728";
+								e.currentTarget.style.transform = "translateY(-3px)"
+							}}
+							onMouseLeave={e => {
+								e.currentTarget.style.boxShadow = "none";
+								e.currentTarget.style.transform = "translateY(0)"
+							}}
+						>
+							<div className="mb-3" style={{ fontSize: "3rem" }}>{item.icon}</div>
+							<h5>{item.title}</h5>
+							<p>{item.desc}</p>
 						</div>
-						<div className="col-md-4">
-							<div className="mb-3" style={{ fontSize: '3rem' }}>📋</div>
-							<h5>2. Copy & Share</h5>
-							<p>Share with anyone, anywhere</p>
 						</div>
-						<div className="col-md-4">
-							<div className="mb-3" style={{ fontSize: '3rem' }}>🎥</div>
-							<h5>3. Start Chatting</h5>
-							<p>Video + screen sharing instantly</p>
-						</div>
+					))}
 					</div>
 				</div>
 			</div>
 
+
 			{/* Pricing Section */}
-			<div className="row py-5">
+			<div className="row py-5 bg-black" style={{ background: `
+				radial-gradient(ellipse 100% 70% at 5% 48%, rgba(255, 0, 0, 0.8), transparent 60%) 
+				black`
+				}}>
 				<div className="col-12">
 					<div className="text-center mb-5">
-						<h2>Simple Pricing</h2>
-						<p className="lead">Choose what works for you</p>
+						<h2 className="text-white">Simple Pricing</h2>
+						<p className="lead text-white">Choose what works for you</p>
 					</div>
 					<div className="row justify-content-center">
-						<div className="col-md-4">
-							<div className="card h-100">
+						 <div className="col-md-4">
+							<div
+							className="card h-100"
+							style={{
+								border: "none",
+								borderRadius: "12px",
+								overflow: "hidden",
+								backgroundColor: "#18181B",
+								transition: "box-shadow 0.3s ease, transform 0.3s ease"
+							}}
+							onMouseEnter={e => {
+								e.currentTarget.style.boxShadow = "0 0 15px 5px #C03728";
+								e.currentTarget.style.transform = "translateY(-6px)"
+							}}
+							onMouseLeave={e => {
+								e.currentTarget.style.boxShadow = "none";
+								e.currentTarget.style.transform = "translateY(0)"
+							}}
+							>
 								<div className="card-body text-center">
-									<h5 className="card-title">Free</h5>
+									<h5 className="card-title text-white">Free</h5>
 									<h2 className="text-success">$0</h2>
-									<p className="text-muted">per month</p>
-									<ul className="list-unstyled">
-										<li>✅ 50-minute sessions</li>
-										<li>✅ Unlimited links</li>
-										<li>✅ Screen sharing</li>
-										<li>✅ HD video quality</li>
+									<p className="text-white">per month</p>
+									<ul className="list-unstyled text-white text-start">
+									<li><span className="text-success me-2">&#10003;</span>50-minute sessions</li>
+									<li><span className="text-success me-2">&#10003;</span>Unlimited links</li>
+									<li><span className="text-success me-2">&#10003;</span>Screen sharing</li>
+									<li><span className="text-success me-2">&#10003;</span>HD video quality</li>
 									</ul>
 								</div>
 							</div>
 						</div>
 						<div className="col-md-4">
-							<div className="card h-100 border-primary">
+							<div
+								className="card h-100"
+								style={{
+								border: "none",
+								borderRadius: "12px",
+								overflow: "hidden", // 👈 This is key
+								backgroundColor: "#18181B", // move background color here
+								transition: "box-shadow 0.3s ease, transform 0.3s ease"
+							}}
+							onMouseEnter={e => {
+								e.currentTarget.style.boxShadow = "0 0 15px 5px #C03728";
+								e.currentTarget.style.transform = "translateY(-6px)"
+							}}
+							onMouseLeave={e => {
+								e.currentTarget.style.boxShadow = "none";
+								e.currentTarget.style.transform = "translateY(0)"
+							}}
+							>
 								<div className="card-body text-center">
-									<h5 className="card-title">
-										Premium <span className="badge bg-primary">Popular</span>
-									</h5>
-									<h2 className="text-primary">$3</h2>
-									<p className="text-muted">per month</p>
-									<ul className="list-unstyled">
-										<li>✅ 6-hour sessions</li>
-										<li>✅ 1 active link</li>
-										<li>✅ Screen sharing</li>
-										<li>✅ HD video quality</li>
-										<li>✅ Recording capability</li>
-									</ul>
+								<h5 className="card-title text-white">
+									Premium <span className="badge" style={{ backgroundColor: "#EC4432" }}>Popular</span>
+								</h5>
+								<h2 style={{ color: "#EC4432" }}>$3</h2>
+								<p className="text-white">per month</p>
+								<ul className="list-unstyled text-white text-start">
+									<li><span style={{ color: '#C03728' }} className="me-2">&#10003;</span>6-hour sessions</li>
+									<li><span style={{ color: '#C03728' }} className="me-2">&#10003;</span>1 active link</li>
+									<li><span style={{ color: '#C03728' }} className="me-2">&#10003;</span>Screen sharing</li>
+									<li><span style={{ color: '#C03728' }} className="me-2">&#10003;</span>HD video quality</li>
+									<li><span style={{ color: '#C03728' }} className="me-2">&#10003;</span>Recording capability</li>
+								</ul>
 								</div>
 							</div>
 						</div>

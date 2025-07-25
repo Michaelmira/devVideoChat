@@ -145,7 +145,8 @@ export const MVPLoginForm = () => {
 
                         <button
                             type="submit"
-                            className="btn btn-success w-100 mb-3"
+                            className="w-100 btn mb-3"
+                            style={{ backgroundColor: "#C03728 !important"}}
                             disabled={loading}
                         >
                             {loading ? (
@@ -234,7 +235,8 @@ export const MVPLoginForm = () => {
 
                         <button
                             type="submit"
-                            className="btn btn-primary w-100 mb-3"
+                            className="w-100 btn mb-3"
+                            style={{ backgroundColor: "#C03728"}}
                             disabled={loading}
                         >
                             {loading ? (
@@ -251,6 +253,7 @@ export const MVPLoginForm = () => {
                             <button
                                 type="button"
                                 className="btn btn-link p-0"
+                                style={{ color: "#EC4432"}}
                                 onClick={() => {
                                     setIsLogin(!isLogin);
                                     setError('');
@@ -270,6 +273,7 @@ export const MVPLoginForm = () => {
                     <div className="d-grid gap-2">
                         <button
                             className="btn btn-outline-dark"
+                            style={{ backgroundColor: "#000"}}
                             onClick={handleGoogleLogin}
                             type="button"
                         >
@@ -278,6 +282,7 @@ export const MVPLoginForm = () => {
                         </button>
                         <button
                             className="btn btn-outline-dark"
+                            style={{ backgroundColor: "#000"}}
                             onClick={handleGitHubLogin}
                             type="button"
                         >
