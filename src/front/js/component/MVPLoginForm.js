@@ -273,20 +273,36 @@ export const MVPLoginForm = () => {
                     <div className="d-grid gap-2">
                         <button
                             className="btn btn-outline-dark"
-                            style={{ backgroundColor: "#000"}}
+                            style={{ backgroundColor: "#000", color: "#EC4432", transition: "box-shadow 0.3s ease, transform 0.3s ease"}}
                             onClick={handleGoogleLogin}
                             type="button"
+                            onMouseEnter={e => {
+								e.currentTarget.style.boxShadow = "0 0 15px 1px #fff";
+								e.currentTarget.style.transform = "translateY(-1px)"
+							}}
+							onMouseLeave={e => {
+								e.currentTarget.style.boxShadow = "none";
+								e.currentTarget.style.transform = "translateY(0)"
+							}}
                         >
-                            <i className="fab fa-google me-2"></i>
+                            <i className="fab fa-google me-2" style={{ color: "#EC4432"}}></i>
                             Continue with Google
                         </button>
                         <button
                             className="btn btn-outline-dark"
-                            style={{ backgroundColor: "#000"}}
+                            style={{ backgroundColor: "#000", color: "#EC4432", transition: "box-shadow 0.3s ease, transform 0.3s ease"}}
                             onClick={handleGitHubLogin}
                             type="button"
+                             onMouseEnter={e => {
+								e.currentTarget.style.boxShadow = "0 0 15px 1px #fff";
+								e.currentTarget.style.transform = "translateY(-1px)"
+							}}
+							onMouseLeave={e => {
+								e.currentTarget.style.boxShadow = "none";
+								e.currentTarget.style.transform = "translateY(0)"
+							}}
                         >
-                            <i className="fab fa-github me-2"></i>
+                            <i className="fab fa-github me-2" style={{ color: "#EC4432"}}></i>
                             Continue with GitHub
                         </button>
                     </div>
