@@ -60,7 +60,15 @@ export const Navbar = () => {
         <Link
           to="/"
           className="btn btn-primary btn-sm"
-          style={{ backgroundColor: "#EC4432", border: "none" }}
+          style={{ backgroundColor: "#EC4432", border: "none", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+		  onMouseEnter={e => {
+			e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
+			e.currentTarget.style.transform = "translateY(-1px)"
+		  }}
+		  onMouseLeave={e => {
+			e.currentTarget.style.boxShadow = "none";
+			e.currentTarget.style.transform = "translateY(0)"
+		  }}
         >
           <i className="fas fa-sign-in-alt me-1"></i>
           Get Started
