@@ -32,7 +32,7 @@
 #     def insert_test_data():
 #         pass
 
-from api.models import db, Mentor, Customer, PortfolioPhoto
+from api.models import db, User, UserImage, VideoSession
 
 #from api.utils import APIException
 
