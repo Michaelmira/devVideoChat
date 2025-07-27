@@ -1,0 +1,14 @@
+[phases.setup]
+nixPkgs = ['python310', 'nodejs_18', 'npm-9_x']
+
+[phases.install]
+cmds = [
+    'npm ci',
+    'pip install -r requirements.txt'
+]
+
+[phases.build]
+cmds = ['npm run build']
+
+[start]
+cmd = 'cd src && gunicorn wsgi:application --bind 0.0.0.0:$PORT'
