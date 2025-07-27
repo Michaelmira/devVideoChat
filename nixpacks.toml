@@ -11,4 +11,4 @@ cmds = [
 cmds = ["npm run build"]
 
 [start]
-cmd = "cd src && gunicorn wsgi:application --bind 0.0.0.0:$PORT"
+cmd = "cd src && python -m gunicorn wsgi:application --bind 0.0.0.0:$PORT"
