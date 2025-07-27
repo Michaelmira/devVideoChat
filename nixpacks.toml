@@ -1,0 +1,15 @@
+[providers]
+node = "16.x"
+python = "3.10"
+
+[phases.install]
+cmds = [
+    "npm install",
+    "pip install -r requirements.txt"
+]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "cd src && gunicorn wsgi:application --bind 0.0.0.0:$PORT"
