@@ -1,6 +1,5 @@
-[providers]
-node = "16.x"
-python = "3.10"
+[phases.setup]
+nixPkgs = ['nodejs-16_x', 'python310', 'python310Packages.pip']
 
 [phases.install]
 cmds = [
