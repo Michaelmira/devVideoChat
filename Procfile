@@ -1,1 +1,1 @@
-web: cd src && python -m gunicorn wsgi:application --bind 0.0.0.0:$PORT
+web: cd src && gunicorn wsgi:application --bind 0.0.0.0:$PORT
