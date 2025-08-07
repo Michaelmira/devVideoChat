@@ -38,18 +38,26 @@ export const Navbar = () => {
             <div className="user-avatar me-2">
               <i
                 className="fas fa-user-circle navbar__icon_red"
-                style={{ fontSize: "1.5rem" }}
+                style={{ fontSize: "1.5rem", color: "#fff" }}
               ></i>
             </div>
             <div className="user-info">
-              <small className="text-muted">
+              <small className="text-white">
                 {store.currentUserData?.user_data?.first_name || "User"}
               </small>
             </div>
           </div>
           <button
-            className="btn btn-outline-secondary btn-sm"
-            style={{ backgroundColor: "#EC4432" }}
+            className="btn btn-primary btn-sm"
+            style={{ backgroundColor: "#EC4432", border: "none", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+            onMouseEnter={e => {
+            e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
+            e.currentTarget.style.transform = "translateY(-1px)"
+            }}
+            onMouseLeave={e => {
+            e.currentTarget.style.boxShadow = "none";
+            e.currentTarget.style.transform = "translateY(0)"
+            }}
             onClick={handleLogout}
           >
             <i className="fas fa-sign-out-alt me-1"></i>
@@ -61,14 +69,14 @@ export const Navbar = () => {
           to="/"
           className="btn btn-primary btn-sm"
           style={{ backgroundColor: "#EC4432", border: "none", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
-		  onMouseEnter={e => {
-			e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
-			e.currentTarget.style.transform = "translateY(-1px)"
-		  }}
-		  onMouseLeave={e => {
-			e.currentTarget.style.boxShadow = "none";
-			e.currentTarget.style.transform = "translateY(0)"
-		  }}
+          onMouseEnter={e => {
+          e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
+          e.currentTarget.style.transform = "translateY(-1px)"
+          }}
+          onMouseLeave={e => {
+          e.currentTarget.style.boxShadow = "none";
+          e.currentTarget.style.transform = "translateY(0)"
+          }}
         >
           <i className="fas fa-sign-in-alt me-1"></i>
           Get Started

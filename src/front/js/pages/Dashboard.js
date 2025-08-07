@@ -211,27 +211,45 @@ export const Dashboard = () => {
     }
 
     return (
-        <div className="container mt-4">
-            <div className="text-center mb-4">
+        <div className="container-fluid" style={{
+            width: "100vw",
+            background: `
+				radial-gradient(circle at 22% 20%, rgba(255, 0, 0, 0.8), transparent 26%),
+				
+				black
+				`,
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: 'cover',
+        }}>
+            <div className="text-center bg-transparent text-white mb-4">
                 <h2>GuildMeet</h2>
                 <p>Create shareable video links instantly</p>
                 {user && (
-                    <p className="text-muted">
+                    <p className="text-white">
                         Welcome back, {user.first_name}!
                         {isPremium ? (
-                            <span className="badge bg-primary ms-2">Premium</span>
+                            <span className="badge ms-2" style={{ backgroundColor: "#C03728" }}>Premium</span>
                         ) : (
-                            <span className="badge bg-success ms-2">Free</span>
+                            <span className="badge ms-2" style={{ backgroundColor: "#C03728" }}>Free</span>
                         )}
                     </p>
                 )}
             </div>
 
             {/* Single Action: Create Link */}
-            <div className="card mb-4">
+            <div className="bg-transparent mb-12">
                 <div className="card-body text-center">
                     <button
                         className="btn btn-primary btn-lg"
+                        style={{ backgroundColor: "#EC4432", border: "none", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+                        onMouseEnter={e => {
+                        e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
+                        e.currentTarget.style.transform = "translateY(-1px)"
+                        }}
+                        onMouseLeave={e => {
+                        e.currentTarget.style.boxShadow = "none";
+                        e.currentTarget.style.transform = "translateY(0)"
+                        }}
                         onClick={createSession}
                         disabled={creating}
                     >
@@ -246,7 +264,7 @@ export const Dashboard = () => {
                             </>
                         )}
                     </button>
-                    <p className="mt-2 text-muted">
+                    <p className="mt-2 text-white">
                         {isPremium
                             ? '6-hour sessions • 1 active link limit'
                             : '50-minute sessions • Unlimited links'
@@ -275,22 +293,97 @@ export const Dashboard = () => {
             )}
 
             {/* Quick Stats */}
-            <div className="card mt-4">
+            <div className="card bg-transparent mt-4">
                 <div className="card-body">
-                    <h5 className="card-title">Quick Stats</h5>
-                    <div className="row text-center">
-                        <div className="col-4">
-                            <h3 className="text-primary">{sessions.length}</h3>
+                    <h5 className="card-title text-white mb-4">Quick Stats</h5>
+                    <div className="d-flex flex-row justify-content-between mx-5">
+                        <div
+                            className="card"
+                            style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                border: "none",
+                                borderRadius: "12px",
+                                overflow: "hidden",
+                                backgroundColor: "#18181B",
+                                transition: "box-shadow 0.3s ease, transform 0.3s ease",
+                                maxWidth: "280px",
+                                width: "100%",
+                                flex: "1 1 280px",
+                                minHeight: "200px"
+                            }}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.boxShadow = "0 0 15px 5px #C03728";
+                                e.currentTarget.style.transform = "translateY(-6px)"
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.boxShadow = "none";
+                                e.currentTarget.style.transform = "translateY(0)"
+                            }}
+                        >
+                            <h3 style={{ color: "#C03728" }}>{sessions.length}</h3>
                             <small className="text-muted">Active Sessions</small>
                         </div>
-                        <div className="col-4">
-                            <h3 className="text-success">
+                        <div
+                            className="card"
+                            style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                border: "none",
+                                borderRadius: "12px",
+                                overflow: "hidden",
+                                backgroundColor: "#18181B",
+                                transition: "box-shadow 0.3s ease, transform 0.3s ease",
+                                maxWidth: "280px",
+                                width: "100%",
+                                flex: "1 1 280px",
+                                minHeight: "200px"
+                            }}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.boxShadow = "0 0 15px 5px #C03728";
+                                e.currentTarget.style.transform = "translateY(-6px)"
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.boxShadow = "none";
+                                e.currentTarget.style.transform = "translateY(0)"
+                            }}
+                        >
+                            <h3 style={{ color: "#C03728" }}>
                                 {isPremium ? '360' : '50'}
                             </h3>
                             <small className="text-muted">Minutes per Session</small>
                         </div>
-                        <div className="col-4">
-                            <h3 className="text-info">6</h3>
+                        <div
+                            className="card"
+                            style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                border: "none",
+                                borderRadius: "12px",
+                                overflow: "hidden",
+                                backgroundColor: "#18181B",
+                                transition: "box-shadow 0.3s ease, transform 0.3s ease",
+                                maxWidth: "280px",
+                                width: "100%",
+                                flex: "1 1 280px",
+                                minHeight: "200px"
+                            }}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.boxShadow = "0 0 15px 5px #C03728";
+                                e.currentTarget.style.transform = "translateY(-6px)"
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.boxShadow = "none";
+                                e.currentTarget.style.transform = "translateY(0)"
+                            }}
+                        >
+                            <h3 style={{ color: "#C03728" }}>6</h3>
                             <small className="text-muted">Hours Link Duration</small>
                         </div>
                     </div>
@@ -298,30 +391,39 @@ export const Dashboard = () => {
             </div>
 
             {/* How to Use Guide */}
-            <div className="card mt-4">
+            <div className="card bg-transparent mt-4">
                 <div className="card-body">
-                    <h5 className="card-title">How to Use</h5>
-                    <ol className="list-group list-group-numbered">
-                        <li className="list-group-item d-flex justify-content-between align-items-start">
-                            <div className="ms-2 me-auto">
+                    <h5 className="card-title text-white">How to Use</h5>
+                    <ol className="list-group list-group-numbered gap-4">
+                        <li
+                            className="list-group-item d-flex justify-content-between rounded align-items-start"
+                            style={{ backgroundColor: "#18181B", color: "#fff"}}
+                        >
+                            <div className="ms-2 me-auto text-white">
                                 <div className="fw-bold">Create a Link</div>
                                 Click "Create Video Link" to generate a new session
                             </div>
-                            <span className="badge bg-primary rounded-pill">1</span>
+                            <span className="badge rounded-pill" style={{ backgroundColor: '#C03728' }}>1</span>
                         </li>
-                        <li className="list-group-item d-flex justify-content-between align-items-start">
-                            <div className="ms-2 me-auto">
+                        <li
+                            className="list-group-item d-flex justify-content-between rounded align-items-start"
+                            style={{ backgroundColor: "#18181B", color: "#fff" }}
+                        >
+                            <div className="ms-2 me-auto text-white">
                                 <div className="fw-bold">Copy & Share</div>
                                 Copy the link and share it with anyone
                             </div>
-                            <span className="badge bg-primary rounded-pill">2</span>
+                            <span className="badge rounded-pill" style={{ backgroundColor: '#C03728' }}>2</span>
                         </li>
-                        <li className="list-group-item d-flex justify-content-between align-items-start">
-                            <div className="ms-2 me-auto">
+                        <li
+                            className="list-group-item d-flex justify-content-between rounded align-items-start"
+                            style={{ backgroundColor: "#18181B", color: "#fff" }}
+                        >
+                            <div className="ms-2 me-auto text-white">
                                 <div className="fw-bold">Start Video Chat</div>
                                 Anyone with the link can join - no account needed!
                             </div>
-                            <span className="badge bg-primary rounded-pill">3</span>
+                            <span className="badge rounded-pill" style={{ backgroundColor: '#C03728' }}>3</span>
                         </li>
                     </ol>
                 </div>
