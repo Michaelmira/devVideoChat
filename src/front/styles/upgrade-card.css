@@ -263,7 +263,6 @@
 }
 
 .premium-status-card .card-header {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     border-bottom: none;
     padding: 1rem 1.5rem;
 }
@@ -288,12 +287,12 @@
     height: 60px;
     background: rgba(34, 197, 94, 0.1);
     border-radius: 50%;
-    border: 3px solid #10b981;
+    border: 3px solid #EC4432;
 }
 
 .premium-features li {
     padding: 0.25rem 0;
-    color: #374151;
+    color: #fff;
     font-size: 0.95rem;
 }
 
@@ -303,14 +302,14 @@
 }
 
 .premium-features li strong {
-    color: #059669;
+    color: #EC4432;
 }
 
 .premium-price-display {
     background: rgba(34, 197, 94, 0.1);
     padding: 1rem;
     border-radius: 8px;
-    border: 2px solid #10b981;
+    border: 2px solid #EC4432;
 }
 
 .premium-price-display .display-6 {
