@@ -74,7 +74,19 @@ export const JoinSession = () => {
 
     if (loading) {
         return (
-            <div className="container mt-4">
+            <div 
+                className="container-fluid" 
+                style={{
+                width: "100vw",
+                background: `
+                    radial-gradient(circle at 22% 20%, rgba(255, 0, 0, 0.8), transparent 26%),
+                    
+                    black
+                    `,
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: 'cover',
+                }}
+            >
                 <div className="row justify-content-center">
                     <div className="col-md-6">
                         <div className="card">
@@ -94,23 +106,53 @@ export const JoinSession = () => {
 
     if (error) {
         return (
-            <div className="container mt-4">
+            <div 
+                className="container-fluid" 
+                style={{
+                width: "100vw",
+                background: `
+                    radial-gradient(circle at 22% 20%, rgba(255, 0, 0, 0.8), transparent 26%),
+                    
+                    black
+                    `,
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: 'cover',
+                }}
+            >
                 <div className="row justify-content-center">
                     <div className="col-md-6">
                         <div className="card border-danger">
                             <div className="card-body text-center py-5">
                                 <div className="mb-3" style={{ fontSize: '4rem' }}>❌</div>
                                 <h4 className="text-danger mb-3">Session Not Available</h4>
-                                <p className="text-muted mb-4">{error}</p>
+                                <p className="text-white mb-4">{error}</p>
                                 <div className="d-grid gap-2">
                                     <button
-                                        className="btn btn-outline-primary"
+                                        className="btn btn-primary"
+                                        style={{ backgroundColor: "#EC4432", border: "none", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+                                        onMouseEnter={e => {
+                                        e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
+                                        e.currentTarget.style.transform = "translateY(-1px)"
+                                        }}
+                                        onMouseLeave={e => {
+                                        e.currentTarget.style.boxShadow = "none";
+                                        e.currentTarget.style.transform = "translateY(0)"
+                                        }}
                                         onClick={() => navigate('/')}
                                     >
                                         Go to Home Page
                                     </button>
                                     <button
-                                        className="btn btn-outline-secondary"
+                                        className="btn btn-primary"
+                                        style={{ backgroundColor: "#EC4432", border: "none", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+                                        onMouseEnter={e => {
+                                        e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
+                                        e.currentTarget.style.transform = "translateY(-1px)"
+                                        }}
+                                        onMouseLeave={e => {
+                                        e.currentTarget.style.boxShadow = "none";
+                                        e.currentTarget.style.transform = "translateY(0)"
+                                        }}
                                         onClick={loadSessionStatus}
                                     >
                                         Try Again
@@ -127,11 +169,23 @@ export const JoinSession = () => {
     const isExpired = sessionData?.status !== 'active' || sessionData?.time_remaining_minutes <= 0;
 
     return (
-        <div className="container mt-4">
+        <div 
+            className="container-fluid" 
+            style={{
+            width: "100vw",
+            background: `
+				radial-gradient(circle at 22% 20%, rgba(255, 0, 0, 0.8), transparent 26%),
+				
+				black
+				`,
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: 'cover',
+            }}
+        >
             <div className="row justify-content-center">
                 <div className="col-md-6">
-                    <div className="card shadow-lg">
-                        <div className="card-header bg-primary text-white text-center">
+                    <div className="card shadow-lg mt-5" style={{ backgroundColor: "#18181B" }}>
+                        <div className="card-header text-white text-center" style={{ backgroundColor: "#EC4432" }}>
                             <h4 className="mb-0">
                                 <i className="fas fa-video me-2"></i>
                                 Join Video Chat
@@ -141,10 +195,19 @@ export const JoinSession = () => {
                             {isExpired ? (
                                 <div className="text-center py-4">
                                     <div className="mb-3" style={{ fontSize: '4rem' }}>⏰</div>
-                                    <h5 className="text-warning mb-3">Session Expired</h5>
-                                    <p className="text-muted">This video chat session has expired or ended.</p>
+                                    <h5 className="mb-3" style={{ color: "#EC4432" }}>Session Expired</h5>
+                                    <p className="text-white">This video chat session has expired or ended.</p>
                                     <button
                                         className="btn btn-primary"
+                                        style={{ backgroundColor: "#EC4432", border: "none", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+                                        onMouseEnter={e => {
+                                        e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
+                                        e.currentTarget.style.transform = "translateY(-1px)"
+                                        }}
+                                        onMouseLeave={e => {
+                                        e.currentTarget.style.boxShadow = "none";
+                                        e.currentTarget.style.transform = "translateY(0)"
+                                        }}
                                         onClick={() => navigate('/')}
                                     >
                                         Create Your Own Session
@@ -152,9 +215,9 @@ export const JoinSession = () => {
                                 </div>
                             ) : (
                                 <>
-                                    <div className="text-center mb-4">
+                                    <div className="text-center text-white mb-4">
                                         <h5>Ready to join!</h5>
-                                        <p className="text-muted">
+                                        <p className="text-white">
                                             Hosted by <strong>{sessionData?.creator_name}</strong>
                                         </p>
                                     </div>
@@ -162,22 +225,22 @@ export const JoinSession = () => {
                                     {/* Session Info */}
                                     <div className="row text-center mb-4">
                                         <div className="col-6">
-                                            <div className="badge bg-success mb-2 fs-6">
+                                            <div className="badge mb-2 fs-6" style={{ backgroundColor: "#EC4432" }}>
                                                 ⏰ {sessionData?.time_remaining_minutes}m left
                                             </div>
-                                            <div className="small text-muted">Time Remaining</div>
+                                            <div className="small text-white">Time Remaining</div>
                                         </div>
                                         <div className="col-6">
-                                            <div className="badge bg-info mb-2 fs-6">
+                                            <div className="badge mb-2 fs-6" style={{ backgroundColor: "#C03728" }}>
                                                 📹 {sessionData?.max_duration_minutes}min max
                                             </div>
-                                            <div className="small text-muted">Session Duration</div>
+                                            <div className="small text-white">Session Duration</div>
                                         </div>
                                     </div>
 
                                     {/* Join Form */}
                                     <div className="mb-4">
-                                        <label htmlFor="guestName" className="form-label">
+                                        <label htmlFor="guestName" className="form-label text-danger">
                                             Your Name <span className="text-danger">*</span>
                                         </label>
                                         <input
@@ -198,6 +261,15 @@ export const JoinSession = () => {
                                     <div className="d-grid">
                                         <button
                                             className="btn btn-primary btn-lg"
+                                            style={{ backgroundColor: "#EC4432", border: "none", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+                                            onMouseEnter={e => {
+                                            e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
+                                            e.currentTarget.style.transform = "translateY(-1px)"
+                                            }}
+                                            onMouseLeave={e => {
+                                            e.currentTarget.style.boxShadow = "none";
+                                            e.currentTarget.style.transform = "translateY(0)"
+                                            }}
                                             onClick={joinAsGuest}
                                             disabled={joining || !guestName.trim()}
                                         >
@@ -216,19 +288,19 @@ export const JoinSession = () => {
 
                                     {/* Features */}
                                     <div className="mt-4">
-                                        <h6 className="text-muted mb-3">What you'll get:</h6>
+                                        <h6 className="text-white mb-3">What you'll get:</h6>
                                         <div className="row text-center">
                                             <div className="col-4">
-                                                <i className="fas fa-video text-primary fs-4"></i>
-                                                <div className="small mt-1">HD Video</div>
+                                                <i className="fas fa-video fs-4" style={{ color: "#EC4432"}}></i>
+                                                <div className="small text-white mt-1">HD Video</div>
                                             </div>
                                             <div className="col-4">
-                                                <i className="fas fa-microphone text-success fs-4"></i>
-                                                <div className="small mt-1">Clear Audio</div>
+                                                <i className="fas fa-microphone fs-4" style={{ color: "#EC4432"}}></i>
+                                                <div className="small text-white mt-1">Clear Audio</div>
                                             </div>
                                             <div className="col-4">
-                                                <i className="fas fa-desktop text-info fs-4"></i>
-                                                <div className="small mt-1">Screen Share</div>
+                                                <i className="fas fa-desktop fs-4" style={{ color: "#EC4432"}}></i>
+                                                <div className="small text-white mt-1">Screen Share</div>
                                             </div>
                                         </div>
                                     </div>
@@ -236,7 +308,7 @@ export const JoinSession = () => {
                             )}
                         </div>
                         <div className="card-footer text-center">
-                            <small className="text-muted">
+                            <small className="text-white">
                                 No account required • Secure connection • Free to join
                             </small>
                         </div>
