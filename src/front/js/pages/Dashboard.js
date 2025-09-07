@@ -243,12 +243,12 @@ export const Dashboard = () => {
                         className="btn btn-primary btn-lg"
                         style={{ backgroundColor: "#EC4432", border: "none", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
                         onMouseEnter={e => {
-                        e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
-                        e.currentTarget.style.transform = "translateY(-1px)"
+                            e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
+                            e.currentTarget.style.transform = "translateY(-1px)"
                         }}
                         onMouseLeave={e => {
-                        e.currentTarget.style.boxShadow = "none";
-                        e.currentTarget.style.transform = "translateY(0)"
+                            e.currentTarget.style.boxShadow = "none";
+                            e.currentTarget.style.transform = "translateY(0)"
                         }}
                         onClick={createSession}
                         disabled={creating}
@@ -397,7 +397,7 @@ export const Dashboard = () => {
                     <ol className="list-group list-group-numbered gap-4">
                         <li
                             className="list-group-item d-flex justify-content-between rounded align-items-start"
-                            style={{ backgroundColor: "#18181B", color: "#fff"}}
+                            style={{ backgroundColor: "#18181B", color: "#fff" }}
                         >
                             <div className="ms-2 me-auto text-white">
                                 <div className="fw-bold">Create a Link</div>
