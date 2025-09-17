@@ -105,23 +105,25 @@ const PaymentForm = ({ onSuccess, onCancel }) => {
     };
 
     return (
-        <form onSubmit={handleSubmit} className="payment-form">
-            <div className="payment-header">
-                <h4>Complete Your Upgrade</h4>
-                <button
-                    type="button"
-                    className="btn-close"
-                    onClick={onCancel}
-                    aria-label="Close"
-                ></button>
+        <form 
+            onSubmit={handleSubmit} className="payment-form p-4" 
+            style={{ 
+                backgroundColor: "#18181B",
+                border: "none",
+                borderRadius: "12px",
+                backgroundColor: "#18181B",
+            }}
+        >
+            <div className="payment-header d-flex justify-content-center w-100">
+                <h4 className="text-white">Complete Your Upgrade</h4>
             </div>
 
             <div className="upgrade-badges mb-4">
-                <span className="badge bg-primary me-2">
+                <span className="badge ms-2" style={{ backgroundColor: "#C03728" }}>
                     <i className="fas fa-clock me-1"></i>
                     6-hour sessions
                 </span>
-                <span className="badge bg-success">
+                <span className="badge ms-2" style={{ backgroundColor: "#C03728" }}>
                     <i className="fas fa-dollar-sign me-1"></i>
                     Only $3/month
                 </span>
@@ -137,11 +139,20 @@ const PaymentForm = ({ onSuccess, onCancel }) => {
                 </div>
             )}
 
-            <div className="payment-buttons">
-                                <button 
+            <div className="">
+                <button 
                     type="submit" 
                     disabled={!stripe || loading}
                     className="btn btn-primary btn-lg w-100"
+                    style={{ backgroundColor: "#EC4432", border: "none", transition: "box-shadow 0.3s ease, transform 0.3s ease", minHeight: "60px", fontWeight: "bold" }}
+                    onMouseEnter={e => {
+                        e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
+                        e.currentTarget.style.transform = "translateY(-1px)"
+                    }}
+                    onMouseLeave={e => {
+                        e.currentTarget.style.boxShadow = "none";
+                        e.currentTarget.style.transform = "translateY(0)"
+                    }}
                 >
                     {loading ? (
                         <>
@@ -159,6 +170,15 @@ const PaymentForm = ({ onSuccess, onCancel }) => {
                 <button
                     type="button"
                     className="btn btn-outline-secondary mt-2 w-100"
+                    style={{ backgroundColor: "transparent", border: "2px solid #EC4432", minHeight: "60px", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+                    onMouseEnter={e => {
+                    e.currentTarget.style.boxShadow = "0 0 5px 1px #EC4432";
+                    e.currentTarget.style.transform = "translateY(-1px)"
+                    }}
+                    onMouseLeave={e => {
+                    e.currentTarget.style.boxShadow = "none";
+                    e.currentTarget.style.transform = "translateY(0)"
+                    }}
                     onClick={onCancel}
                 >
                     <i className="fas fa-times me-2"></i>

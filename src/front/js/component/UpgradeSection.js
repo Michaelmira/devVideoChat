@@ -5,7 +5,10 @@ import "../../styles/upgrade-card.css";
 
 export const UpgradeSection = ({ expanded, onStartUpgrade, onPaymentSuccess, onCancel }) => {
     return (
-        <div className={`upgrade-card ${expanded ? 'expanded' : 'compact'}`}>
+        <div
+            className="card mb-4"
+            style={!expanded ? { backgroundColor: "#18181B" } : { backgroundColor: "transparent"}}
+        >
             {expanded ? (
                 <ExpandedPaymentCard
                     onSuccess={onPaymentSuccess}
