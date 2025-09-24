@@ -1412,7 +1412,7 @@ function CompactRecordingButton({ meetingId, user, isCreator }) {
     const isPremium = user?.subscription_status === 'premium';
 
     // Only show for premium users who are creators
-    const shouldShow = isPremium && isCreator;
+    const shouldShow = user && isCreator && user.subscription_status === 'recordings';
 
     // Debug logging
     console.log('🎥 CompactRecordingButton Debug:', {

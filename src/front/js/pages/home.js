@@ -267,7 +267,7 @@ export const Home = () => {
 									<li><span style={{ color: '#C03728' }} className="me-2">&#10003;</span>1 active link</li>
 									<li><span style={{ color: '#C03728' }} className="me-2">&#10003;</span>Screen sharing</li>
 									<li><span style={{ color: '#C03728' }} className="me-2">&#10003;</span>HD video quality</li>
-									<li><span style={{ color: '#C03728' }} className="me-2">&#10003;</span>Recording capability</li>
+									{/* <li><span style={{ color: '#C03728' }} className="me-2">&#10003;</span>Recording capability</li> */}
 								</ul>
 								</div>
 							</div>
