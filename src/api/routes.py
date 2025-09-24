@@ -198,7 +198,7 @@ def create_video_session():
         
         max_duration = 360  # 6 hours
     else:
-        max_duration = 50   # 50 minutes
+        max_duration = 70   # 50 minutes
     
     try:
         # Initialize VideoSDK service

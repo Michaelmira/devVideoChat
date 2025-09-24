@@ -269,7 +269,7 @@ export const Dashboard = () => {
                     <p className="mt-2 text-white">
                         {isPremium
                             ? '6-hour sessions • 1 active link limit'
-                            : '50-minute sessions • Unlimited links'
+                            : '1h 10m sessions • Unlimited links'
                         }
                     </p>
                 </div>

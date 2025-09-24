@@ -238,7 +238,7 @@ const RecordingsManager = ({ user }) => {
                                                     </p>
                                                     <p className="text-muted small mb-2">
                                                         <i className="fas fa-clock me-1"></i>
-                                                        Duration: {recording.max_duration_minutes === 360 ? 'Premium (6h)' : 'Free (50min)'}
+                                                        Duration: {recording.max_duration_minutes === 360 ? 'Premium (6h)' : 'Free (70min)'}
                                                     </p>
                                                     <div className="mb-2">
                                                         <span className={`badge ${recording.recording_status === 'completed' ? 'bg-success' :
