@@ -1403,6 +1403,7 @@ function MeetingTimer({ meetingId }) {
     );
 }
 
+
 // Compact Recording Button Component
 function CompactRecordingButton({ meetingId, user, isCreator }) {
     const [recordingStatus, setRecordingStatus] = useState('none');
