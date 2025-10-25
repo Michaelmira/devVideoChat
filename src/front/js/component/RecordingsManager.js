@@ -11,8 +11,38 @@ const RecordingsManager = ({ user }) => {
     const videoRef = useRef(null);
     const playerRef = useRef(null);
 
-    // Check if user is premium
-    const isPremium = user?.subscription_status === 'premium';
+    // Early return if user doesn't have recording access
+    if (user?.subscription_status !== 'recordings') {
+        return (
+            <div className="recordings-manager">
+                <div className="card">
+                    <div className="card-body text-center">
+                        <h4 className="card-title">📹 Meeting Recordings</h4>
+                        <p className="text-muted">
+                            Recording features are not available on your current plan.
+                        </p>
+                        <div className="mt-3">
+                            <p className="small text-muted">
+                                Upgrade to access recording features:
+                            </p>
+                            <ul className="list-unstyled small">
+                                <li>✅ Record your meetings</li>
+                                <li>✅ Save recordings to cloud storage</li>
+                                <li>✅ Access recording history</li>
+                                <li>✅ Share recordings with participants</li>
+                            </ul>
+                        </div>
+                        <button
+                            className="btn btn-warning"
+                            onClick={() => window.location.href = '/dashboard'}
+                        >
+                            Upgrade Plan
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     // Fetch recordings
     const fetchRecordings = async () => {
@@ -42,12 +72,13 @@ const RecordingsManager = ({ user }) => {
     };
 
     useEffect(() => {
-        if (isPremium) {
+        // Only fetch recordings if user has recording access
+        if (user?.subscription_status === 'recordings') {
             fetchRecordings();
         } else {
             setLoading(false);
         }
-    }, [isPremium]);
+    }, [user?.subscription_status]);
 
     // Initialize video player
     useEffect(() => {
@@ -117,39 +148,6 @@ const RecordingsManager = ({ user }) => {
             alert('Recording URL copied to clipboard!');
         }
     };
-
-    // Premium gate for non-premium users
-    if (!isPremium) {
-        return (
-            <div className="recordings-manager">
-                <div className="card">
-                    <div className="card-body text-center">
-                        <h4 className="card-title">📹 Meeting Recordings</h4>
-                        <p className="text-muted">
-                            Recording and playback features are available for Premium members only.
-                        </p>
-                        <div className="mt-3">
-                            <p className="small text-muted">
-                                Upgrade to Premium to:
-                            </p>
-                            <ul className="list-unstyled small">
-                                <li>✅ Record your meetings</li>
-                                <li>✅ Save recordings to cloud storage</li>
-                                <li>✅ Access recording history</li>
-                                <li>✅ Share recordings with participants</li>
-                            </ul>
-                        </div>
-                        <button
-                            className="btn btn-warning"
-                            onClick={() => window.location.href = '/dashboard'}
-                        >
-                            Upgrade to Premium
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
-    }
 
     // Loading state
     if (loading) {
@@ -240,7 +238,7 @@ const RecordingsManager = ({ user }) => {
                                                     </p>
                                                     <p className="text-muted small mb-2">
                                                         <i className="fas fa-clock me-1"></i>
-                                                        Duration: {recording.max_duration_minutes === 360 ? 'Premium (6h)' : 'Free (50min)'}
+                                                        Duration: {recording.max_duration_minutes === 360 ? 'Premium (6h)' : 'Free (70min)'}
                                                     </p>
                                                     <div className="mb-2">
                                                         <span className={`badge ${recording.recording_status === 'completed' ? 'bg-success' :
@@ -362,4 +360,4 @@ const RecordingsManager = ({ user }) => {
     );
 };
 
-export default RecordingsManager; 
+export default RecordingsManager;

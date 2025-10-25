@@ -1,132 +1,129 @@
 /* Modern Video Chat App Navbar Styles */
 
+/* 
+Modern Video Chat App Navbar Styles */
+
 .navbar {
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(10px);
-    background-color: rgba(255, 255, 255, 0.95) !important;
+ border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+ backdrop-filter: blur(10px);
+ background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.navbar__icon_red {
+    color: #ec4432 !important;
 }
 
 .navbar-brand {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #2d3748 !important;
-    transition: color 0.3s ease;
+ font-size: 1.5rem;
+ font-weight: 700;
+ color: hashtag#2d3748 !important;
+ transition: color 0.3s ease;
 }
 
 .navbar-brand:hover {
-    color: #4299e1 !important;
+ color: hashtag#4299e1 !important;
 }
 
 .brand-text {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    letter-spacing: -0.5px;
+ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+ letter-spacing: -0.5px;
 }
 
 .brand-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    border-radius: 8px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white !important;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ width: 40px;
+ height: 40px;
+ border-radius: 8px;
+ background: linear-gradient(135deg, hashtag#667eea 0%, hashtag#764ba2 100%);
+ color: white !important;
 }
 
 .brand-icon i {
-    color: white !important;
+ color: white !important;
 }
 
 .user-avatar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+ display: flex;
+ align-items: center;
+ justify-content: center;
 }
 
 .user-info {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
+ display: flex;
+ flex-direction: column;
+ align-items: flex-start;
 }
 
 .btn-sm {
-    padding: 0.5rem 1rem;
-    font-size: 0.875rem;
-    border-radius: 6px;
-    font-weight: 500;
-    transition: all 0.2s ease;
+ padding: 0.5rem 1rem;
+ font-size: 0.875rem;
+ border-radius: 6px;
+ font-weight: 500;
+ transition: all 0.2s ease;
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border: none;
-    color: white;
+ background: linear-gradient(135deg, hashtag#667eea 0%, hashtag#764ba2 100%);
+ border: none;
+ color: white;
 }
 
 .btn-primary:hover {
-    background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+ background: linear-gradient(135deg, hashtag#5a67d8 0%, hashtag#6b46c1 100%);
+ transform: translateY(-1px);
+ box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
 .btn-outline-secondary {
-    border: 1px solid #e2e8f0;
-    color: #64748b;
-    background: white;
+ border: 1px solid hashtag#e2e8f0;
+ color: hashtag#64748b;
+ background: white;
 }
 
 .btn-outline-secondary:hover {
-    background: #f8fafc;
-    border-color: #cbd5e0;
-    color: #4a5568;
-    transform: translateY(-1px);
+ background: hashtag#f8fafc;
+ border-color: hashtag#cbd5e0;
+ color: hashtag#4a5568;
+ transform: translateY(-1px);
 }
 
 .navbar-nav .gap-3 {
-    gap: 1rem !important;
+ gap: 1rem !important;
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-    .navbar-brand {
-        font-size: 1.25rem;
-    }
-    
-    .brand-text {
-        display: none;
-    }
-    
-    .user-info {
-        display: none;
-    }
-    
-    .navbar-nav .gap-3 {
-        gap: 0.5rem !important;
-    }
+ .navbar-brand {
+ font-size: 1.25rem;
+ }
+
+ .brand-text {
+ display: none;
+ }
+
+ .user-info {
+ display: none;
+ }
+
+ .navbar-nav .gap-3 {
+ gap: 0.5rem !important;
+ }
 }
 
 /* Clean focus states */
 .btn:focus,
 .btn:active:focus {
-    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.25);
+ box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.25);
 }
 
 /* Smooth animations */
 .navbar-brand,
 .btn {
-    transition: all 0.2s ease;
+ transition: all 0.2s ease;
 }
 
 .navbar-brand:hover .brand-icon {
-    transform: rotate(5deg);
-}
-
-/* Remove old styles */
-.dancing-script-text,
-.navbar-dropdown,
-.dropdown-menu,
-.dropdown-item,
-.navbarFont,
-.navbar-link {
-    /* These classes are no longer used */
+ transform: rotate(5deg);
 }

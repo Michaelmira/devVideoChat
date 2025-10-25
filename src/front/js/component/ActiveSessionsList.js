@@ -27,13 +27,22 @@ export const ActiveSessionsList = ({ sessions, onCopy, onRefresh }) => {
 
     if (!sessions || sessions.length === 0) {
         return (
-            <div className="card mb-4">
+            <div className="card mb-4" style={{ backgroundColor: "#18181B"}}>
                 <div className="card-body text-center py-5">
                     <div className="mb-3" style={{ fontSize: '4rem', opacity: 0.3 }}>📹</div>
-                    <h5 className="text-muted">No Active Sessions</h5>
-                    <p className="text-muted">Create your first video link to get started</p>
+                    <h5 className="text-white">No Active Sessions</h5>
+                    <p className="text-white">Create your first video link to get started</p>
                     <button
-                        className="btn btn-outline-primary btn-sm"
+                        className="btn btn-primary btn-sm"
+                        style={{ backgroundColor: "#EC4432", border: "none", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+                        onMouseEnter={e => {
+                        e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
+                        e.currentTarget.style.transform = "translateY(-1px)"
+                        }}
+                        onMouseLeave={e => {
+                        e.currentTarget.style.boxShadow = "none";
+                        e.currentTarget.style.transform = "translateY(0)"
+                        }}
                         onClick={onRefresh}
                     >
                         <i className="fas fa-refresh me-2"></i>
@@ -45,16 +54,25 @@ export const ActiveSessionsList = ({ sessions, onCopy, onRefresh }) => {
     }
 
     return (
-        <div className="card mb-4">
+        <div className="card mb-4" style={{ backgroundColor: "#18181B"}}>
             <div className="card-header d-flex justify-content-between align-items-center">
-                <h5 className="mb-0">Active Sessions ({sessions.length})</h5>
+                <h5 className="mb-0 text-white">Active Sessions ({sessions.length})</h5>
                 <button
-                    className="btn btn-outline-secondary btn-sm"
-                    onClick={onRefresh}
-                >
-                    <i className="fas fa-sync-alt me-1"></i>
-                    Refresh
-                </button>
+                        className="btn btn-primary btn-sm"
+                        style={{ backgroundColor: "#EC4432", border: "none", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+                        onMouseEnter={e => {
+                        e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
+                        e.currentTarget.style.transform = "translateY(-1px)"
+                        }}
+                        onMouseLeave={e => {
+                        e.currentTarget.style.boxShadow = "none";
+                        e.currentTarget.style.transform = "translateY(0)"
+                        }}
+                        onClick={onRefresh}
+                    >
+                        <i className="fas fa-refresh me-2"></i>
+                        Refresh
+                    </button>
             </div>
             <div className="card-body p-0">
                 {sessions.map((session, index) => (
@@ -63,9 +81,9 @@ export const ActiveSessionsList = ({ sessions, onCopy, onRefresh }) => {
                             <div className="col-md-6">
                                 <div className="d-flex align-items-center mb-2">
                                     <span className="badge me-2 {getDurationBadgeColor(session.max_duration_minutes)}">
-                                        {session.max_duration_minutes === 360 ? '6hrs' : '50min'}
+                                        {session.max_duration_minutes === 360 ? '6hrs' : '70min'}
                                     </span>
-                                    <small className="text-muted">
+                                    <small className="text-white">
                                         Created: {new Date(session.created_at).toLocaleDateString()} at {new Date(session.created_at).toLocaleTimeString()}
                                     </small>
                                 </div>
@@ -78,7 +96,7 @@ export const ActiveSessionsList = ({ sessions, onCopy, onRefresh }) => {
                                     >
                                         ⏰ {formatTimeRemaining(session.expires_at)}
                                     </span>
-                                    <small className="text-muted">
+                                    <small className="text-white">
                                         ID: {session.meeting_id}
                                     </small>
                                 </div>
@@ -88,6 +106,15 @@ export const ActiveSessionsList = ({ sessions, onCopy, onRefresh }) => {
                                 <div className="d-flex flex-column flex-md-row gap-2">
                                     <button
                                         className="btn btn-primary flex-fill"
+                                        style={{ backgroundColor: "#EC4432", border: "none", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+                                        onMouseEnter={e => {
+                                        e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
+                                        e.currentTarget.style.transform = "translateY(-1px)"
+                                        }}
+                                        onMouseLeave={e => {
+                                        e.currentTarget.style.boxShadow = "none";
+                                        e.currentTarget.style.transform = "translateY(0)"
+                                        }}
                                         onClick={() => onCopy(session.session_url)}
                                     >
                                         <i className="fas fa-copy me-2"></i>
@@ -95,14 +122,23 @@ export const ActiveSessionsList = ({ sessions, onCopy, onRefresh }) => {
                                     </button>
                                     <a
                                         href={session.session_url}
-                                        className="btn btn-outline-primary flex-fill"
+                                        style={{ backgroundColor: "transparent", border: "2px solid #EC4432", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+                                        onMouseEnter={e => {
+                                        e.currentTarget.style.boxShadow = "0 0 5px 1px #EC4432";
+                                        e.currentTarget.style.transform = "translateY(-1px)"
+                                        }}
+                                        onMouseLeave={e => {
+                                        e.currentTarget.style.boxShadow = "none";
+                                        e.currentTarget.style.transform = "translateY(0)"
+                                        }}
+                                        className="btn btn-primary flex-fill"
                                     >
                                         <i className="fas fa-external-link-alt me-2"></i>
                                         Join
                                     </a>
                                 </div>
                                 <div className="mt-2">
-                                    <small className="text-muted d-block text-truncate">
+                                    <small className="text-white d-block text-truncate">
                                         {session.session_url}
                                     </small>
                                 </div>
@@ -112,7 +148,7 @@ export const ActiveSessionsList = ({ sessions, onCopy, onRefresh }) => {
                 ))}
             </div>
             <div className="card-footer text-center">
-                <small className="text-muted">
+                <small className="text-white">
                     💡 Links expire automatically after 6 hours for security
                 </small>
             </div>

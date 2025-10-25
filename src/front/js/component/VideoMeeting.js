@@ -643,8 +643,21 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
 
     if (!joined || joined === 'JOINING') {
         return (
-            <div className="d-flex flex-column align-items-center justify-content-center" style={{ height: '80vh' }}>
-                <h3 className="mb-4">Ready to join the meeting?</h3>
+            <div 
+                className="container-fluid d-flex flex-column align-items-center justify-content-center" 
+                style={{
+                width: "100vw",
+                minHeight: "100vh",
+                background: `
+                    radial-gradient(circle at 22% 20%, rgba(255, 0, 0, 0.8), transparent 26%),
+                    
+                    black
+                    `,
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: 'cover',
+                }}
+            >
+                <h3 className="mb-4 text-white">Ready to join the meeting?</h3>
 
                 {connectionStatus === 'connecting' && (
                     <div className="alert alert-info mb-3">
@@ -656,7 +669,16 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                 )}
 
                 <button
-                    className="btn btn-primary btn-lg"
+                    className="btn btn-primary"
+                    style={{ backgroundColor: "#EC4432", border: "none", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+                    onMouseEnter={e => {
+                    e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
+                    e.currentTarget.style.transform = "translateY(-1px)"
+                    }}
+                    onMouseLeave={e => {
+                    e.currentTarget.style.boxShadow = "none";
+                    e.currentTarget.style.transform = "translateY(0)"
+                    }}
                     onClick={joinMeeting}
                     disabled={joined === 'JOINING'}
                 >
@@ -844,22 +866,87 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                 zIndex: layoutDimensions.isAbsoluteFullscreen ? 1050 : 1040  // Ensure controls stay on top
             }}>
                 <div className="d-flex justify-content-center align-items-center flex-wrap gap-3">
+                    { localMicOn ? 
+                        <button
+                            className={`btn`}
+                            style={{ backgroundColor: "#EC4432", border: "none", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+                            onMouseEnter={e => {
+                            e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
+                            e.currentTarget.style.transform = "translateY(-1px)"
+                            }}
+                            onMouseLeave={e => {
+                            e.currentTarget.style.boxShadow = "none";
+                            e.currentTarget.style.transform = "translateY(0)"
+                            }}
+                            onClick={() => toggleMic()}
+                            title="Toggle Microphone"
+                        >
+                            🎤 On 
+                        </button>
+                        : 
+                        <button
+                            className={`btn text-white`}
+                            style={{ backgroundColor: "transparent", border: "2px solid #EC4432", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+                            onMouseEnter={e => {
+                            e.currentTarget.style.boxShadow = "0 0 5px 1px #EC4432";
+                            e.currentTarget.style.transform = "translateY(-1px)"
+                            }}
+                            onMouseLeave={e => {
+                            e.currentTarget.style.boxShadow = "none";
+                            e.currentTarget.style.transform = "translateY(0)"
+                            }}
+                            onClick={() => toggleMic()}
+                            title="Toggle Microphone"
+                        >
+                            🎤 Off
+                        </button>
+                    }
+                    { localWebcamOn ? 
+                        <button
+                            className={`btn`}
+                            style={{ backgroundColor: "#EC4432", border: "none", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+                            onMouseEnter={e => {
+                            e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
+                            e.currentTarget.style.transform = "translateY(-1px)"
+                            }}
+                            onMouseLeave={e => {
+                            e.currentTarget.style.boxShadow = "none";
+                            e.currentTarget.style.transform = "translateY(0)"
+                            }}
+                            onClick={() => toggleWebcam()}
+                            title="Toggle Camera"
+                        >
+                            📹 On
+                        </button> 
+                        :
+                        <button
+                            className={`btn text-white`}
+                            style={{ backgroundColor: "transparent", border: "2px solid #EC4432", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+                            onMouseEnter={e => {
+                            e.currentTarget.style.boxShadow = "0 0 5px 1px #EC4432";
+                            e.currentTarget.style.transform = "translateY(-1px)"
+                            }}
+                            onMouseLeave={e => {
+                            e.currentTarget.style.boxShadow = "none";
+                            e.currentTarget.style.transform = "translateY(0)"
+                            }}
+                            onClick={() => toggleWebcam()}
+                            title="Toggle Camera"
+                        >
+                            📹 Off
+                        </button> 
+                    }
                     <button
-                        className={`btn ${localMicOn ? 'btn-success' : 'btn-secondary'}`}
-                        onClick={() => toggleMic()}
-                        title="Toggle Microphone"
-                    >
-                        {localMicOn ? '🎤 On' : '🎤 Off'}
-                    </button>
-                    <button
-                        className={`btn ${localWebcamOn ? 'btn-success' : 'btn-secondary'}`}
-                        onClick={() => toggleWebcam()}
-                        title="Toggle Camera"
-                    >
-                        {localWebcamOn ? '📹 On' : '📹 Off'}
-                    </button>
-                    <button
-                        className={`btn ${isLocalPresenting ? 'btn-warning' : isSomeoneElsePresenting ? 'btn-secondary' : 'btn-info'}`}
+                        className={`btn text-white ${isLocalPresenting ? 'btn-warning' : isSomeoneElsePresenting ? 'btn-secondary' : 'btn-info'}`}
+                        style={{ backgroundColor: "transparent", border: "2px solid #C03728", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+                        onMouseEnter={e => {
+                        e.currentTarget.style.boxShadow = "0 0 5px 1px #EC4432";
+                        e.currentTarget.style.transform = "translateY(-1px)"
+                        }}
+                        onMouseLeave={e => {
+                        e.currentTarget.style.boxShadow = "none";
+                        e.currentTarget.style.transform = "translateY(0)"
+                        }}
                         onClick={handleScreenShare}
                         disabled={isSomeoneElsePresenting}
                         title={
@@ -877,7 +964,16 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                         )}
                     </button>
                     <button
-                        className="btn btn-outline-light"
+                        className="btn btn-primary"
+                        style={{ backgroundColor: "transparent", border: "2px solid #0070f3", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+                        onMouseEnter={e => {
+                        e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
+                        e.currentTarget.style.transform = "translateY(-1px)"
+                        }}
+                        onMouseLeave={e => {
+                        e.currentTarget.style.boxShadow = "none";
+                        e.currentTarget.style.transform = "translateY(0)"
+                        }}
                         onClick={() => handleTokenRefresh()}
                         title="Refresh Connection"
                     >
@@ -885,6 +981,15 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
                     </button>
                     <button
                         className="btn btn-primary"
+                        style={{ transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+                        onMouseEnter={e => {
+                        e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
+                        e.currentTarget.style.transform = "translateY(-1px)"
+                        }}
+                        onMouseLeave={e => {
+                        e.currentTarget.style.boxShadow = "none";
+                        e.currentTarget.style.transform = "translateY(0)"
+                        }}
                         onClick={async (event) => {
                             const button = event.currentTarget;
                             const originalText = button.innerHTML;
@@ -975,6 +1080,15 @@ function MeetingView({ onMeetingLeave, meetingId, onTokenRefresh, userName, isMo
 
                     <button
                         className="btn btn-danger"
+                        style={{ transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+                        onMouseEnter={e => {
+                        e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
+                        e.currentTarget.style.transform = "translateY(-1px)"
+                        }}
+                        onMouseLeave={e => {
+                        e.currentTarget.style.boxShadow = "none";
+                        e.currentTarget.style.transform = "translateY(0)"
+                        }}
                         onClick={() => leave()}
                         title="Leave Meeting"
                     >
@@ -1271,20 +1385,20 @@ function MeetingTimer({ meetingId }) {
         return 'text-success';
     };
 
-    return (
-        <div className="text-center">
-            <div className="small text-light">
-                Meeting: {formatTime(duration)}
-            </div>
-            {timeLeft !== null && sessionData && (
-                <div className={`small ${getTimerColor()}`}>
-                    <span className="me-1">⏰</span>
-                    {Math.floor(timeLeft / 3600)}h {Math.floor((timeLeft % 3600) / 60)}m left
-                    <div style={{ fontSize: '10px' }} className="text-muted">
-                        {sessionData.max_duration_minutes === 360 ? 'Premium' : 'Free'} Session
-                    </div>
+   return (
+    <div className="text-center">
+        <div className="small text-light">
+            Meeting: {formatTime(duration)}
+        </div>
+        {timeLeft !== null && sessionData && (
+            <div className={`small ${getTimerColor()}`}>
+                <span className="me-1">⏰</span>
+                {Math.floor(timeLeft / 3600)}h {Math.floor((timeLeft % 3600) / 60)}m left
+                <div style={{ fontSize: '10px' }} className="text-muted">
+                    {sessionData.max_duration_minutes === 360 ? 'Premium (6h)' : 'Free (70m)'} Session
                 </div>
-            )}
+            </div>
+        )}
         </div>
     );
 }
@@ -1298,7 +1412,7 @@ function CompactRecordingButton({ meetingId, user, isCreator }) {
     const isPremium = user?.subscription_status === 'premium';
 
     // Only show for premium users who are creators
-    const shouldShow = isPremium && isCreator;
+    const shouldShow = user && isCreator && user.subscription_status === 'recordings';
 
     // Debug logging
     console.log('🎥 CompactRecordingButton Debug:', {
@@ -1533,29 +1647,56 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
 
     if (meetingEnded) {
         return (
-            <div className="d-flex flex-column align-items-center justify-content-center" style={{ height: '100vh' }}>
-                <div className="text-center">
+            <div 
+                className="container-fluid d-flex flex-column align-items-center justify-content-center" 
+                style={{
+                width: "100vw",
+                height: "100vh",
+                background: `
+                    radial-gradient(circle at 22% 20%, rgba(255, 0, 0, 0.8), transparent 26%),
+                    
+                    black
+                    `,
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: 'cover',
+                }}
+            
+            >
+                <div className="text-center text-white">
                     <h3 className="mb-3">Meeting Ended</h3>
                     <p className="text-muted mb-4">Thank you for participating in the session!</p>
 
                     <div className="d-flex gap-2 justify-content-center">
                         <button
                             className="btn btn-primary"
-                            onClick={() => window.location.href = '/customer-dashboard'}
+                            style={{ backgroundColor: "#EC4432", border: "none", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+                            onMouseEnter={e => {
+                            e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
+                            e.currentTarget.style.transform = "translateY(-1px)"
+                            }}
+                            onMouseLeave={e => {
+                            e.currentTarget.style.boxShadow = "none";
+                            e.currentTarget.style.transform = "translateY(0)"
+                            }}
+                            onClick={() => window.location.href = '/dashboard'}
                         >
-                            Customer Dashboard
+                            Dashboard
                         </button>
-                        <button
-                            className="btn btn-secondary"
-                            onClick={() => window.location.href = '/mentor-dashboard'}
-                        >
-                            Mentor Dashboard
-                        </button>
+                        
                     </div>
 
                     <div className="mt-3">
                         <button
                             className="btn btn-outline-primary btn-sm"
+                            style={{ backgroundColor: "#EC4432", border: "none", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
+                            onMouseEnter={e => {
+                            e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
+                            e.currentTarget.style.transform = "translateY(-1px)"
+                            }}
+                            onMouseLeave={e => {
+                            e.currentTarget.style.boxShadow = "none";
+                            e.currentTarget.style.transform = "translateY(0)"
+                            }}
                             onClick={() => window.location.reload()}
                         >
                             Rejoin Meeting
@@ -1574,13 +1715,27 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
         });
 
         return (
-            <div className="d-flex flex-column align-items-center justify-content-center" style={{ height: '100vh' }}>
+            <div 
+                className="container-fluid d-flex flex-column align-items-center justify-content-center" 
+                style={{
+                width: "100vw",
+                height: "100vh",
+                background: `
+                    radial-gradient(circle at 22% 20%, rgba(255, 0, 0, 0.8), transparent 26%),
+                    
+                    black
+                    `,
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: 'cover',
+                }}
+            
+            >
                 <div className="text-center">
                     <div className="spinner-border text-primary mb-3" role="status">
                         <span className="visually-hidden">Loading...</span>
                     </div>
                     <h3>Setting up meeting...</h3>
-                    <p className="text-muted">Please wait while we prepare your video session.</p>
+                    <p className="text-white">Please wait while we prepare your video session.</p>
                 </div>
             </div>
         );
