@@ -48,10 +48,10 @@ export const PremiumStatusSection = ({ user }) => {
                                         <i className="fas fa-video me-2" style={{ color: '#EC4432' }}></i>
                                         <strong>1 active link limit</strong> - Focused productivity
                                     </li>
-                                    <li className="mb-2">
+                                    {/* <li className="mb-2">
                                         <i className="fas fa-record-vinyl me-2" style={{ color: '#EC4432' }}></i>
                                         <strong>Recording capability</strong> - Save your meetings
-                                    </li>
+                                    </li> */}
                                     <li>
                                         <i className="fas fa-headset me-2" style={{ color: '#EC4432' }}></i>
                                         <strong>Priority support</strong> - Get help faster

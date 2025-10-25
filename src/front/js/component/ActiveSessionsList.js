@@ -81,7 +81,7 @@ export const ActiveSessionsList = ({ sessions, onCopy, onRefresh }) => {
                             <div className="col-md-6">
                                 <div className="d-flex align-items-center mb-2">
                                     <span className="badge me-2 {getDurationBadgeColor(session.max_duration_minutes)}">
-                                        {session.max_duration_minutes === 360 ? '6hrs' : '50min'}
+                                        {session.max_duration_minutes === 360 ? '6hrs' : '70min'}
                                     </span>
                                     <small className="text-white">
                                         Created: {new Date(session.created_at).toLocaleDateString()} at {new Date(session.created_at).toLocaleTimeString()}

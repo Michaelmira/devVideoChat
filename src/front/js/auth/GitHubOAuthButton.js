@@ -114,7 +114,7 @@ export const GitHubOAuthButton = ({ userType, onSuccess, buttonText }) => {
                     onSuccess();
                 } else {
                     // Default navigation
-                    const dashboardRoute = userType === 'mentor' ? '/mentor-dashboard' : '/customer-dashboard';
+                    const dashboardRoute = '/dashboard';
                     navigate(dashboardRoute);
                 }
             } else {

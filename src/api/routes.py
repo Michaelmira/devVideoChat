@@ -17,7 +17,7 @@ from api.services.videosdk_service import VideoSDKService
 from api.models import db, User, UserImage, VideoSession
 from api.utils import generate_sitemap, APIException
 from api.send_email import send_email, send_verification_email_code
-from api.decorators import premium_required
+from api.decorators import premium_required, recording_required
 
 from urllib.parse import urlencode
 import json
@@ -198,7 +198,7 @@ def create_video_session():
         
         max_duration = 360  # 6 hours
     else:
-        max_duration = 50   # 50 minutes
+        max_duration = 70   # 50 minutes
     
     try:
         # Initialize VideoSDK service
@@ -1016,7 +1016,7 @@ def handle_hls_failed(data):
 
 @api.route('/sessions/<meeting_id>/start-recording', methods=['POST'])
 @jwt_required()
-@premium_required
+@recording_required
 def start_recording(meeting_id):
     """Start recording for a video session - Premium only"""
     try:
@@ -1132,7 +1132,7 @@ def start_recording(meeting_id):
 
 @api.route('/sessions/<meeting_id>/stop-recording', methods=['POST'])
 @jwt_required()
-@premium_required
+@recording_required
 def stop_recording(meeting_id):
     """Stop recording for a video session - Premium only"""
     try:
@@ -1228,7 +1228,7 @@ def stop_recording(meeting_id):
 
 @api.route('/sessions/<meeting_id>/recordings', methods=['GET'])
 @jwt_required()
-@premium_required
+@recording_required
 def get_session_recordings(meeting_id):
     """Get recordings for a specific session - Premium only"""
     try:
@@ -1261,7 +1261,7 @@ def get_session_recordings(meeting_id):
 
 @api.route('/my-recordings', methods=['GET'])
 @jwt_required()
-@premium_required
+@recording_required
 def get_my_recordings():
     """Get all recordings for the current user - Premium only"""
     try:

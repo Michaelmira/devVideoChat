@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { ActiveSessionsList } from "../component/ActiveSessionsList";
 import { UpgradeSection } from "../component/UpgradeSection";
 import { PremiumStatusSection } from "../component/PremiumStatusSection";
-import RecordingsManager from "../component/RecordingsManager";
+// import RecordingsManager from "../component/RecordingsManager";
 import "../../styles/upgrade-card.css";
 
 export const Dashboard = () => {
@@ -189,7 +189,8 @@ export const Dashboard = () => {
         setUpgradeExpanded(false);
     };
 
-    const isPremium = user?.subscription_status === 'premium';
+    const isPremium = user?.subscription_status === 'premium' || user?.subscription_status === 'recordings';
+    const hasRecording = user?.subscription_status === 'recordings';
 
     // Debug logging for subscription status
     console.log('🔍 Dashboard Debug:', {
@@ -205,7 +206,7 @@ export const Dashboard = () => {
                     <div className="spinner-border" role="status">
                         <span className="visually-hidden">Loading...</span>
                     </div>
-                    <p className="mt-2">Loading your dashboard...</p>
+                    <p className="mt-2">...</p>
                 </div>
             </div>
         );
@@ -268,7 +269,7 @@ export const Dashboard = () => {
                     <p className="mt-2 text-white">
                         {isPremium
                             ? '6-hour sessions • 1 active link limit'
-                            : '50-minute sessions • Unlimited links'
+                            : '1h 10m sessions • Unlimited links'
                         }
                     </p>
                 </div>
@@ -281,10 +282,11 @@ export const Dashboard = () => {
                 onRefresh={loadSessions}
             />
 
-            {/* Recordings Manager */}
+        {hasRecording && (
             <div className="mb-4">
                 <RecordingsManager user={user} />
             </div>
+        )}
 
             {/* Premium Status or Upgrade CTA */}
             {isPremium ? (

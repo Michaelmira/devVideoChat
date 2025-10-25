@@ -44,3 +44,21 @@ def premium_required(fn):
         return fn(*args, **kwargs)
     return wrapper
 
+def recording_required(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        verify_jwt_in_request()
+        user_id = get_jwt_identity()
+        
+        # Get user from database
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify(msg="User not found"), 404
+        
+        # Check if user has recording access (only 'recordings' tier)
+        if user.subscription_status != 'recordings':
+            return jsonify(msg="Recording subscription required for this feature"), 403
+        
+        return fn(*args, **kwargs)
+    return wrapper
+

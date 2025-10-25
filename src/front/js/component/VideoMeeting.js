@@ -1385,20 +1385,20 @@ function MeetingTimer({ meetingId }) {
         return 'text-success';
     };
 
-    return (
-        <div className="text-center">
-            <div className="small text-light">
-                Meeting: {formatTime(duration)}
-            </div>
-            {timeLeft !== null && sessionData && (
-                <div className={`small ${getTimerColor()}`}>
-                    <span className="me-1">⏰</span>
-                    {Math.floor(timeLeft / 3600)}h {Math.floor((timeLeft % 3600) / 60)}m left
-                    <div style={{ fontSize: '10px' }} className="text-muted">
-                        {sessionData.max_duration_minutes === 360 ? 'Premium' : 'Free'} Session
-                    </div>
+   return (
+    <div className="text-center">
+        <div className="small text-light">
+            Meeting: {formatTime(duration)}
+        </div>
+        {timeLeft !== null && sessionData && (
+            <div className={`small ${getTimerColor()}`}>
+                <span className="me-1">⏰</span>
+                {Math.floor(timeLeft / 3600)}h {Math.floor((timeLeft % 3600) / 60)}m left
+                <div style={{ fontSize: '10px' }} className="text-muted">
+                    {sessionData.max_duration_minutes === 360 ? 'Premium (6h)' : 'Free (70m)'} Session
                 </div>
-            )}
+            </div>
+        )}
         </div>
     );
 }
@@ -1412,7 +1412,7 @@ function CompactRecordingButton({ meetingId, user, isCreator }) {
     const isPremium = user?.subscription_status === 'premium';
 
     // Only show for premium users who are creators
-    const shouldShow = isPremium && isCreator;
+    const shouldShow = user && isCreator && user.subscription_status === 'recordings';
 
     // Debug logging
     console.log('🎥 CompactRecordingButton Debug:', {
@@ -1678,25 +1678,11 @@ const VideoMeeting = ({ meetingId, token, userName, isModerator }) => {
                             e.currentTarget.style.boxShadow = "none";
                             e.currentTarget.style.transform = "translateY(0)"
                             }}
-                            onClick={() => window.location.href = '/customer-dashboard'}
+                            onClick={() => window.location.href = '/dashboard'}
                         >
-                            Customer Dashboard
+                            Dashboard
                         </button>
-                        <button
-                            className="btn btn-secondary"
-                            style={{ backgroundColor: "#EC4432", border: "none", transition: "box-shadow 0.3s ease, transform 0.3s ease" }}
-                            onMouseEnter={e => {
-                            e.currentTarget.style.boxShadow = "0 0 5px 1px #fff";
-                            e.currentTarget.style.transform = "translateY(-1px)"
-                            }}
-                            onMouseLeave={e => {
-                            e.currentTarget.style.boxShadow = "none";
-                            e.currentTarget.style.transform = "translateY(0)"
-                            }}
-                            onClick={() => window.location.href = '/mentor-dashboard'}
-                        >
-                            Mentor Dashboard
-                        </button>
+                        
                     </div>
 
                     <div className="mt-3">

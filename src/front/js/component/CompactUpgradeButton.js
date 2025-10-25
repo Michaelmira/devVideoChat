@@ -21,10 +21,10 @@ export const CompactUpgradeButton = ({ onClick }) => {
                     <i className="fas fa-video text-success me-2"></i>
                     <span>1 active link at a time</span>
                 </div>
-                <div className="benefit-item text-white">
+                {/* <div className="benefit-item text-white">
                     <i className="fas fa-record-vinyl text-info me-2"></i>
                     <span>Recording capability</span>
-                </div>
+                </div> */}
             </div>
 
             <button

@@ -55,7 +55,7 @@ export const UpgradeCard = () => {
                         </p>
                         <ul className="list-unstyled mb-3">
                             <li>✅ <strong>6-hour sessions</strong> (vs 50 minutes)</li>
-                            <li>✅ <strong>Recording capability</strong></li>
+                            {/* <li>✅ <strong>Recording capability</strong></li> */}
                             <li>✅ <strong>Priority support</strong></li>
                             <li>✅ <strong>HD video quality</strong></li>
                         </ul>

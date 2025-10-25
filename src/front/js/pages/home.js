@@ -124,7 +124,7 @@ export const Home = () => {
 					<div className="d-flex gap-3 mb-4">
 						<div className="text-center">
 						<div className="badge mb-2 fs-6" style={{ backgroundColor: "#C03728" }}>FREE</div>
-						<div className="small fw-bold text-white">50-minute sessions</div>
+						<div className="small fw-bold text-white">1h 10m sessions</div>
 						</div>
 						<div className="text-center">
 						<div className="badge mb-2 fs-6" style={{ backgroundColor: "#C03728" }}>$3/MONTH</div>
@@ -141,7 +141,7 @@ export const Home = () => {
 						<h3 className="text-center text-white mb-4">Get Started</h3>
 						<MVPLoginForm />
 						<div className="text-center mt-3">
-						<small className="text-white">Start with 50 free minutes</small>
+						<small className="text-white">Start with 70 free minutes</small>
 						</div>
 					</div>
 					</div>
@@ -229,7 +229,7 @@ export const Home = () => {
 									<h2 style={{ color: "#EC4432" }}>$0</h2>
 									<p className="text-muted">per month</p>
 									<ul className="list-unstyled text-white text-start">
-									<li><span style={{ color: '#C03728' }} className="me-2">&#10003;</span>50-minute sessions</li>
+									<li><span style={{ color: '#C03728' }} className="me-2">&#10003;</span>70-minute sessions</li>
 									<li><span style={{ color: '#C03728' }} className="me-2">&#10003;</span>Unlimited links</li>
 									<li><span style={{ color: '#C03728' }} className="me-2">&#10003;</span>Screen sharing</li>
 									<li><span style={{ color: '#C03728' }} className="me-2">&#10003;</span>HD video quality</li>
@@ -267,7 +267,7 @@ export const Home = () => {
 									<li><span style={{ color: '#C03728' }} className="me-2">&#10003;</span>1 active link</li>
 									<li><span style={{ color: '#C03728' }} className="me-2">&#10003;</span>Screen sharing</li>
 									<li><span style={{ color: '#C03728' }} className="me-2">&#10003;</span>HD video quality</li>
-									<li><span style={{ color: '#C03728' }} className="me-2">&#10003;</span>Recording capability</li>
+									{/* <li><span style={{ color: '#C03728' }} className="me-2">&#10003;</span>Recording capability</li> */}
 								</ul>
 								</div>
 							</div>
