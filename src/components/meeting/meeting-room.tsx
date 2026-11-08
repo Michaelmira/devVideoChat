@@ -80,12 +80,15 @@ function Lobby({
         if (videoRef.current) videoRef.current.srcObject = s;
         setPermissionError(null);
       })
-      .catch(() => setPermissionError("Camera access was blocked. You can still join with audio only."));
+      .catch(() => {
+        setPermissionError("Camera access was blocked. You can still join with audio only.");
+        setCam(false);
+      });
     return () => {
       cancelled = true;
       stream?.getTracks().forEach((t) => t.stop());
     };
-  }, [cam]);
+  }, [cam, setCam]);
 
   return (
     <div className="grid min-h-dvh place-items-center bg-zinc-950 p-4 text-white">

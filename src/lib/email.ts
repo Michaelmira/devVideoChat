@@ -23,14 +23,14 @@ function layout(title: string, body: string): string {
   </div></body></html>`;
 }
 
-async function send(to: string, subject: string, html: string) {
+async function send(to: string, subject: string, html: string, text: string) {
   const t = getTransporter();
   if (!t) {
     // No mail credentials (local dev): print so the flow can still be tested.
-    console.info(`[email:dev] to=${to} subject="${subject}"\n${html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ")}`);
+    console.info(`[email:dev] to=${to} subject="${subject}"\n${text}`);
     return;
   }
-  await t.sendMail({ from: `GuildMeet <${env().GMAIL}>`, to, subject, html });
+  await t.sendMail({ from: `GuildMeet <${env().GMAIL}>`, to, subject, html, text });
 }
 
 export function sendVerificationCode(to: string, code: string) {
@@ -43,6 +43,7 @@ export function sendVerificationCode(to: string, code: string) {
        <p style="font-size:32px;letter-spacing:8px;font-weight:700;margin:24px 0">${code}</p>
        <p style="color:#52525b">The code expires in 30 minutes. If you didn't sign up, ignore this email.</p>`,
     ),
+    `Your GuildMeet verification code is ${code}. It expires in 30 minutes.`,
   );
 }
 
@@ -56,5 +57,6 @@ export function sendPasswordReset(to: string, link: string) {
        <p style="margin:24px 0"><a href="${link}" style="background:#4f46e5;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">Choose a new password</a></p>
        <p style="color:#52525b">The link expires in 1 hour. If this wasn't you, you can ignore this email.</p>`,
     ),
+    `Reset your GuildMeet password: ${link}\nThe link expires in 1 hour. If this wasn't you, ignore this email.`,
   );
 }

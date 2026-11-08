@@ -1,81 +1,77 @@
-# WebApp boilerplate with React JS and Flask API
+# GuildMeet
 
-Build web applications using React.js for the front end and python/flask for your backend API.
+One-click video meetings. Create a meeting, share the link, and guests join from their browser.
+Free meetings run up to 70 minutes. Premium ($3/month) gives 6-hour meetings and cloud recording.
 
-- Documentation can be found here: https://start.4geeksacademy.com/starters/react-flask
-- Here is a video on [how to use this template](https://www.loom.com/share/f37c6838b3f1496c95111e515e83dd9b)
-- Integrated with Pipenv for package managing.
-- Fast deployment to heroku [in just a few steps here](https://start.4geeksacademy.com/backend/deploy-heroku-posgres).
-- Use of .env file.
-- SQLAlchemy integration for database abstraction.
+Built with Next.js 16 (App Router, TypeScript), Drizzle ORM on Postgres, VideoSDK, Stripe and Tailwind CSS 4.
 
-### 1) Installation:
+## Getting started
 
-> If you use Github Codespaces (recommended) or Gitpod this template will already come with Python, Node and the Posgres Database installed. If you are working locally make sure to install Python 3.10, Node 
+Requires Node.js 20.9+ and a Postgres database.
 
-It is recomended to install the backend first, make sure you have Python 3.8, Pipenv and a database engine (Posgress recomended)
-
-1. Install the python packages: `$ pipenv install`
-2. Create a .env file based on the .env.example: `$ cp .env.example .env`
-3. Install your database engine and create your database, depending on your database you have to create a DATABASE_URL variable with one of the possible values, make sure you replace the valudes with your database information:
-
-| Engine    | DATABASE_URL                                        |
-| --------- | --------------------------------------------------- |
-| SQLite    | sqlite:////test.db                                  |
-| MySQL     | mysql://username:password@localhost:port/example    |
-| Postgress | postgres://username:password@localhost:5432/example |
-
-4. Migrate the migrations: `$ pipenv run migrate` (skip if you have not made changes to the models on the `./src/api/models.py`)
-5. Run the migrations: `$ pipenv run upgrade`
-6. Run the application: `$ pipenv run start`
-
-> Note: Codespaces users can connect to psql by typing: `psql -h localhost -U gitpod example`
-
-### Undo a migration
-
-You are also able to undo a migration by running
-
-```sh
-$ pipenv run downgrade
+```bash
+npm install
 ```
 
-### Backend Populate Table Users
-
-To insert test users in the database execute the following command:
-
-```sh
-$ flask insert-test-users 5
+```bash
+cp .env.example .env
 ```
 
-And you will see the following message:
-
-```
-  Creating test users
-  test_user1@test.com created.
-  test_user2@test.com created.
-  test_user3@test.com created.
-  test_user4@test.com created.
-  test_user5@test.com created.
-  Users created successfully!
+```bash
+npm run db:migrate
 ```
 
-### **Important note for the database and the data inside it**
+```bash
+npm run dev
+```
 
-Every Github codespace environment will have **its own database**, so if you're working with more people eveyone will have a different database and different records inside it. This data **will be lost**, so don't spend too much time manually creating records for testing, instead, you can automate adding records to your database by editing ```commands.py``` file inside ```/src/api``` folder. Edit line 32 function ```insert_test_data``` to insert the data according to your model (use the function ```insert_test_users``` above as an example). Then, all you need to do is run ```pipenv run insert-test-data```.
+Open http://localhost:3000. With `GMAIL` unset, verification codes and reset links print to the server log.
 
-### Front-End Manual Installation:
+## Scripts
 
--   Make sure you are using node version 14+ and that you have already successfully installed and runned the backend.
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Development server |
+| `npm run build` / `npm start` | Production build and server (`PORT` is respected) |
+| `npm run db:migrate` | Applies `db/migrations/*.sql` once each (safe to run on every deploy) |
+| `npm run db:fix-oauth-passwords` | One-off: disables the `oauth_user` placeholder password the old app gave Google/GitHub sign-ups |
+| `npm test` | Unit tests (Vitest) |
+| `npm run typecheck` / `npm run lint` | TypeScript and ESLint |
 
-1. Install the packages: `$ npm install`
-2. Start coding! start the webpack dev server `$ npm run start`
+## How it fits together
 
-## Publish your website!
+```
+src/
+  app/
+    (site)/            landing, verify, forgot/reset password, dashboard
+    join/[meetingId]   guest name form
+    meeting/[meetingId] video room (host or guest)
+    actions/           server actions: auth, sessions, billing
+    api/               OAuth, session status/start/recording, Stripe + VideoSDK webhooks
+  components/          UI, dashboard, meeting room
+  lib/                 db schema, auth/session cookie, Stripe, VideoSDK, email, env
+db/migrations/         SQL migrations (additive; the old Flask tables are kept as-is)
+```
 
-This boilerplate it's 100% read to deploy with Render.com and Heroku in a matter of minutes. Please read the [official documentation about it](https://start.4geeksacademy.com/deploy).
+- **Auth:** email + password with a 6-digit email code, or Google/GitHub. The session is a signed JWT in an
+  httpOnly cookie. Password hashes are Werkzeug-compatible, so existing users keep their passwords.
+- **Meetings:** each meeting is a VideoSDK room. Hosts get moderator tokens and guests get join-only tokens,
+  both scoped to the room. The plan clock starts when the host first joins.
+- **Billing:** Stripe Checkout creates the subscription in one payment. Webhooks keep the plan in sync, and
+  cancelling keeps Premium until the end of the paid period.
+- **Recording:** Premium hosts start and stop recording from the meeting. Finished files are fetched from the
+  VideoSDK API and listed on the dashboard.
 
-### Contributors
+## Deploying to Railway
 
-This template was built as part of the 4Geeks Academy [Coding Bootcamp](https://4geeksacademy.com/us/coding-bootcamp) by [Alejandro Sanchez](https://twitter.com/alesanchezr) and many other contributors. Find out more about our [Full Stack Developer Course](https://4geeksacademy.com/us/coding-bootcamps/part-time-full-stack-developer), and [Data Science Bootcamp](https://4geeksacademy.com/us/coding-bootcamps/datascience-machine-learning).
+1. Create one service from this repo. Railway detects Next.js and runs `npm run build` and `npm start`.
+2. Set the variables from `.env.example`. Set `APP_URL` to the service's public URL.
+3. Set the pre-deploy command to `npm run db:migrate`.
+4. Update external settings to point at the new URL:
+   - Google OAuth redirect URI: `<APP_URL>/api/auth/google/callback`
+   - GitHub OAuth callback URL: `<APP_URL>/api/auth/github/callback`
+   - Stripe webhook endpoint: `<APP_URL>/api/webhooks/stripe`, with events `checkout.session.completed` and
+     `customer.subscription.*`
+5. Run `npm run db:fix-oauth-passwords` once against the production database.
 
-You can find other templates and resources like this at the [school github page](https://github.com/4geeksacademy/).
+Links shared from the old app (`/video-meeting/:id`) redirect to `/join/:id`.

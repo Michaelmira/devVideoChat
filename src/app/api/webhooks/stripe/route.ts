@@ -8,7 +8,8 @@ import { applySubscription, stripe } from "@/lib/stripe";
 export async function POST(req: NextRequest) {
   const secret = env().STRIPE_WEBHOOK_SECRET;
   const signature = req.headers.get("stripe-signature");
-  if (!secret || !signature) return NextResponse.json({ error: "Not configured" }, { status: 400 });
+  if (!secret) return NextResponse.json({ error: "Stripe webhook secret is not configured" }, { status: 500 });
+  if (!signature) return NextResponse.json({ error: "Missing Stripe-Signature header" }, { status: 400 });
 
   let event: Stripe.Event;
   try {
