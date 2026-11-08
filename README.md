@@ -38,6 +38,41 @@ Open http://localhost:3000. With `GMAIL` unset, verification codes and reset lin
 | `npm test` | Unit tests (Vitest) |
 | `npm run typecheck` / `npm run lint` | TypeScript and ESLint |
 
+## Testing
+
+**Unit tests** (`npm test`) cover password-hash compatibility and meeting timing.
+
+**End-to-end tests** (`npm run test:e2e`) run the production build in Chromium with Playwright:
+
+- A fresh Postgres database is created for every run. Set `TEST_DATABASE_URL`; the database name must contain
+  `test`. The default is `postgres://postgres:postgres@localhost:5432/devvideochat_test`.
+- VideoSDK and Stripe are replaced by `e2e/mock-server.ts`, including a stand-in Stripe Checkout page. No real
+  keys or network access are used, and a local `.env` is ignored.
+- Projects: `desktop` (main suite), `mobile` (Pixel 7 layout checks), and `isolated` (tests that change shared
+  mock state, run last with one worker).
+
+```bash
+TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/devvideochat_test npm run test:e2e
+```
+
+Set `E2E_SKIP_BUILD=1` to reuse the last `next build`. Use `npx playwright test --ui` to debug, and
+`npx playwright show-report` after a CI failure. CI (`.github/workflows/ci.yml`) runs lint, typecheck, unit and
+end-to-end tests on every push.
+
+| Spec | Covers |
+| --- | --- |
+| `auth.spec.ts` | Sign-up, verification codes (expiry, lockout, resend), sign-in, Flask hashes, `?next`, OAuth redirects and state checks |
+| `password.spec.ts` | Forgot/reset (single use, expiry), change/set password, profile edits |
+| `dashboard.spec.ts` | Create/end meetings, plan limits, expiry, copy link, plan card |
+| `meeting.spec.ts` | Join page, lobby, expired/ended links, old-link redirect, host vs guest tokens |
+| `billing.spec.ts` | Checkout upgrade, cancel/resume, customer reuse, Stripe webhook signatures, statuses, duplicates |
+| `recording.spec.ts` | Recording permissions and lifecycle, VideoSDK webhooks, session status/start API |
+| `responsive.spec.ts` | No horizontal scrolling on phone-sized screens |
+| `isolated.spec.ts` | VideoSDK outage while creating a meeting |
+
+Not covered here (needs real services): live video between two browsers, the real Stripe Checkout page, and
+Google/GitHub sign-in.
+
 ## How it fits together
 
 ```

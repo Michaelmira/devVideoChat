@@ -24,6 +24,7 @@ const schema = z.object({
   STRIPE_PRICE_ID: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PUBLISHABLE_KEY: z.string().optional(),
+  STRIPE_API_BASE: z.string().url().optional(),
   REACT_APP_STRIPE_PUBLIC_KEY: z.string().optional(),
 
   VIDEOSDK_API_KEY: z.string().min(1),

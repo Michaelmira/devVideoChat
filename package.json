@@ -10,7 +10,8 @@
     "db:migrate": "tsx --env-file-if-exists=.env scripts/migrate.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "db:fix-oauth-passwords": "tsx --env-file-if-exists=.env scripts/fix-oauth-passwords.ts"
+    "db:fix-oauth-passwords": "tsx --env-file-if-exists=.env scripts/fix-oauth-passwords.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@videosdk.live/react-sdk": "^1.2.0",
@@ -31,6 +32,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^22.20.5",
     "@types/nodemailer": "^8.0.2",

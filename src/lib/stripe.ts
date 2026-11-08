@@ -9,7 +9,22 @@ let client: Stripe | undefined;
 export function stripe(): Stripe {
   const key = env().STRIPE_SECRET_KEY;
   if (!key) throw new Error("STRIPE_SECRET_KEY is not set");
-  client ??= new Stripe(key);
+  if (!client) {
+    // STRIPE_API_BASE points the SDK at a mock server in end-to-end tests.
+    const base = env().STRIPE_API_BASE ? new URL(env().STRIPE_API_BASE!) : null;
+    client = new Stripe(
+      key,
+      base
+        ? {
+            host: base.hostname,
+            port: base.port || (base.protocol === "https:" ? 443 : 80),
+            protocol: base.protocol === "https:" ? "https" : "http",
+            telemetry: false,
+            maxNetworkRetries: 0,
+          }
+        : {},
+    );
+  }
   return client;
 }
 
