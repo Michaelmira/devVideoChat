@@ -156,3 +156,20 @@ test.describe("session API", () => {
     expect(Math.round(minutes)).toBe(70);
   });
 });
+
+test.describe("end meeting API (used from inside the call)", () => {
+  test("only the host can end the meeting", async ({ request, page, context, user }) => {
+    const meetingId = await db.createSession(user.id);
+    expect((await request.delete(`/api/sessions/${meetingId}`)).status()).toBe(401);
+
+    const other = await db.createUser();
+    await signIn(context, other);
+    expect((await page.request.delete(`/api/sessions/${meetingId}`)).status()).toBe(404);
+    expect((await db.session(meetingId)).status).toBe("active");
+
+    await context.clearCookies();
+    await signIn(context, user);
+    expect((await page.request.delete(`/api/sessions/${meetingId}`)).status()).toBe(200);
+    expect((await db.session(meetingId)).status).toBe("ended");
+  });
+});

@@ -70,8 +70,40 @@ end-to-end tests on every push.
 | `responsive.spec.ts` | No horizontal scrolling on phone-sized screens |
 | `isolated.spec.ts` | VideoSDK outage while creating a meeting |
 
-Not covered here (needs real services): live video between two browsers, the real Stripe Checkout page, and
-Google/GitHub sign-in.
+### Live tests (real VideoSDK and Stripe test mode)
+
+`npm run test:e2e:live` runs `e2e-live/` against the real services, one test at a time:
+
+| Spec | Covers |
+| --- | --- |
+| `call.live.spec.ts` | Real room created and deactivated; host + guest in two browsers see video both ways, hear audio, mute, screen share with zoom, end for all |
+| `checkout.live.spec.ts` | Real Stripe Checkout page with card `4242…`: upgrade, exactly one $3 invoice, cancel at period end (the test subscription is then cancelled) |
+| `recording.live.spec.ts` | Premium host records; everyone sees the indicator; stopping doesn't end the meeting; the file appears on the dashboard |
+
+It needs `VIDEOSDK_API_KEY`, `VIDEOSDK_SECRET_KEY`, `STRIPE_SECRET_KEY` (must be `sk_test_`) and `STRIPE_PRICE_ID`
+from the environment or `.env`. Everything else is overridden: it uses its own database
+(`<TEST_DATABASE_URL>_live`) and never the `DATABASE_URL` in `.env`. Stripe and VideoSDK webhooks can't reach
+localhost, so these tests rely on the app's return-from-Checkout sync and its recording fallback sync.
+
+```bash
+TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/devvideochat_test npm run test:e2e:live
+```
+
+In CI, `.github/workflows/live.yml` runs nightly and on demand (Actions → Live tests → Run workflow). Add the
+four values above as repository secrets; the job skips itself until they exist.
+
+Behind a strict outbound allowlist, these hosts are needed: `api.videosdk.live`, `us2.rm.videosdk.live` (the
+regional server can differ), `turn.videosdk.live`, `api.stripe.com`, `checkout.stripe.com`, `js.stripe.com`,
+`b.stripecdn.com`, `m.stripe.network`, `r.stripe.com`.
+
+### Manual checks before a release
+
+Google and GitHub block automated sign-in, so check these by hand on the deployed URL:
+
+- [ ] Continue with Google: new account lands on the dashboard; signing in again reuses it
+- [ ] Continue with GitHub: same, including an account whose email is private on GitHub
+- [ ] Sign in with Google using the email of an existing password account: same account, still Premium if it was
+- [ ] Verification and reset emails arrive from the Gmail sender (check spam)
 
 ## How it fits together
 

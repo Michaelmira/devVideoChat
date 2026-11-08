@@ -22,7 +22,10 @@ export function stripe(): Stripe {
             telemetry: false,
             maxNetworkRetries: 0,
           }
-        : {},
+        : process.env.NODE_USE_ENV_PROXY
+          ? // Sandboxes with an outbound proxy: Node's fetch honours it, the default https client doesn't.
+            { httpClient: Stripe.createFetchHttpClient() }
+          : {},
     );
   }
   return client;

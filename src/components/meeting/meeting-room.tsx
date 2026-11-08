@@ -18,7 +18,6 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { endSessionAction } from "@/app/actions/sessions";
 import { Button, buttonClass } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { ParticipantGrid, ParticipantTile } from "./participant-tile";
@@ -285,8 +284,9 @@ function CallView({
   async function endForAll() {
     if (!window.confirm("End the meeting for everyone?")) return;
     endedRef.current = true;
-    await endSessionAction(meetingId);
+    // Tell everyone in the room first, then close the session and room on our side.
     end();
+    await fetch(`/api/sessions/${meetingId}`, { method: "DELETE", keepalive: true }).catch(() => {});
   }
 
   async function copyLink() {

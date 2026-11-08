@@ -11,7 +11,8 @@
     "test": "vitest run",
     "typecheck": "next typegen && tsc --noEmit",
     "db:fix-oauth-passwords": "tsx --env-file-if-exists=.env scripts/fix-oauth-passwords.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:live": "playwright test -c playwright.live.config.ts"
   },
   "dependencies": {
     "@videosdk.live/react-sdk": "^1.2.0",
