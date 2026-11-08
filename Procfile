@@ -1,1 +1,0 @@
-web: npm run build && cd src && python -m gunicorn wsgi:application --bind 0.0.0.0:$PORT
